@@ -5575,6 +5575,7 @@ struct MainEditorView: View {
     @State private var showingFolderAlert = false
     @FocusState private var isSearchFocused: Bool
     @State private var keyMonitor: Any? = nil
+    @AppStorage("alwaysOnTop") private var alwaysOnTop: Bool = false
 
     var displayNodes: [FileSystemNode] {
         if searchText.isEmpty {
@@ -5911,6 +5912,25 @@ struct MainEditorView: View {
             .padding(.leading, 78) // After traffic lights (72px) + gap
             .padding(.top, 7)      // Vertically centered in 38px titlebar
             .offset(y: -34)        // Dinaikan paksa total 34px (dinaikkan 1px dari -33px)
+        }
+        .overlay(alignment: .topTrailing) {
+            // Fixed Always on Top toggle button — pinned on the right of the titlebar
+            Button {
+                alwaysOnTop.toggle()
+                if let appDelegate = NSApp.delegate as? AppDelegate {
+                    appDelegate.updateAlwaysOnTop()
+                }
+            } label: {
+                Image(systemName: alwaysOnTop ? "pin.fill" : "pin")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(alwaysOnTop ? .accentColor : .secondary)
+                    .frame(width: 24, height: 24)
+            }
+            .buttonStyle(.plain)
+            .help("Always on Top")
+            .padding(.trailing, 16) // Padding from the right edge
+            .padding(.top, 7)       // Vertically centered in 38px titlebar
+            .offset(y: -34)         // Pinned at the same vertical offset
         }
         .onChange(of: outerGeo.size.width) { oldWidth, newWidth in
             if newWidth < 580 && store.isSidebarVisible {
