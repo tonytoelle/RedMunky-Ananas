@@ -5,11 +5,9 @@ TRIGGER: shift+opt+k
 ACTION: click 403 295
 ACTION: right_click 819 228
 ACTION: drag 1140 317 to 812 538
-ACTION: group "Nw Group asd"
-ACTION: click 1047 365
-ACTION: type "Helladasdo ShortKing asdad"
-ACTION: end_group
 ACTION: click 1340 514
+ACTION: group "New Groupasd"
 ACTION: delay 5050
 ACTION: delay 300
 ACTION: click 839 624
+ACTION: end_group

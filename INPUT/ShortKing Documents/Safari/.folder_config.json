@@ -1,1 +1,1 @@
-{"targetApps":[{"name":"Safari","bundleId":"com.apple.Safari"}],"iconName":"paintpalette.fill","isRestrictedToApps":true,"colorName":"red"}
+{"targetApps":[{"bundleId":"com.apple.Safari","name":"Safari"}],"isRestrictedToApps":true,"colorName":"red","iconName":"paintpalette.fill"}

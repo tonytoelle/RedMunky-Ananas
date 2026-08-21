@@ -2683,6 +2683,7 @@ struct ActionCardView: View {
     @FocusState private var isGroupFocused: Bool
     @State private var isCollapsed = false
     @State private var isEditingGroupName = false
+    @State private var localGroupName = ""
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -2730,14 +2731,7 @@ struct ActionCardView: View {
                         HStack(spacing: 4) {
                             if case .group(let name, let subActions) = item.action {
                                 if isEditingGroupName {
-                                    TextField("Group Name", text: Binding(
-                                        get: { name },
-                                        set: { newName in
-                                            onPreSave()
-                                            item.action = .group(name: newName, actions: subActions)
-                                            onSave()
-                                        }
-                                    ))
+                                    TextField("Group Name", text: $localGroupName)
                                     .textFieldStyle(.plain)
                                     .font(.system(size: detailWidth < 520 ? 11 : 13, weight: .bold))
                                     .foregroundColor(.white)
@@ -2752,11 +2746,13 @@ struct ActionCardView: View {
                                     .frame(width: 140)
                                     .focused($isGroupFocused)
                                     .onSubmit {
+                                        commitGroupName(subActions: subActions)
                                         isGroupFocused = false
                                         isEditingGroupName = false
                                     }
                                     .onChange(of: isGroupFocused) { _, focused in
                                         if !focused {
+                                            commitGroupName(subActions: subActions)
                                             isEditingGroupName = false
                                         }
                                     }
@@ -2919,29 +2915,48 @@ struct ActionCardView: View {
             }
             
             // Nested Group Preview
-            if case .group(_, let subActions) = item.action, !isCollapsed {
-                VStack(alignment: .leading, spacing: 6) {
-                    ForEach(subActions) { subItem in
-                        HStack(spacing: 8) {
-                            Image(systemName: subItem.action.iconName)
-                                .foregroundColor(subItem.action.color)
-                                .font(.system(size: 10))
-                            Text(subItem.action.title)
-                                .font(.system(size: 11))
-                                .foregroundColor(.secondary)
-                            Spacer()
-                            Text(subItem.action.parameterString)
-                                .font(.system(size: 10, design: .monospaced))
-                                .foregroundColor(.secondary)
+            if case .group(let name, let subActions) = item.action, !isCollapsed {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(Array(subActions.enumerated()), id: \.element.id) { subIndex, subItem in
+                        let subItemBinding = Binding<MacroActionItem>(
+                            get: { subActions[subIndex] },
+                            set: { newValue in
+                                onPreSave()
+                                var newSubActions = subActions
+                                newSubActions[subIndex] = newValue
+                                item.action = .group(name: name, actions: newSubActions)
+                                onSave()
+                            }
+                        )
+                        
+                        ActionCardView(
+                            index: subIndex,
+                            item: subItemBinding,
+                            onDelete: {
+                                onPreSave()
+                                var newSubActions = subActions
+                                newSubActions.remove(at: subIndex)
+                                item.action = .group(name: name, actions: newSubActions)
+                                onSave()
+                            },
+                            onPreSave: onPreSave,
+                            onSave: onSave,
+                            detailWidth: detailWidth
+                        )
+                        .onDrag {
+                            return NSItemProvider(object: subItem.id.uuidString as NSString)
                         }
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Color.white.opacity(0.03))
-                        .clipShape(RoundedRectangle(cornerRadius: 4))
+                        .onDrop(of: [.text], delegate: GroupActionDropDelegate(
+                            item: subItem,
+                            index: subIndex,
+                            groupItem: $item,
+                            onSave: onSave,
+                            onPreSave: onPreSave
+                        ))
                     }
                 }
                 .padding(.top, 4)
-                .padding(.leading, 24)
+                .padding(.leading, 0)
             }
         }
         .padding(.horizontal, 14)
@@ -3050,6 +3065,22 @@ struct ActionCardView: View {
                 }
             }
         }
+        .onAppear {
+            if case .group(let name, _) = item.action {
+                localGroupName = name
+            }
+        }
+        .onChange(of: item) { _, newItem in
+            if case .group(let name, _) = newItem.action {
+                localGroupName = name
+            }
+        }
+    }
+
+    private func commitGroupName(subActions: [MacroActionItem]) {
+        onPreSave()
+        item.action = .group(name: localGroupName, actions: subActions)
+        onSave()
     }
 }
 
@@ -3181,6 +3212,44 @@ struct PlaceholderSlotView: View {
                 .stroke(Color.accentColor.opacity(0.4), style: StrokeStyle(lineWidth: 1.5, dash: [4, 4]))
         )
         .transition(.opacity.combined(with: .scale(scale: 0.95)))
+    }
+}
+
+struct GroupActionDropDelegate: DropDelegate {
+    let item: MacroActionItem
+    let index: Int
+    @Binding var groupItem: MacroActionItem
+    var onSave: () -> Void
+    var onPreSave: () -> Void
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        return DropProposal(operation: .move)
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        onSave()
+        return true
+    }
+
+    func dropEntered(info: DropInfo) {
+        if let provider = info.itemProviders(for: [.text]).first {
+            _ = provider.loadObject(ofClass: NSString.self) { (str, error) in
+                if let s = str as? String, let dragID = UUID(uuidString: s) {
+                    if case .group(let groupName, var subActions) = groupItem.action {
+                        guard let fromIdx = subActions.firstIndex(where: { $0.id == dragID }),
+                              fromIdx != index else { return }
+                        DispatchQueue.main.async {
+                            onPreSave()
+                            withAnimation(.spring(response: 0.2, dampingFraction: 0.8)) {
+                                let movingItem = subActions.remove(at: fromIdx)
+                                subActions.insert(movingItem, at: index)
+                                groupItem.action = .group(name: groupName, actions: subActions)
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -5016,7 +5085,7 @@ struct SidebarNodeView: View {
                     ForEach(children) { child in
                         SidebarNodeView(
                             node: child,
-                            depth: depth + 1,
+                            depth: depth,
                             expandedFolders: $expandedFolders,
                             selectedPaths: $selectedPaths,
                             onSelect: onSelect,
@@ -5025,6 +5094,7 @@ struct SidebarNodeView: View {
                     }
                 }
             }
+            .padding(.bottom, 12)
 
         case .macro(let macro):
             let isSelected = selectedPaths.contains(macro.fileURL.path) || (store.selectedFilePath == macro.fileURL.path && selectedPaths.isEmpty)
