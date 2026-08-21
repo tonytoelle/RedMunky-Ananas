@@ -2,6 +2,7 @@
 TRIGGER: k
 
 # Actions:
+ACTION: click 1041 660
 ACTION: group "tambah"
 ACTION: right_click 895 401
 ACTION: click 1159 428

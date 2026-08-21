@@ -2745,18 +2745,39 @@ struct ActionCardView: View {
                             Text(item.action.parameterString)
                                 .font(.system(size: 12, weight: .medium, design: .monospaced))
                                 .foregroundColor(.secondary)
-                                .padding(.trailing, 8)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Color(white: 0.12))
+                                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                        .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                                )
                         }
                     case .group(_, let subActions):
                         Text("\(subActions.count) actions")
                             .font(.system(size: 11, weight: .medium))
                             .foregroundColor(.secondary)
-                            .padding(.trailing, 8)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color(white: 0.12))
+                            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                    .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                            )
                     default:
                         Text(item.action.parameterString)
                             .font(.system(size: 12, weight: .medium, design: .monospaced))
                             .foregroundColor(.secondary)
-                            .padding(.trailing, 8)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color(white: 0.12))
+                            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                    .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                            )
                     }
                 }
                 .contentShape(Rectangle())
