@@ -1399,20 +1399,16 @@ struct HotKeyRecorder: View {
                 DispatchQueue.main.async { self.stopRecording() }
                 return nil
             }
-            // Any modifier combo = record
-            if isCmd || isShift || isOpt || isCtrl {
-                let newTrigger = Trigger(keyCode: kc, requireCmd: isCmd, requireShift: isShift, requireOption: isOpt, requireControl: isCtrl)
-                DispatchQueue.main.async {
-                    if let selected = MacroStore.shared.selectedMacro {
-                        MacroStore.shared.registerUndoState(for: selected)
-                    }
-                    self.trigger = newTrigger
-                    self.stopRecording()
-                    self.onChanged()
+            let newTrigger = Trigger(keyCode: kc, requireCmd: isCmd, requireShift: isShift, requireOption: isOpt, requireControl: isCtrl)
+            DispatchQueue.main.async {
+                if let selected = MacroStore.shared.selectedMacro {
+                    MacroStore.shared.registerUndoState(for: selected)
                 }
-                return nil
+                self.trigger = newTrigger
+                self.stopRecording()
+                self.onChanged()
             }
-            return event
+            return nil
         }
     }
 
