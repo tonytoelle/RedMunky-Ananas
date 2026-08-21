@@ -125,6 +125,22 @@ enum MacroAction: Equatable {
         case .pressShortcut(let t): return "Hotkey combo: \(t.displayString)"
         }
     }
+    var parameterString: String {
+        switch self {
+        case .click(let point, _):
+            return "\(Int(point.x)), \(Int(point.y))"
+        case .drag(let start, let end):
+            return "(\(Int(start.x)), \(Int(start.y))) → (\(Int(end.x)), \(Int(end.y)))"
+        case .delay(let ms):
+            return "\(ms) ms"
+        case .typeText(let text), .pasteText(let text):
+            return "\"\(text)\""
+        case .pressKey(let keyCode):
+            return KeyMap.name(for: keyCode)
+        case .pressShortcut(let trigger):
+            return trigger.displayString
+        }
+    }
     var scriptLine: String {
         switch self {
         case .click(let p, let b):  return b == .left ? "ACTION: click \(Int(p.x)) \(Int(p.y))" : "ACTION: right_click \(Int(p.x)) \(Int(p.y))"
@@ -1470,24 +1486,36 @@ struct ActionCardView: View {
                         .font(.system(size: 15, weight: .semibold))
                 }
 
-                // Title & Details (Tapping here toggles edit mode)
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: 6) {
-                        Text(item.action.title)
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundColor(.white)
-                    }
-                    if !isEditing {
-                        Text(item.action.details)
-                            .font(.system(size: 11))
-                            .foregroundColor(.secondary)
-                            .lineLimit(1)
-                    }
+                // Title & Parameters (Tapping here triggers recapture for Click/Drag, or edits inline for others)
+                HStack(spacing: 8) {
+                    Text(item.action.title)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(.white)
+                    
+                    Spacer()
+                    
+                    Text(item.action.parameterString)
+                        .font(.system(size: 12, weight: .medium, design: .monospaced))
+                        .foregroundColor(.secondary)
+                        .padding(.trailing, 8)
                 }
                 .contentShape(Rectangle())
                 .onTapGesture {
-                    withAnimation(.easeInOut(duration: 0.15)) {
-                        isEditing.toggle()
+                    switch item.action {
+                    case .click(_, let button):
+                        CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .click(button: button)) { newPoint in
+                            item.action = .click(point: newPoint, button: button)
+                            onSave()
+                        }
+                    case .drag:
+                        CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .drag) { start, end in
+                            item.action = .drag(start: start, end: end)
+                            onSave()
+                        }
+                    default:
+                        withAnimation(.easeInOut(duration: 0.15)) {
+                            isEditing.toggle()
+                        }
                     }
                 }
 
