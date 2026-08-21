@@ -3357,18 +3357,6 @@ struct MacroInspectorView: View {
         VStack(spacing: 0) {
             // Top Header Bar (Macro Title)
             HStack(spacing: 12) {
-                Button {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        store.isSidebarVisible.toggle()
-                    }
-                } label: {
-                    Image(systemName: store.isSidebarVisible ? "sidebar.left" : "sidebar.right")
-                        .font(.system(size: 14))
-                        .foregroundColor(.secondary)
-                }
-                .buttonStyle(.plain)
-                .help("Toggle Sidebar")
-
                 HStack(spacing: 2) {
                     if isEditingName {
                         TextField("Macro Name", text: $tempName)
@@ -4604,26 +4592,6 @@ struct FolderInspectorView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Top Header Bar
-            HStack {
-                Button {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        store.isSidebarVisible.toggle()
-                    }
-                } label: {
-                    Image(systemName: store.isSidebarVisible ? "sidebar.left" : "sidebar.right")
-                        .font(.system(size: 14))
-                        .foregroundColor(.secondary)
-                }
-                .buttonStyle(.plain)
-                .help("Toggle Sidebar")
-                
-                Spacer()
-            }
-            .padding(.horizontal, 22)
-            .padding(.top, 14)
-            .padding(.bottom, 12)
-            
             ScrollView {
                 VStack(spacing: 24) {
                 // ═══════════════════════════════════════════════════
@@ -5303,37 +5271,68 @@ struct MainEditorView: View {
     }
 
     var body: some View {
-        GeometryReader { outerGeo in
-            HSplitView {
-                if store.isSidebarVisible {
-                VStack(alignment: .leading, spacing: 0) {
-                // Search Capsule Pill
-                HStack(spacing: 6) {
-                    Image(systemName: "magnifyingglass")
-                        .foregroundColor(.secondary)
-                        .font(.system(size: 13))
-                    TextField("Search macros", text: $searchText)
-                        .textFieldStyle(.plain)
-                        .font(.system(size: 13))
-                        .focused($isSearchFocused)
-                        .onSubmit {
-                            isSearchFocused = false
-                        }
-                    if !searchText.isEmpty {
-                        Button { searchText = "" } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .foregroundColor(.secondary)
-                        }
-                        .buttonStyle(.plain)
+        VStack(spacing: 0) {
+            // Toolbar aligned with macOS Traffic Lights
+            HStack(spacing: 0) {
+                Spacer()
+                    .frame(width: 72) // Width to clear traffic lights
+
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        store.isSidebarVisible.toggle()
                     }
+                } label: {
+                    Image(systemName: "sidebar.left")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(.secondary)
+                        .frame(width: 24, height: 24)
+                        .background(Color.white.opacity(0.06))
+                        .clipShape(RoundedRectangle(cornerRadius: 5))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 5)
+                                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                        )
                 }
-                .padding(.horizontal, 9)
-                .padding(.vertical, 6)
-                .background(Color(white: 0.20))
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                .padding(.horizontal, 12)
-                .padding(.top, 12)
-                .padding(.bottom, 8)
+                .buttonStyle(.plain)
+                .help("Toggle Sidebar")
+                .padding(.leading, 6)
+
+                Spacer()
+            }
+            .frame(height: 38)
+            .background(Color(white: 0.12))
+
+            GeometryReader { outerGeo in
+                HSplitView {
+                    if store.isSidebarVisible {
+                        VStack(alignment: .leading, spacing: 0) {
+                            // Search Capsule Pill
+                            HStack(spacing: 6) {
+                                Image(systemName: "magnifyingglass")
+                                    .foregroundColor(.secondary)
+                                    .font(.system(size: 13))
+                                TextField("Search macros", text: $searchText)
+                                    .textFieldStyle(.plain)
+                                    .font(.system(size: 13))
+                                    .focused($isSearchFocused)
+                                    .onSubmit {
+                                        isSearchFocused = false
+                                    }
+                                if !searchText.isEmpty {
+                                    Button { searchText = "" } label: {
+                                        Image(systemName: "xmark.circle.fill")
+                                            .foregroundColor(.secondary)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                            .padding(.horizontal, 9)
+                            .padding(.vertical, 6)
+                            .background(Color(white: 0.20))
+                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                            .padding(.horizontal, 12)
+                            .padding(.top, 8)
+                            .padding(.bottom, 8)
 
                 // Hierarchical Folder Tree
                 ScrollView {
@@ -5467,25 +5466,7 @@ struct MainEditorView: View {
                     .id(folderPath)
                 } else {
                     VStack(spacing: 0) {
-                    // Top Header Bar
-                    HStack {
-                        Button {
-                            withAnimation(.easeInOut(duration: 0.2)) {
-                                store.isSidebarVisible.toggle()
-                            }
-                        } label: {
-                            Image(systemName: store.isSidebarVisible ? "sidebar.left" : "sidebar.right")
-                                .font(.system(size: 14))
-                                .foregroundColor(.secondary)
-                        }
-                        .buttonStyle(.plain)
-                        .help("Toggle Sidebar")
-                        
                         Spacer()
-                    }
-                    .padding(.horizontal, 22)
-                    .padding(.top, 14)
-                    .padding(.bottom, 12)
                     
                     VStack(spacing: 16) {
                         ZStack {
@@ -5526,6 +5507,7 @@ struct MainEditorView: View {
         }
     }
     .frame(minWidth: 180, minHeight: 350)
+    }
 }
 }
 
