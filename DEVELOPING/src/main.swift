@@ -3319,7 +3319,8 @@ struct MacroInspectorView: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 14) {
                     // Card 1: Trigger HotKey (Simplified, no redundant text)
-                    VStack(alignment: .leading, spacing: 10) {
+                    // Card 1: Trigger HotKey (Simplified, no redundant text)
+                    VStack(alignment: .leading, spacing: 12) {
                         HStack {
                             Text("Trigger")
                                 .font(.system(size: 13, weight: .semibold))
@@ -3338,100 +3339,101 @@ struct MacroInspectorView: View {
                         }
 
                         if !isTriggerCollapsed {
-                            VStack(spacing: 12) {
-                                ForEach(macro.triggers) { trig in
-                                    HStack(spacing: 12) {
-                                        ZStack {
-                                            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                                .fill(Color(red: 0.45, green: 0.2, blue: 0.8))
-                                                .frame(width: 32, height: 32)
-                                            Image(systemName: "keyboard")
-                                                .foregroundColor(.white)
-                                                .font(.system(size: 15, weight: .semibold))
-                                        }
+                            Divider()
+                                .background(Color.white.opacity(0.06))
 
-                                        Text("Key Press")
-                                            .font(.system(size: 13, weight: .medium))
+                            ForEach(macro.triggers) { trig in
+                                HStack(spacing: 12) {
+                                    ZStack {
+                                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                            .fill(Color(red: 0.45, green: 0.2, blue: 0.8))
+                                            .frame(width: 32, height: 32)
+                                        Image(systemName: "keyboard")
                                             .foregroundColor(.white)
-
-                                        Spacer()
-
-                                        HotKeyRecorder(trigger: Binding(
-                                            get: { macro.triggers.first(where: { $0.id == trig.id }) ?? trig },
-                                            set: { newValue in
-                                                if let index = macro.triggers.firstIndex(where: { $0.id == trig.id }) {
-                                                    store.registerUndoState(for: macro)
-                                                    macro.triggers[index] = newValue
-                                                    store.saveMacro(macro)
-                                                }
-                                            }
-                                        )) {
-                                            store.saveMacro(macro)
-                                            isDirty = false
-                                        }
-
-                                        if macro.triggers.count > 1 {
-                                            Button(action: {
-                                                store.registerUndoState(for: macro)
-                                                macro.triggers.removeAll(where: { $0.id == trig.id })
-                                                store.saveMacro(macro)
-                                            }) {
-                                                Image(systemName: "xmark")
-                                                    .font(.system(size: 9, weight: .bold))
-                                                    .foregroundColor(.secondary)
-                                                    .frame(width: 20, height: 20)
-                                                    .contentShape(Rectangle())
-                                            }
-                                            .buttonStyle(.plain)
-                                        }
+                                            .font(.system(size: 15, weight: .semibold))
                                     }
-                                    
-                                    if let last = macro.triggers.last, last.id != trig.id {
-                                        Divider()
-                                            .background(Color.white.opacity(0.06))
+
+                                    Text("Key Press")
+                                        .font(.system(size: 13, weight: .medium))
+                                        .foregroundColor(.white)
+
+                                    Spacer()
+
+                                    HotKeyRecorder(trigger: Binding(
+                                        get: { macro.triggers.first(where: { $0.id == trig.id }) ?? trig },
+                                        set: { newValue in
+                                            if let index = macro.triggers.firstIndex(where: { $0.id == trig.id }) {
+                                                store.registerUndoState(for: macro)
+                                                macro.triggers[index] = newValue
+                                                store.saveMacro(macro)
+                                            }
+                                        }
+                                    )) {
+                                        store.saveMacro(macro)
+                                        isDirty = false
+                                    }
+
+                                    if macro.triggers.count > 1 {
+                                        Button(action: {
+                                            store.registerUndoState(for: macro)
+                                            macro.triggers.removeAll(where: { $0.id == trig.id })
+                                            store.saveMacro(macro)
+                                        }) {
+                                            Image(systemName: "xmark")
+                                                .font(.system(size: 9, weight: .bold))
+                                                .foregroundColor(.secondary)
+                                                .frame(width: 20, height: 20)
+                                                .contentShape(Rectangle())
+                                        }
+                                        .buttonStyle(.plain)
                                     }
                                 }
-
-                                if macro.triggers.count > 0 {
+                                
+                                if let last = macro.triggers.last, last.id != trig.id {
                                     Divider()
                                         .background(Color.white.opacity(0.06))
                                 }
-
-                                Button(action: {
-                                    store.registerUndoState(for: macro)
-                                    macro.triggers.append(Trigger(keyCode: 17, requireCmd: true, requireShift: true, requireOption: false, requireControl: false))
-                                    store.saveMacro(macro)
-                                }) {
-                                    HStack {
-                                        Spacer()
-                                        Image(systemName: "plus")
-                                            .font(.system(size: 11, weight: .bold))
-                                            .foregroundColor(.secondary)
-                                        Text("Add Trigger")
-                                            .font(.system(size: 11, weight: .semibold))
-                                            .foregroundColor(.secondary)
-                                        Spacer()
-                                    }
-                                    .padding(.vertical, 8)
-                                    .background(Color.white.opacity(0.05))
-                                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 8)
-                                            .stroke(Color.white.opacity(0.06), lineWidth: 1)
-                                    )
-                                }
-                                .buttonStyle(.plain)
                             }
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 12)
-                            .background(Color(white: 0.18))
-                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                    .stroke(Color.white.opacity(0.06), lineWidth: 1)
-                            )
+
+                            if macro.triggers.count > 0 {
+                                Divider()
+                                    .background(Color.white.opacity(0.06))
+                            }
+
+                            Button(action: {
+                                store.registerUndoState(for: macro)
+                                macro.triggers.append(Trigger(keyCode: 17, requireCmd: true, requireShift: true, requireOption: false, requireControl: false))
+                                store.saveMacro(macro)
+                            }) {
+                                HStack {
+                                    Spacer()
+                                    Image(systemName: "plus")
+                                        .font(.system(size: 11, weight: .bold))
+                                        .foregroundColor(.secondary)
+                                    Text("Add Trigger")
+                                        .font(.system(size: 11, weight: .semibold))
+                                        .foregroundColor(.secondary)
+                                    Spacer()
+                                }
+                                .padding(.vertical, 8)
+                                .background(Color.white.opacity(0.05))
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                                )
+                            }
+                            .buttonStyle(.plain)
                         }
                     }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 12)
+                    .background(Color(white: 0.18))
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                    )
 
                     // Downward connector arrow
                     HStack {
