@@ -3094,7 +3094,7 @@ struct SettingsView: View {
 }
 
 // ==========================================
-// MARK: - Folder Inspector View (Settings, Color, Icon, App-Specific Targeting)
+// MARK: - Folder Inspector View (Simple, Clean Layout)
 // ==========================================
 struct FolderInspectorView: View {
     let folderURL: URL
@@ -3106,6 +3106,7 @@ struct FolderInspectorView: View {
     @State private var config: FolderConfig = FolderConfig()
     @State private var isShowingRenameAlert: Bool = false
     @State private var renameText: String = ""
+    @State private var isAppearanceExpanded: Bool = true
 
     let availableColors: [(name: String, label: String, color: Color)] = [
         ("blue", "Blue", Color(red: 0.25, green: 0.65, blue: 0.95)),
@@ -3140,64 +3141,62 @@ struct FolderInspectorView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                // Header Card
-                HStack(spacing: 16) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .fill(config.color.opacity(0.18))
-                            .frame(width: 58, height: 58)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                    .stroke(config.color.opacity(0.4), lineWidth: 1.5)
-                            )
-                        Image(systemName: config.iconName)
-                            .font(.system(size: 26, weight: .semibold))
-                            .foregroundColor(config.color)
-                    }
-
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(folderName)
-                            .font(.system(size: 20, weight: .bold))
-                            .foregroundColor(.white)
-                            .lineLimit(1)
-
-                        HStack(spacing: 8) {
-                            Text("\(itemCount) macros")
-                                .font(.system(size: 12))
-                                .foregroundColor(.secondary)
-
-                            Text("•")
-                                .foregroundColor(Color(white: 0.35))
-
-                            Button("Reveal in Finder") {
-                                store.revealFolderInFinder(folderURL)
-                            }
-                            .buttonStyle(.plain)
-                            .font(.system(size: 12))
-                            .foregroundColor(.accentColor)
+            VStack(spacing: 24) {
+                // ═══════════════════════════════════════════════════
+                // CENTERED HEADER
+                // ═══════════════════════════════════════════════════
+                VStack(spacing: 10) {
+                    // Big Squircle Icon
+                    Button {
+                        withAnimation { isAppearanceExpanded.toggle() }
+                    } label: {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                                .fill(config.color.opacity(0.18))
+                                .frame(width: 88, height: 88)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                                        .stroke(config.color.opacity(0.35), lineWidth: 1.5)
+                                )
+                            Image(systemName: config.iconName)
+                                .font(.system(size: 38, weight: .medium))
+                                .foregroundColor(config.color)
                         }
                     }
+                    .buttonStyle(.plain)
+                    .help("Click to change appearance")
 
-                    Spacer()
+                    // Folder Name
+                    Text(folderName)
+                        .font(.system(size: 20, weight: .bold))
+                        .foregroundColor(.white)
+                        .lineLimit(1)
 
+                    // Macro Count
+                    Text("\(itemCount) Macros")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(Color(white: 0.70))
+
+                    // Rename / Edit link
                     Button {
                         renameText = folderName
                         isShowingRenameAlert = true
                     } label: {
-                        Label("Rename", systemImage: "pencil")
+                        Text("Edit Name")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(Color(white: 0.50))
                     }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.plain)
                 }
-                .padding(16)
-                .background(Color(white: 0.16))
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .padding(.top, 16)
 
-                // SECTION 1: App Targeting (Top Priority)
+                // ═══════════════════════════════════════════════════
+                // TARGET APPLICATIONS CARD
+                // ═══════════════════════════════════════════════════
                 VStack(alignment: .leading, spacing: 12) {
                     HStack {
                         Image(systemName: "macwindow.on.rectangle")
-                            .foregroundColor(.accentColor)
+                            .foregroundColor(Color(red: 0.30, green: 0.65, blue: 0.95))
                             .font(.system(size: 14, weight: .semibold))
                         Text("Target Applications")
                             .font(.system(size: 14, weight: .semibold))
@@ -3212,26 +3211,15 @@ struct FolderInspectorView: View {
 
                     Text("When enabled, shortcuts inside this folder will only run when one of the specified applications is active and focused.")
                         .font(.system(size: 11.5))
-                        .foregroundColor(Color(white: 0.65))
+                        .foregroundColor(Color(white: 0.55))
+                        .fixedSize(horizontal: false, vertical: true)
 
                     if config.isRestrictedToApps {
-                        Divider().background(Color(white: 0.25))
-
-                        if config.targetApps.isEmpty {
-                            HStack {
-                                Image(systemName: "exclamationmark.triangle.fill")
-                                    .foregroundColor(.orange)
-                                Text("No applications added yet. Macros will not trigger until at least one target app is added below.")
-                                    .font(.system(size: 11.5))
-                                    .foregroundColor(.orange)
-                            }
-                            .padding(10)
-                            .background(Color.orange.opacity(0.12))
-                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                        } else {
-                            VStack(spacing: 6) {
+                        // Applications List
+                        if !config.targetApps.isEmpty {
+                            VStack(spacing: 8) {
                                 ForEach(config.targetApps) { target in
-                                    HStack(spacing: 10) {
+                                    HStack(spacing: 12) {
                                         if let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: target.bundleId) {
                                             Image(nsImage: NSWorkspace.shared.icon(forFile: appURL.path))
                                                 .resizable()
@@ -3242,14 +3230,9 @@ struct FolderInspectorView: View {
                                                 .frame(width: 22, height: 22)
                                         }
 
-                                        VStack(alignment: .leading, spacing: 1) {
-                                            Text(target.name)
-                                                .font(.system(size: 13, weight: .medium))
-                                                .foregroundColor(.white)
-                                            Text(target.bundleId)
-                                                .font(.system(size: 10, design: .monospaced))
-                                                .foregroundColor(Color(white: 0.5))
-                                        }
+                                        Text(target.name)
+                                            .font(.system(size: 15, weight: .semibold))
+                                            .foregroundColor(.white)
 
                                         Spacer()
 
@@ -3258,23 +3241,23 @@ struct FolderInspectorView: View {
                                             saveConfig()
                                         } label: {
                                             Image(systemName: "xmark.circle.fill")
-                                                .foregroundColor(Color(white: 0.5))
-                                                .font(.system(size: 14))
+                                                .foregroundColor(Color(white: 0.45))
+                                                .font(.system(size: 15))
                                         }
                                         .buttonStyle(.plain)
                                         .help("Remove application")
                                     }
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 6)
+                                    .padding(.horizontal, 14)
+                                    .padding(.vertical, 10)
                                     .background(Color(white: 0.20))
-                                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                                    .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
                                 }
                             }
                         }
 
-                        // Add Application Buttons
-                        HStack(spacing: 10) {
-                            Menu {
+                        // Minimalist "+ Add" Button
+                        Menu {
+                            Section("Running Applications") {
                                 ForEach(runningApps, id: \.processIdentifier) { app in
                                     if let bId = app.bundleIdentifier, let name = app.localizedName {
                                         Button {
@@ -3290,19 +3273,25 @@ struct FolderInspectorView: View {
                                         }
                                     }
                                 }
-                            } label: {
-                                Label("Add Running App…", systemImage: "plus.app")
                             }
-                            .menuStyle(.borderlessButton)
-                            .buttonStyle(.bordered)
+
+                            Divider()
 
                             Button {
                                 pickAppFromDisk()
                             } label: {
-                                Label("Browse Applications…", systemImage: "folder.badge.gearshape")
+                                Label("Browse /Applications…", systemImage: "folder")
                             }
-                            .buttonStyle(.bordered)
+                        } label: {
+                            HStack(spacing: 5) {
+                                Image(systemName: "plus.circle")
+                                    .font(.system(size: 13))
+                                Text("Add")
+                                    .font(.system(size: 13, weight: .medium))
+                            }
+                            .foregroundColor(Color(white: 0.80))
                         }
+                        .menuStyle(.borderlessButton)
                         .padding(.top, 4)
                     }
                 }
@@ -3310,74 +3299,90 @@ struct FolderInspectorView: View {
                 .background(Color(white: 0.16))
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
 
-                // SECTION 2: Folder Appearance (Color & Icon)
-                VStack(alignment: .leading, spacing: 16) {
-                    HStack {
-                        Image(systemName: "paintpalette.fill")
-                            .foregroundColor(config.color)
-                            .font(.system(size: 14, weight: .semibold))
-                        Text("Folder Appearance")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(.white)
-                    }
-
-                    // Color Picker Palette
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("COLOR")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundColor(Color(white: 0.5))
-
-                        HStack(spacing: 10) {
-                            ForEach(availableColors, id: \.name) { item in
-                                Button {
-                                    config.colorName = item.name
-                                    saveConfig()
-                                } label: {
-                                    ZStack {
-                                        Circle()
-                                            .fill(item.color)
-                                            .frame(width: 26, height: 26)
-                                        if config.colorName.lowercased() == item.name.lowercased() {
-                                            Image(systemName: "checkmark")
-                                                .font(.system(size: 11, weight: .bold))
-                                                .foregroundColor(.white)
-                                        }
-                                    }
-                                }
-                                .buttonStyle(.plain)
-                            }
+                // ═══════════════════════════════════════════════════
+                // FOLDER APPEARANCE CARD
+                // ═══════════════════════════════════════════════════
+                VStack(alignment: .leading, spacing: 14) {
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            isAppearanceExpanded.toggle()
+                        }
+                    } label: {
+                        HStack {
+                            Image(systemName: "paintpalette.fill")
+                                .foregroundColor(Color(red: 0.95, green: 0.45, blue: 0.65))
+                                .font(.system(size: 14, weight: .semibold))
+                            Text("Folder Appearance")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundColor(.white)
+                            Spacer()
+                            Image(systemName: isAppearanceExpanded ? "chevron.up" : "chevron.down")
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundColor(Color(white: 0.50))
                         }
                     }
+                    .buttonStyle(.plain)
 
-                    Divider().background(Color(white: 0.25))
+                    if isAppearanceExpanded {
+                        // Color Palette
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("COLOR")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundColor(Color(white: 0.5))
 
-                    // Icon Picker Grid
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("ICON")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundColor(Color(white: 0.5))
-
-                        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 8), spacing: 8) {
-                            ForEach(availableIcons, id: \.self) { icon in
-                                let isSelected = config.iconName == icon
-                                Button {
-                                    config.iconName = icon
-                                    saveConfig()
-                                } label: {
-                                    ZStack {
-                                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                            .fill(isSelected ? config.color.opacity(0.3) : Color(white: 0.22))
-                                            .overlay(
-                                                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                                    .stroke(isSelected ? config.color : Color.clear, lineWidth: 1.5)
-                                            )
-                                            .frame(height: 38)
-                                        Image(systemName: icon)
-                                            .font(.system(size: 16))
-                                            .foregroundColor(isSelected ? config.color : Color(white: 0.85))
+                            HStack(spacing: 10) {
+                                ForEach(availableColors, id: \.name) { item in
+                                    Button {
+                                        config.colorName = item.name
+                                        saveConfig()
+                                    } label: {
+                                        ZStack {
+                                            Circle()
+                                                .fill(item.color)
+                                                .frame(width: 26, height: 26)
+                                            if config.colorName.lowercased() == item.name.lowercased() {
+                                                Image(systemName: "checkmark")
+                                                    .font(.system(size: 11, weight: .bold))
+                                                    .foregroundColor(.white)
+                                            }
+                                        }
                                     }
+                                    .buttonStyle(.plain)
                                 }
-                                .buttonStyle(.plain)
+                            }
+                        }
+                        .padding(.top, 4)
+
+                        Divider().background(Color(white: 0.25))
+
+                        // Icon Grid
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("ICON")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundColor(Color(white: 0.5))
+
+                            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 8), spacing: 8) {
+                                ForEach(availableIcons, id: \.self) { icon in
+                                    let isSelected = config.iconName == icon
+                                    Button {
+                                        config.iconName = icon
+                                        saveConfig()
+                                    } label: {
+                                        ZStack {
+                                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                                .fill(isSelected ? config.color.opacity(0.3) : Color(white: 0.22))
+                                                .overlay(
+                                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                                        .stroke(isSelected ? config.color : Color.clear, lineWidth: 1.5)
+                                                )
+                                                .frame(height: 38)
+                                            Image(systemName: icon)
+                                                .font(.system(size: 16))
+                                                .foregroundColor(isSelected ? config.color : Color(white: 0.85))
+                                        }
+                                    }
+                                    .buttonStyle(.plain)
+                                }
                             }
                         }
                     }
@@ -3386,7 +3391,7 @@ struct FolderInspectorView: View {
                 .background(Color(white: 0.16))
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
-            .padding(20)
+            .padding(24)
         }
         .background(Color(white: 0.14))
         .onAppear {
