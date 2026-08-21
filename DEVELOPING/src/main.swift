@@ -1427,16 +1427,18 @@ struct CaptureOverlaySwiftUIView: View {
                 Color.black.opacity(0.05)
                     .edgesIgnoringSafeArea(.all)
                 
-                // Crosshair hair lines
-                Path { path in
-                    // Horizontal hairline
-                    path.move(to: CGPoint(x: 0, y: geo.size.height - state.currentLocation.y))
-                    path.addLine(to: CGPoint(x: geo.size.width, y: geo.size.height - state.currentLocation.y))
-                    // Vertical hairline
-                    path.move(to: CGPoint(x: state.currentLocation.x, y: 0))
-                    path.addLine(to: CGPoint(x: state.currentLocation.x, y: geo.size.height))
+                // Crosshair guide lines (hidden for Left Click action edit)
+                if !isLeftClick {
+                    Path { path in
+                        // Horizontal hairline
+                        path.move(to: CGPoint(x: 0, y: geo.size.height - state.currentLocation.y))
+                        path.addLine(to: CGPoint(x: geo.size.width, y: geo.size.height - state.currentLocation.y))
+                        // Vertical hairline
+                        path.move(to: CGPoint(x: state.currentLocation.x, y: 0))
+                        path.addLine(to: CGPoint(x: state.currentLocation.x, y: geo.size.height))
+                    }
+                    .stroke(Color.white.opacity(0.35), style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
                 }
-                .stroke(Color.white.opacity(0.4), style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
                 
                 // If Drag Step 2: Draw connecting line and start point pin
                 if case .drag = state.mode, state.dragStep == 2, let start = state.dragStartLocation {
@@ -1566,6 +1568,13 @@ struct CaptureOverlaySwiftUIView: View {
                 return "Click or Enter end point (2) • Esc to cancel"
             }
         }
+    }
+
+    private var isLeftClick: Bool {
+        if case .click(let b) = state.mode, b == .left {
+            return true
+        }
+        return false
     }
 }
 
@@ -2279,74 +2288,190 @@ struct ActionCardView: View {
 struct DraggableActionList: View {
     @Binding var actionItems: [MacroActionItem]
     var onSave: () -> Void
+    var onInsertTemplate: (String, Int) -> Void
 
     @State private var draggingID: UUID?
+    @State private var draggingTemplate: String? = nil
+    @State private var placeholderIndex: Int? = nil
+    @State private var isListTargeted = false
 
     var body: some View {
         LazyVStack(spacing: 8) {
-            ForEach($actionItems, id: \.id) { $item in
-                if let idx = actionItems.firstIndex(where: { $0.id == item.id }) {
-                    ActionCardView(
-                        index: idx,
-                        item: $item,
-                        onDelete: {
-                            if let selected = MacroStore.shared.selectedMacro {
-                                MacroStore.shared.registerUndoState(for: selected)
-                            }
-                            actionItems.removeAll { $0.id == item.id }
-                            onSave()
-                        },
-                        onPreSave: {
-                            if let selected = MacroStore.shared.selectedMacro {
-                                MacroStore.shared.registerUndoState(for: selected)
-                            }
-                        },
-                        onSave: onSave
-                    )
-                    // Drag source
-                    .onDrag {
-                        draggingID = item.id
-                        return NSItemProvider(object: item.id.uuidString as NSString)
+            ForEach(0...actionItems.count, id: \.self) { index in
+                Group {
+                    if index == placeholderIndex, let templateName = draggingTemplate {
+                        PlaceholderSlotView(title: templateName)
                     }
-                    // Drop target
-                    .onDrop(of: [.text], delegate: ActionDropDelegate(
-                        item: item,
-                        items: $actionItems,
-                        draggingID: $draggingID,
-                        onSave: onSave
-                    ))
-                    .opacity(draggingID == item.id ? 0.4 : 1.0)
+                    
+                    if index < actionItems.count {
+                        let item = actionItems[index]
+                        ActionCardView(
+                            index: index,
+                            item: Binding(
+                                get: { actionItems[index] },
+                                set: { actionItems[index] = $0 }
+                            ),
+                            onDelete: {
+                                if let selected = MacroStore.shared.selectedMacro {
+                                    MacroStore.shared.registerUndoState(for: selected)
+                                }
+                                actionItems.remove(at: index)
+                                onSave()
+                            },
+                            onPreSave: {
+                                if let selected = MacroStore.shared.selectedMacro {
+                                    MacroStore.shared.registerUndoState(for: selected)
+                                }
+                            },
+                            onSave: onSave
+                        )
+                        .onDrag {
+                            draggingID = item.id
+                            if let selected = MacroStore.shared.selectedMacro {
+                                MacroStore.shared.registerUndoState(for: selected)
+                            }
+                            return NSItemProvider(object: item.id.uuidString as NSString)
+                        }
+                        .onDrop(of: [.text], delegate: ActionDropDelegate(
+                            item: item,
+                            index: index,
+                            items: $actionItems,
+                            draggingID: $draggingID,
+                            draggingTemplate: $draggingTemplate,
+                            placeholderIndex: $placeholderIndex,
+                            onSave: onSave,
+                            onInsertTemplate: onInsertTemplate
+                        ))
+                        .opacity(draggingID == item.id ? 0.3 : 1.0)
+                    }
+                }
+            }
+        }
+        .onDrop(of: [.text], isTargeted: $isListTargeted) { providers in
+            if draggingID != nil {
+                draggingID = nil
+                onSave()
+                return true
+            }
+            if let provider = providers.first {
+                _ = provider.loadObject(ofClass: NSString.self) { (str, error) in
+                    if let s = str as? String, s.hasPrefix("action_template:") {
+                        let typeName = s.replacingOccurrences(of: "action_template:", with: "")
+                        DispatchQueue.main.async {
+                            let targetIndex = placeholderIndex ?? actionItems.count
+                            onInsertTemplate(typeName, targetIndex)
+                            draggingTemplate = nil
+                            placeholderIndex = nil
+                        }
+                    }
+                }
+                return true
+            }
+            draggingTemplate = nil
+            placeholderIndex = nil
+            return false
+        }
+        .onChange(of: isListTargeted) { _, targeted in
+            if !targeted {
+                withAnimation(.spring(response: 0.2, dampingFraction: 0.8)) {
+                    draggingTemplate = nil
+                    placeholderIndex = nil
                 }
             }
         }
     }
 }
 
+struct PlaceholderSlotView: View {
+    let title: String
+    
+    var body: some View {
+        HStack {
+            Image(systemName: "plus.circle")
+                .foregroundColor(.accentColor)
+                .font(.system(size: 14))
+            
+            Text("Insert \(title) Here")
+                .font(.system(size: 13, weight: .medium))
+                .foregroundColor(.accentColor)
+            
+            Spacer()
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 11)
+        .background(Color.accentColor.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(Color.accentColor.opacity(0.4), style: StrokeStyle(lineWidth: 1.5, dash: [4, 4]))
+        )
+        .transition(.opacity.combined(with: .scale(scale: 0.95)))
+    }
+}
+
 struct ActionDropDelegate: DropDelegate {
     let item: MacroActionItem
+    let index: Int
     @Binding var items: [MacroActionItem]
     @Binding var draggingID: UUID?
+    @Binding var draggingTemplate: String?
+    @Binding var placeholderIndex: Int?
     var onSave: () -> Void
+    var onInsertTemplate: (String, Int) -> Void
 
     func dropUpdated(info: DropInfo) -> DropProposal? {
         return DropProposal(operation: .move)
     }
 
     func performDrop(info: DropInfo) -> Bool {
-        draggingID = nil
-        onSave()
-        return true
+        if draggingID != nil {
+            draggingID = nil
+            onSave()
+            return true
+        }
+        
+        if let provider = info.itemProviders(for: [.text]).first {
+            _ = provider.loadObject(ofClass: NSString.self) { (str, error) in
+                if let s = str as? String, s.hasPrefix("action_template:") {
+                    let typeName = s.replacingOccurrences(of: "action_template:", with: "")
+                    DispatchQueue.main.async {
+                        let targetIndex = placeholderIndex ?? index
+                        onInsertTemplate(typeName, targetIndex)
+                        draggingTemplate = nil
+                        placeholderIndex = nil
+                    }
+                }
+            }
+            return true
+        }
+        
+        draggingTemplate = nil
+        placeholderIndex = nil
+        return false
     }
 
     func dropEntered(info: DropInfo) {
-        guard let dragID = draggingID,
-              let fromIdx = items.firstIndex(where: { $0.id == dragID }),
-              let toIdx   = items.firstIndex(where: { $0.id == item.id }),
-              fromIdx != toIdx else { return }
-        if let selected = MacroStore.shared.selectedMacro {
-            MacroStore.shared.registerUndoState(for: selected)
+        if draggingID == nil {
+            if let provider = info.itemProviders(for: [.text]).first {
+                _ = provider.loadObject(ofClass: NSString.self) { (str, error) in
+                    if let s = str as? String, s.hasPrefix("action_template:") {
+                        let typeName = s.replacingOccurrences(of: "action_template:", with: "")
+                        DispatchQueue.main.async {
+                            withAnimation(.spring(response: 0.2, dampingFraction: 0.8)) {
+                                draggingTemplate = typeName
+                                placeholderIndex = index
+                            }
+                        }
+                    }
+                }
+            }
+        } else if let dragID = draggingID {
+            guard let fromIdx = items.firstIndex(where: { $0.id == dragID }),
+                  fromIdx != index else { return }
+            withAnimation(.spring(response: 0.2, dampingFraction: 0.8)) {
+                items.move(fromOffsets: IndexSet(integer: fromIdx), toOffset: index > fromIdx ? index + 1 : index)
+            }
         }
-        withAnimation { items.move(fromOffsets: IndexSet(integer: fromIdx), toOffset: toIdx > fromIdx ? toIdx + 1 : toIdx) }
     }
 }
 
@@ -2485,9 +2610,58 @@ struct MacroInspectorView: View {
                         .padding(.top, 4)
 
                         // Draggable Action Cards
-                        DraggableActionList(actionItems: $macro.actionItems) {
+                        DraggableActionList(actionItems: $macro.actionItems, onSave: {
                             store.saveMacro(macro)
-                        }
+                        }, onInsertTemplate: { typeName, targetIndex in
+                            store.registerUndoState(for: macro)
+                            let newAction: MacroAction
+                            switch typeName {
+                            case "Left Click":
+                                newAction = .click(point: .zero, button: .left)
+                            case "Right Click":
+                                newAction = .click(point: .zero, button: .right)
+                            case "Drag":
+                                newAction = .drag(start: .zero, end: .zero)
+                            case "Delay":
+                                newAction = .delay(ms: 300)
+                            case "Text":
+                                newAction = .typeText(text: "Hello ShortKing")
+                            case "Key":
+                                newAction = .pressKey(keyCode: 36)
+                            default:
+                                newAction = .delay(ms: 300)
+                            }
+                            
+                            let newItem = MacroActionItem(action: newAction)
+                            if targetIndex >= macro.actionItems.count {
+                                macro.actionItems.append(newItem)
+                            } else {
+                                macro.actionItems.insert(newItem, at: targetIndex)
+                            }
+                            store.saveMacro(macro)
+                            
+                            // Immediately trigger capture overlay for click/drag actions
+                            switch newAction {
+                            case .click(_, let button):
+                                CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .click(button: button)) { newPoint in
+                                    if let idx = macro.actionItems.firstIndex(where: { $0.id == newItem.id }) {
+                                        store.registerUndoState(for: macro)
+                                        macro.actionItems[idx].action = .click(point: newPoint, button: button)
+                                        store.saveMacro(macro)
+                                    }
+                                }
+                            case .drag:
+                                CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .drag) { start, end in
+                                    if let idx = macro.actionItems.firstIndex(where: { $0.id == newItem.id }) {
+                                        store.registerUndoState(for: macro)
+                                        macro.actionItems[idx].action = .drag(start: start, end: end)
+                                        store.saveMacro(macro)
+                                    }
+                                }
+                            default:
+                                break
+                            }
+                        })
 
                         // Minimalist + separator
                         HStack {
@@ -2633,6 +2807,9 @@ struct MacroInspectorView: View {
             )
         }
         .buttonStyle(.plain)
+        .onDrag {
+            return NSItemProvider(object: "action_template:\(title)" as NSString)
+        }
     }
 }
 

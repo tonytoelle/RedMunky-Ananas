@@ -2,9 +2,10 @@
 TRIGGER: cmd+shift+f
 
 # Actions:
-ACTION: press return
+ACTION: press enter
 ACTION: delay 300
-ACTION: press delete
+ACTION: press k
+ACTION: press a
 ACTION: press /
 ACTION: click 625 378
-ACTION: press k
+ACTION: drag 0 0 to 0 0
