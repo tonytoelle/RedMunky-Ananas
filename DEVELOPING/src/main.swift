@@ -2209,6 +2209,7 @@ struct InlineTextEditView: View {
     @Binding var action: MacroAction
     var onPreSave: () -> Void
     var onSave: () -> Void
+    let detailWidth: CGFloat
     
     @State private var textValue: String = ""
     
@@ -2217,7 +2218,7 @@ struct InlineTextEditView: View {
             .textFieldStyle(.plain)
             .font(.system(size: 12, weight: .medium, design: .monospaced))
             .foregroundColor(.white)
-            .frame(width: 160)
+            .frame(width: detailWidth < 400 ? 90 : (detailWidth < 520 ? 120 : 160))
             .multilineTextAlignment(.trailing)
             .onSubmit {
                 save()
@@ -2253,6 +2254,7 @@ struct InlineDelayEditView: View {
     @Binding var action: MacroAction
     var onPreSave: () -> Void
     var onSave: () -> Void
+    let detailWidth: CGFloat
     
     @State private var msValue: String = ""
     
@@ -2262,7 +2264,7 @@ struct InlineDelayEditView: View {
                 .textFieldStyle(.plain)
                 .font(.system(size: 12, weight: .medium, design: .monospaced))
                 .foregroundColor(.white)
-                .frame(width: 60)
+                .frame(width: detailWidth < 400 ? 40 : 60)
                 .multilineTextAlignment(.trailing)
                 .onSubmit {
                     save()
@@ -2277,9 +2279,11 @@ struct InlineDelayEditView: View {
                         msValue = String(ms)
                     }
                 }
-            Text("ms")
-                .font(.system(size: 11))
-                .foregroundColor(.secondary)
+            if detailWidth >= 400 {
+                Text("ms")
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+            }
         }
     }
     
@@ -2295,6 +2299,7 @@ struct InlineKeyRecorder: View {
     @Binding var action: MacroAction
     var onPreSave: () -> Void
     var onSave: () -> Void
+    let detailWidth: CGFloat
     
     @State private var isRecording = false
     @State private var monitor: Any?
@@ -2308,7 +2313,7 @@ struct InlineKeyRecorder: View {
                     Image(systemName: "record.circle.fill")
                         .foregroundColor(.red)
                         .font(.system(size: 13))
-                    Text("Press key/shortcut... (Esc to cancel)")
+                    Text(detailWidth < 400 ? "Press key..." : "Press key/shortcut... (Esc to cancel)")
                         .font(.system(size: 10, weight: .medium))
                         .foregroundColor(.red)
                 } else {
@@ -2380,6 +2385,7 @@ struct InlineDoAgainPicker: View {
     var currentIndex: Int
     var onPreSave: () -> Void
     var onSave: () -> Void
+    let detailWidth: CGFloat
     
     var body: some View {
         if case .doAgain(let currentTarget) = action {
@@ -2454,18 +2460,21 @@ struct ActionCardView: View {
     var onDelete: () -> Void
     var onPreSave: () -> Void
     var onSave: () -> Void
+    let detailWidth: CGFloat
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 12) {
-                // Drag handle
-                Image(systemName: "line.3.horizontal")
-                    .foregroundColor(.secondary.opacity(0.6))
-                    .font(.system(size: 13))
-                    .frame(width: 14)
+            HStack(spacing: detailWidth < 520 ? 8 : 12) {
+                // Drag handle (hide if extremely small)
+                if detailWidth >= 340 {
+                    Image(systemName: "line.3.horizontal")
+                        .foregroundColor(.secondary.opacity(0.6))
+                        .font(.system(size: 13))
+                        .frame(width: 14)
+                }
 
-                // Squircle Icon
-                ZStack {
+                // Squircle Icon with ZStack overlay index
+                ZStack(alignment: .topTrailing) {
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .fill(item.action.color)
                         .frame(width: 32, height: 32)
@@ -2473,24 +2482,26 @@ struct ActionCardView: View {
                         .foregroundColor(.white)
                         .font(.system(size: 15, weight: .semibold))
                 }
+                .overlay(
+                    Text("\(index + 1)")
+                        .font(.system(size: 7, weight: .bold))
+                        .foregroundColor(.secondary)
+                        .padding(.horizontal, 3.5)
+                        .padding(.vertical, 0.2)
+                        .background(Color.white.opacity(0.12))
+                        .clipShape(Circle())
+                        .offset(x: 4, y: -4),
+                    alignment: .topTrailing
+                )
 
                 // Title & Parameters
                 HStack(spacing: 8) {
-                    HStack(alignment: .top, spacing: 2) {
+                    if detailWidth >= 400 {
                         Text(item.action.title)
-                            .font(.system(size: 13, weight: .semibold))
+                            .font(.system(size: detailWidth < 520 ? 11 : 13, weight: .semibold))
                             .foregroundColor(.white)
                             .lineLimit(1)
                             .fixedSize(horizontal: true, vertical: false)
-                        
-                        Text("\(index + 1)")
-                            .font(.system(size: 8, weight: .bold))
-                            .foregroundColor(.secondary)
-                            .padding(.horizontal, 4)
-                            .padding(.vertical, 0.5)
-                            .background(Color.white.opacity(0.12))
-                            .clipShape(Circle())
-                            .offset(y: -4) // superscript style
                     }
                     
                     Spacer()
@@ -2498,14 +2509,14 @@ struct ActionCardView: View {
                     // Render appropriate parameter editor/display
                     switch item.action {
                     case .typeText, .pasteText:
-                        InlineTextEditView(action: $item.action, onPreSave: onPreSave, onSave: onSave)
+                        InlineTextEditView(action: $item.action, onPreSave: onPreSave, onSave: onSave, detailWidth: detailWidth)
                     case .delay:
-                        InlineDelayEditView(action: $item.action, onPreSave: onPreSave, onSave: onSave)
+                        InlineDelayEditView(action: $item.action, onPreSave: onPreSave, onSave: onSave, detailWidth: detailWidth)
                     case .pressKey, .pressShortcut:
-                        InlineKeyRecorder(action: $item.action, onPreSave: onPreSave, onSave: onSave)
+                        InlineKeyRecorder(action: $item.action, onPreSave: onPreSave, onSave: onSave, detailWidth: detailWidth)
                     case .doAgain:
                         if let selected = MacroStore.shared.selectedMacro {
-                            InlineDoAgainPicker(action: $item.action, actionItems: selected.actionItems, currentIndex: index, onPreSave: onPreSave, onSave: onSave)
+                            InlineDoAgainPicker(action: $item.action, actionItems: selected.actionItems, currentIndex: index, onPreSave: onPreSave, onSave: onSave, detailWidth: detailWidth)
                         } else {
                             Text(item.action.parameterString)
                                 .font(.system(size: 12, weight: .medium, design: .monospaced))
@@ -2574,6 +2585,7 @@ struct DraggableActionList: View {
     @Binding var actionItems: [MacroActionItem]
     var onSave: () -> Void
     var onInsertTemplate: (String, Int) -> Void
+    let detailWidth: CGFloat
 
     @State private var draggingID: UUID?
     @State private var draggingTemplate: String? = nil
@@ -2604,7 +2616,8 @@ struct DraggableActionList: View {
                                     MacroStore.shared.registerUndoState(for: selected)
                                 }
                             },
-                            onSave: onSave
+                            onSave: onSave,
+                            detailWidth: detailWidth
                         )
                         .onDrag {
                             draggingID = item.id
@@ -2771,6 +2784,7 @@ struct MacroInspectorView: View {
     @ObservedObject var macro: MacroItem
     @ObservedObject var store = MacroStore.shared
     @ObservedObject var permissions = PermissionManager.shared
+    let detailWidth: CGFloat
 
     @State private var isDirty = false
     @State private var tempName: String = ""
@@ -2970,7 +2984,7 @@ struct MacroInspectorView: View {
                             default:
                                 break
                             }
-                        })
+                        }, detailWidth: detailWidth)
                     }
                     .padding(.horizontal, 14)
                     .padding(.vertical, 12)
@@ -4555,8 +4569,9 @@ struct MainEditorView: View {
     }
 
     var body: some View {
-        HSplitView {
-            if store.isSidebarVisible {
+        GeometryReader { outerGeo in
+            HSplitView {
+                if store.isSidebarVisible {
                 VStack(alignment: .leading, spacing: 0) {
                 // Search Capsule Pill
                 HStack(spacing: 6) {
@@ -4700,19 +4715,20 @@ struct MainEditorView: View {
             // ═══════════════════════════════════════════════════
             // RIGHT DETAIL CANVAS (Macro Inspector or Folder Inspector)
             // ═══════════════════════════════════════════════════
-            if let macro = store.selectedMacro {
-                MacroInspectorView(macro: macro)
-                    .id(macro.id)
-            } else if let folderPath = store.selectedFolderPath,
-                      let folderInfo = findFolderInfo(path: folderPath, in: store.treeNodes) {
-                FolderInspectorView(
-                    folderURL: folderInfo.url,
-                    initialConfig: folderInfo.config,
-                    itemCount: folderInfo.count
-                )
-                .id(folderPath)
-            } else {
-                VStack(spacing: 0) {
+            GeometryReader { detailGeo in
+                if let macro = store.selectedMacro {
+                    MacroInspectorView(macro: macro, detailWidth: detailGeo.size.width)
+                        .id(macro.id)
+                } else if let folderPath = store.selectedFolderPath,
+                          let folderInfo = findFolderInfo(path: folderPath, in: store.treeNodes) {
+                    FolderInspectorView(
+                        folderURL: folderInfo.url,
+                        initialConfig: folderInfo.config,
+                        itemCount: folderInfo.count
+                    )
+                    .id(folderPath)
+                } else {
+                    VStack(spacing: 0) {
                     // Top Header Bar
                     HStack {
                         Button {
@@ -4758,8 +4774,17 @@ struct MainEditorView: View {
                 .background(Color(white: 0.14))
             }
         }
-        .frame(minWidth: 780, minHeight: 520)
+        }
+        .onChange(of: outerGeo.size.width) { _, newWidth in
+            if newWidth < 580 && store.isSidebarVisible {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    store.isSidebarVisible = false
+                }
+            }
+        }
     }
+    .frame(minWidth: 320, minHeight: 400)
+}
 }
 
 class EditorWindow: NSWindow {

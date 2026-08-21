@@ -2,9 +2,6 @@
 TRIGGER: k
 
 # Actions:
-ACTION: type "Hello ShortKing"
-ACTION: drag 966 419 to 1067 356
-ACTION: delay 300
-ACTION: right_click 894 540
-ACTION: click 792 548
-ACTION: press enter
+ACTION: click 750 426
+ACTION: right_click 717 446
+ACTION: drag 994 335 to 1018 304
