@@ -21,10 +21,10 @@ while IFS= read -r bid; do
   done
   
   if $skip; then
-    # Jangan menyembunyikan Finder atau ShortKing
+    # Menyembunyikan aplikasi penting dengan osascript langsung tanpa melalui Finder/System Events
     if [[ "$bid" != "com.apple.finder" && "$bid" != "com.redmunky.shortking" ]]; then
-      # Hide the application instantly using AppleScript
-      osascript -e "tell application \"Finder\" to set visible of process (name of application process whose bundle identifier is \"$bid\") to false" 2>/dev/null &
+      # Direct call to the app to hide it, avoiding Automation prompts
+      osascript -e "tell application id \"$bid\" to set visible of every window to false" 2>/dev/null &
     fi
   else
     # Quit ordinary apps
