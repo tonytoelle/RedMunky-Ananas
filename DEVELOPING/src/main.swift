@@ -755,11 +755,15 @@ struct ShortcutBadgeView: View {
                 Text("+")
                     .foregroundColor(isDimmedMini ? Color(white: 0.35) : .secondary)
                     .font(.system(size: isDimmedMini ? 8 : 11, weight: .bold))
+                    .lineLimit(1)
+                    .fixedSize()
             }
             
             Text(KeyMap.name(for: trigger.keyCode))
                 .font(.system(size: isDimmedMini ? 8 : 10, weight: .bold))
                 .foregroundColor(isDimmedMini ? Color(white: 0.6) : .accentColor)
+                .lineLimit(1)
+                .fixedSize()
                 .padding(.horizontal, isDimmedMini ? 4 : 6)
                 .padding(.vertical, isDimmedMini ? 1.5 : 2.5)
                 .background(isDimmedMini ? Color(white: 0.16) : Color(white: 0.22))
@@ -777,9 +781,13 @@ struct ShortcutBadgeView: View {
             Text(symbol)
                 .foregroundColor(isDimmedMini ? Color(white: 0.45) : Color.gray)
                 .font(.system(size: isDimmedMini ? 8 : 11, weight: .bold))
+                .lineLimit(1)
+                .fixedSize()
             Text(text)
                 .foregroundColor(isDimmedMini ? Color(white: 0.55) : .white)
                 .font(.system(size: isDimmedMini ? 7 : 10, weight: .semibold))
+                .lineLimit(1)
+                .fixedSize()
         }
         .padding(.horizontal, isDimmedMini ? 4 : 6)
         .padding(.vertical, isDimmedMini ? 1.5 : 2.5)
@@ -1610,6 +1618,8 @@ struct ActionCardView: View {
                     Text(item.action.title)
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundColor(.white)
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
                     
                     Spacer()
                     
@@ -1827,6 +1837,8 @@ struct MacroInspectorView: View {
                             Text("Key Press")
                                 .font(.system(size: 13, weight: .medium))
                                 .foregroundColor(.white)
+                                .lineLimit(1)
+                                .fixedSize(horizontal: true, vertical: false)
 
                             Spacer()
 
