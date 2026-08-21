@@ -2645,20 +2645,6 @@ struct ActionCardView: View {
                         .font(.system(size: 13))
                         .frame(width: 14)
                 }
-                
-                if case .group = item.action {
-                    Button(action: {
-                        withAnimation(.easeInOut(duration: 0.15)) {
-                            isCollapsed.toggle()
-                        }
-                    }) {
-                        Image(systemName: isCollapsed ? "chevron.right" : "chevron.down")
-                            .foregroundColor(.secondary)
-                            .font(.system(size: 10, weight: .bold))
-                            .frame(width: 12, height: 32)
-                    }
-                    .buttonStyle(.plain)
-                }
 
                 // Squircle Icon with step ID inside
                 ZStack(alignment: .center) {
@@ -2842,6 +2828,20 @@ struct ActionCardView: View {
                                     .stroke(Color.white.opacity(0.1), lineWidth: 1)
                             )
                     }
+                }
+                
+                if case .group = item.action {
+                    Button(action: {
+                        withAnimation(.easeInOut(duration: 0.15)) {
+                            isCollapsed.toggle()
+                        }
+                    }) {
+                        Image(systemName: isCollapsed ? "chevron.right" : "chevron.down")
+                            .foregroundColor(.secondary)
+                            .font(.system(size: 10, weight: .bold))
+                            .frame(width: 12, height: 32)
+                    }
+                    .buttonStyle(.plain)
                 }
             }
             
@@ -3204,6 +3204,9 @@ struct MacroInspectorView: View {
     @State private var isDirty = false
     @State private var tempName: String = ""
     @State private var keyMonitor: Any? = nil
+    @State private var isTriggerCollapsed = false
+    @State private var isActionsCollapsed = false
+    @State private var isAddActionCollapsed = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -3279,42 +3282,57 @@ struct MacroInspectorView: View {
                 VStack(alignment: .leading, spacing: 14) {
                     // Card 1: Trigger HotKey (Simplified, no redundant text)
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("Trigger")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundColor(.secondary)
-                            .padding(.leading, 2)
-
-                        HStack(spacing: 12) {
-                            ZStack {
-                                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                    .fill(Color(red: 0.45, green: 0.2, blue: 0.8))
-                                    .frame(width: 32, height: 32)
-                                Image(systemName: "keyboard")
-                                    .foregroundColor(.white)
-                                    .font(.system(size: 15, weight: .semibold))
-                            }
-
-                            Text("Key Press")
-                                .font(.system(size: 13, weight: .medium))
-                                .foregroundColor(.white)
-                                .lineLimit(1)
-                                .fixedSize(horizontal: true, vertical: false)
-
+                        HStack {
+                            Text("Trigger")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundColor(.secondary)
+                                .padding(.leading, 2)
                             Spacer()
-
-                            HotKeyRecorder(trigger: $macro.trigger) {
-                                store.saveMacro(macro)
-                                isDirty = false
+                            Button(action: {
+                                withAnimation(.easeInOut(duration: 0.15)) {
+                                    isTriggerCollapsed.toggle()
+                                }
+                            }) {
+                                Image(systemName: isTriggerCollapsed ? "chevron.right" : "chevron.down")
+                                    .foregroundColor(.secondary)
+                                    .font(.system(size: 10, weight: .bold))
                             }
+                            .buttonStyle(.plain)
                         }
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 11)
-                        .background(Color(white: 0.18))
-                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .stroke(Color.white.opacity(0.06), lineWidth: 1)
-                        )
+
+                        if !isTriggerCollapsed {
+                            HStack(spacing: 12) {
+                                ZStack {
+                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                        .fill(Color(red: 0.45, green: 0.2, blue: 0.8))
+                                        .frame(width: 32, height: 32)
+                                    Image(systemName: "keyboard")
+                                        .foregroundColor(.white)
+                                        .font(.system(size: 15, weight: .semibold))
+                                }
+
+                                Text("Key Press")
+                                    .font(.system(size: 13, weight: .medium))
+                                    .foregroundColor(.white)
+                                    .lineLimit(1)
+                                    .fixedSize(horizontal: true, vertical: false)
+
+                                Spacer()
+
+                                HotKeyRecorder(trigger: $macro.trigger) {
+                                    store.saveMacro(macro)
+                                    isDirty = false
+                                }
+                            }
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 11)
+                            .background(Color(white: 0.18))
+                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                            )
+                        }
                     }
 
                     // Downward connector arrow
@@ -3334,73 +3352,85 @@ struct MacroInspectorView: View {
                                 .font(.system(size: 13, weight: .semibold))
                                 .foregroundColor(.secondary)
                             Spacer()
+                            Button(action: {
+                                withAnimation(.easeInOut(duration: 0.15)) {
+                                    isActionsCollapsed.toggle()
+                                }
+                            }) {
+                                Image(systemName: isActionsCollapsed ? "chevron.right" : "chevron.down")
+                                    .foregroundColor(.secondary)
+                                    .font(.system(size: 10, weight: .bold))
+                            }
+                            .buttonStyle(.plain)
                         }
 
-                        // Draggable Action Cards
-                        DraggableActionList(actionItems: $macro.actionItems, onSave: {
-                            store.saveMacro(macro)
-                        }, onInsertTemplate: { typeName, targetIndex in
-                            store.registerUndoState(for: macro)
-                            let newAction: MacroAction
-                            switch typeName {
-                            case "Left Click":
-                                newAction = .click(point: .zero, button: .left)
-                            case "Right Click":
-                                newAction = .click(point: .zero, button: .right)
-                            case "Drag":
-                                newAction = .drag(start: .zero, end: .zero)
-                            case "Delay":
-                                newAction = .delay(ms: 300)
-                            case "Text":
-                                newAction = .typeText(text: "Hello ShortKing")
-                            case "Key":
-                                newAction = .pressKey(keyCode: 36)
-                            case "Origin", "Do Again":
-                                newAction = .doAgain(target: .origin)
-                            case "Move Cursor":
-                                newAction = .moveCursor(point: .zero)
-                            default:
-                                newAction = .delay(ms: 300)
-                            }
-                            
-                            let newItem = MacroActionItem(action: newAction)
-                            if targetIndex >= macro.actionItems.count {
-                                macro.actionItems.append(newItem)
-                            } else {
-                                macro.actionItems.insert(newItem, at: targetIndex)
-                            }
-                            store.saveMacro(macro)
-                            
-                            // Immediately trigger capture overlay for click/drag/move actions
-                            switch newAction {
-                            case .click(_, let button):
-                                CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .click(button: button)) { newPoint in
-                                    if let idx = macro.actionItems.firstIndex(where: { $0.id == newItem.id }) {
-                                        store.registerUndoState(for: macro)
-                                        macro.actionItems[idx].action = .click(point: newPoint, button: button)
-                                        store.saveMacro(macro)
-                                    }
+                        if !isActionsCollapsed {
+                            // Draggable Action Cards
+                            DraggableActionList(actionItems: $macro.actionItems, onSave: {
+                                store.saveMacro(macro)
+                            }, onInsertTemplate: { typeName, targetIndex in
+                                store.registerUndoState(for: macro)
+                                let newAction: MacroAction
+                                switch typeName {
+                                case "Left Click":
+                                    newAction = .click(point: .zero, button: .left)
+                                case "Right Click":
+                                    newAction = .click(point: .zero, button: .right)
+                                case "Drag":
+                                    newAction = .drag(start: .zero, end: .zero)
+                                case "Delay":
+                                    newAction = .delay(ms: 300)
+                                case "Text":
+                                    newAction = .typeText(text: "Hello ShortKing")
+                                case "Key":
+                                    newAction = .pressKey(keyCode: 36)
+                                case "Origin", "Do Again":
+                                    newAction = .doAgain(target: .origin)
+                                case "Move Cursor":
+                                    newAction = .moveCursor(point: .zero)
+                                default:
+                                    newAction = .delay(ms: 300)
                                 }
-                            case .drag:
-                                CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .drag) { start, end in
-                                    if let idx = macro.actionItems.firstIndex(where: { $0.id == newItem.id }) {
-                                        store.registerUndoState(for: macro)
-                                        macro.actionItems[idx].action = .drag(start: start, end: end)
-                                        store.saveMacro(macro)
-                                    }
+                                
+                                let newItem = MacroActionItem(action: newAction)
+                                if targetIndex >= macro.actionItems.count {
+                                    macro.actionItems.append(newItem)
+                                } else {
+                                    macro.actionItems.insert(newItem, at: targetIndex)
                                 }
-                            case .moveCursor:
-                                CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .click(button: .left)) { newPoint in
-                                    if let idx = macro.actionItems.firstIndex(where: { $0.id == newItem.id }) {
-                                        store.registerUndoState(for: macro)
-                                        macro.actionItems[idx].action = .moveCursor(point: newPoint)
-                                        store.saveMacro(macro)
+                                store.saveMacro(macro)
+                                
+                                // Immediately trigger capture overlay for click/drag/move actions
+                                switch newAction {
+                                case .click(_, let button):
+                                    CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .click(button: button)) { newPoint in
+                                        if let idx = macro.actionItems.firstIndex(where: { $0.id == newItem.id }) {
+                                            store.registerUndoState(for: macro)
+                                            macro.actionItems[idx].action = .click(point: newPoint, button: button)
+                                            store.saveMacro(macro)
+                                        }
                                     }
+                                case .drag:
+                                    CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .drag) { start, end in
+                                        if let idx = macro.actionItems.firstIndex(where: { $0.id == newItem.id }) {
+                                            store.registerUndoState(for: macro)
+                                            macro.actionItems[idx].action = .drag(start: start, end: end)
+                                            store.saveMacro(macro)
+                                        }
+                                    }
+                                case .moveCursor:
+                                    CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .click(button: .left)) { newPoint in
+                                        if let idx = macro.actionItems.firstIndex(where: { $0.id == newItem.id }) {
+                                            store.registerUndoState(for: macro)
+                                            macro.actionItems[idx].action = .moveCursor(point: newPoint)
+                                            store.saveMacro(macro)
+                                        }
+                                    }
+                                default:
+                                    break
                                 }
-                            default:
-                                break
-                            }
-                        }, detailWidth: detailWidth)
+                            }, detailWidth: detailWidth)
+                        }
                     }
                     .padding(.horizontal, 14)
                     .padding(.vertical, 12)
@@ -3423,13 +3453,27 @@ struct MacroInspectorView: View {
 
                         // Add Action Section (5 Quick Action Buttons with Instant Coordinate Overlay)
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("Add Action")
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundColor(.secondary)
-                                .padding(.leading, 2)
-                                .padding(.top, 6)
+                            HStack {
+                                Text("Add Action")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundColor(.secondary)
+                                    .padding(.leading, 2)
+                                Spacer()
+                                Button(action: {
+                                    withAnimation(.easeInOut(duration: 0.15)) {
+                                        isAddActionCollapsed.toggle()
+                                    }
+                                }) {
+                                    Image(systemName: isAddActionCollapsed ? "chevron.right" : "chevron.down")
+                                        .foregroundColor(.secondary)
+                                        .font(.system(size: 10, weight: .bold))
+                                }
+                                .buttonStyle(.plain)
+                            }
+                            .padding(.top, 6)
 
-                            LazyVGrid(columns: [GridItem(.adaptive(minimum: 32, maximum: 40), spacing: 8)], spacing: 8) {
+                            if !isAddActionCollapsed {
+                                LazyVGrid(columns: [GridItem(.adaptive(minimum: 32, maximum: 40), spacing: 8)], spacing: 8) {
                                 // 1. Left Click (Instant Screen Coordinate Capture)
                                 quickActionButton(
                                     title: "Left Click",
@@ -3538,7 +3582,8 @@ struct MacroInspectorView: View {
                                 }
                             }
                         }
-                        .padding(.horizontal, 14)
+                    }
+                    .padding(.horizontal, 14)
                         .padding(.vertical, 12)
                         .background(Color(white: 0.18))
                         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
