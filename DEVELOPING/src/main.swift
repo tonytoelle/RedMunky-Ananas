@@ -2682,6 +2682,7 @@ struct ActionCardView: View {
 
     @FocusState private var isGroupFocused: Bool
     @State private var isCollapsed = false
+    @State private var isEditingGroupName = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -2728,29 +2729,48 @@ struct ActionCardView: View {
                     if detailWidth >= 400 {
                         HStack(spacing: 4) {
                             if case .group(let name, let subActions) = item.action {
-                                TextField("Group Name", text: Binding(
-                                    get: { name },
-                                    set: { newName in
-                                        onPreSave()
-                                        item.action = .group(name: newName, actions: subActions)
-                                        onSave()
+                                if isEditingGroupName {
+                                    TextField("Group Name", text: Binding(
+                                        get: { name },
+                                        set: { newName in
+                                            onPreSave()
+                                            item.action = .group(name: newName, actions: subActions)
+                                            onSave()
+                                        }
+                                    ))
+                                    .textFieldStyle(.plain)
+                                    .font(.system(size: detailWidth < 520 ? 11 : 13, weight: .bold))
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(Color(white: 0.12))
+                                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                            .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                                    )
+                                    .frame(width: 140)
+                                    .focused($isGroupFocused)
+                                    .onSubmit {
+                                        isGroupFocused = false
+                                        isEditingGroupName = false
                                     }
-                                ))
-                                .textFieldStyle(.plain)
-                                .font(.system(size: detailWidth < 520 ? 11 : 13, weight: .bold))
-                                .foregroundColor(.white)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(Color(white: 0.12))
-                                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                        .stroke(Color.white.opacity(0.1), lineWidth: 1)
-                                )
-                                .frame(width: 140)
-                                .focused($isGroupFocused)
-                                .onSubmit {
-                                    isGroupFocused = false
+                                    .onChange(of: isGroupFocused) { _, focused in
+                                        if !focused {
+                                            isEditingGroupName = false
+                                        }
+                                    }
+                                    .onAppear {
+                                        isGroupFocused = true
+                                    }
+                                } else {
+                                    Text(name.isEmpty ? "Group Action" : name)
+                                        .font(.system(size: detailWidth < 520 ? 11 : 13, weight: .bold))
+                                        .foregroundColor(.white)
+                                        .lineLimit(1)
+                                        .onTapGesture(count: 2) {
+                                            isEditingGroupName = true
+                                        }
                                 }
                             } else {
                                 Text(item.action.title)
@@ -3260,6 +3280,7 @@ struct MacroInspectorView: View {
     @State private var isTriggerCollapsed = false
     @State private var isActionsCollapsed = false
     @State private var isAddActionCollapsed = false
+    @State private var isEditingName = false
 
     @FocusState private var isNameFocused: Bool
 
@@ -3280,22 +3301,37 @@ struct MacroInspectorView: View {
                 .help("Toggle Sidebar")
 
                 HStack(spacing: 2) {
-                    TextField("Macro Name", text: $tempName)
-                        .font(.system(size: 15, weight: .bold))
-                        .textFieldStyle(.plain)
-                        .foregroundColor(.white)
-                        .lineLimit(1)
-                        .frame(minWidth: 80, maxWidth: 180)
-                        .focused($isNameFocused)
-                        .onSubmit {
-                            store.renameMacro(macro, newBaseName: tempName)
-                            isNameFocused = false
-                        }
-                        .onChange(of: isNameFocused) { _, focused in
-                            if !focused {
+                    if isEditingName {
+                        TextField("Macro Name", text: $tempName)
+                            .font(.system(size: 15, weight: .bold))
+                            .textFieldStyle(.plain)
+                            .foregroundColor(.white)
+                            .lineLimit(1)
+                            .frame(minWidth: 80, maxWidth: 180)
+                            .focused($isNameFocused)
+                            .onSubmit {
                                 store.renameMacro(macro, newBaseName: tempName)
+                                isNameFocused = false
+                                isEditingName = false
                             }
-                        }
+                            .onChange(of: isNameFocused) { _, focused in
+                                if !focused {
+                                    store.renameMacro(macro, newBaseName: tempName)
+                                    isEditingName = false
+                                }
+                            }
+                            .onAppear {
+                                isNameFocused = true
+                            }
+                    } else {
+                        Text(tempName.isEmpty ? "Untitled Macro" : tempName)
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundColor(.white)
+                            .lineLimit(1)
+                            .onTapGesture(count: 2) {
+                                isEditingName = true
+                            }
+                    }
                 }
                 .fixedSize(horizontal: true, vertical: false)
 
@@ -3710,6 +3746,7 @@ struct MacroInspectorView: View {
             .background(Color(white: 0.14))
             .onAppear {
                 tempName = macro.fileName.replacingOccurrences(of: ".shortking", with: "")
+                isEditingName = false
                 keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
                     if event.keyCode == 51 || event.keyCode == 117 {
                         if let window = NSApp.keyWindow,
@@ -3746,10 +3783,12 @@ struct MacroInspectorView: View {
             }
             .onChange(of: macro.id) { _, _ in
                 tempName = macro.fileName.replacingOccurrences(of: ".shortking", with: "")
+                isEditingName = false
                 store.selectedActionID = nil // Reset action selection on macro change
             }
-            .onChange(of: macro.fileName) { _, newFileName in
+            .onChange(of: macro.fileName) { newFileName in
                 tempName = newFileName.replacingOccurrences(of: ".shortking", with: "")
+                isEditingName = false
             }
         }
 
