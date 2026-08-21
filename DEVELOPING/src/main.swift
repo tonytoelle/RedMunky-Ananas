@@ -2473,26 +2473,25 @@ struct ActionCardView: View {
                         .frame(width: 14)
                 }
 
-                // Squircle Icon with ZStack overlay index
-                ZStack(alignment: .topTrailing) {
+                // Squircle Icon with step ID inside
+                ZStack(alignment: .center) {
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .fill(item.action.color)
                         .frame(width: 32, height: 32)
+                    
                     Image(systemName: item.action.iconName)
                         .foregroundColor(.white)
-                        .font(.system(size: 15, weight: .semibold))
-                }
-                .overlay(
+                        .font(.system(size: 13, weight: .semibold))
+                        .offset(x: -2, y: 2)
+                    
                     Text("\(index + 1)")
-                        .font(.system(size: 7, weight: .bold))
-                        .foregroundColor(.secondary)
-                        .padding(.horizontal, 3.5)
-                        .padding(.vertical, 0.2)
-                        .background(Color.white.opacity(0.12))
-                        .clipShape(Circle())
-                        .offset(x: 4, y: -4),
-                    alignment: .topTrailing
-                )
+                        .font(.system(size: 8, weight: .bold))
+                        .foregroundColor(.white.opacity(0.85))
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                        .padding(.top, 2)
+                        .padding(.trailing, 4)
+                }
+                .frame(width: 32, height: 32)
 
                 // Title & Parameters
                 HStack(spacing: 8) {
@@ -3152,7 +3151,8 @@ struct MacroInspectorView: View {
                     .foregroundColor(.white)
                     .font(.system(size: 14, weight: .semibold))
             }
-            .frame(maxWidth: .infinity)
+            .frame(width: 32, height: 32)
+            .frame(maxWidth: .infinity, alignment: .center)
             .padding(.vertical, 6)
             .contentShape(Rectangle())
         }
