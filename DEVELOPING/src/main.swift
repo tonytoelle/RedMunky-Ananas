@@ -1619,6 +1619,7 @@ class PermissionManager: ObservableObject {
 struct ShortcutBadgeView: View {
     let trigger: Trigger
     var isDimmedMini: Bool = false
+    var isSelected: Bool = false
 
     var body: some View {
         HStack(spacing: isDimmedMini ? 2 : 4) {
@@ -1637,7 +1638,7 @@ struct ShortcutBadgeView: View {
             
             if trigger.requireControl || trigger.requireOption || trigger.requireShift || trigger.requireCmd {
                 Text("+")
-                    .foregroundColor(isDimmedMini ? Color(white: 0.35) : .secondary)
+                    .foregroundColor(isSelected ? .white : (isDimmedMini ? Color(white: 0.35) : .secondary))
                     .font(.system(size: isDimmedMini ? 8 : 11, weight: .bold))
                     .lineLimit(1)
                     .fixedSize()
@@ -1645,7 +1646,7 @@ struct ShortcutBadgeView: View {
             
             Text(KeyMap.name(for: trigger.keyCode))
                 .font(.system(size: isDimmedMini ? 8 : 10, weight: .bold))
-                .foregroundColor(isDimmedMini ? Color(white: 0.6) : .accentColor)
+                .foregroundColor(isSelected ? .white : (isDimmedMini ? Color(white: 0.6) : .accentColor))
                 .lineLimit(1)
                 .fixedSize()
                 .padding(.horizontal, isDimmedMini ? 4 : 6)
@@ -1663,12 +1664,12 @@ struct ShortcutBadgeView: View {
     func keycap(symbol: String, text: String) -> some View {
         HStack(spacing: isDimmedMini ? 1 : 2) {
             Text(symbol)
-                .foregroundColor(isDimmedMini ? Color(white: 0.45) : Color.gray)
+                .foregroundColor(isSelected ? .white : (isDimmedMini ? Color(white: 0.45) : Color.gray))
                 .font(.system(size: isDimmedMini ? 8 : 11, weight: .bold))
                 .lineLimit(1)
                 .fixedSize()
             Text(text)
-                .foregroundColor(isDimmedMini ? Color(white: 0.55) : .white)
+                .foregroundColor(isSelected ? .white : (isDimmedMini ? Color(white: 0.55) : .white))
                 .font(.system(size: isDimmedMini ? 7 : 10, weight: .semibold))
                 .lineLimit(1)
                 .fixedSize()
@@ -5099,8 +5100,8 @@ struct SidebarNodeView: View {
 
                     Spacer()
 
-                    ShortcutBadgeView(trigger: macro.trigger, isDimmedMini: true)
-                        .opacity(isSelected ? 0.5 : 1.0)
+                    ShortcutBadgeView(trigger: macro.trigger, isDimmedMini: true, isSelected: isSelected)
+                        .opacity(isSelected ? 0.3 : 1.0)
                 }
                 .padding(.leading, CGFloat(depth * 14 + 4))
                 .padding(.trailing, 8)
