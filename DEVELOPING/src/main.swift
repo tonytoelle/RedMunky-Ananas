@@ -514,16 +514,11 @@ func generateShortcutIcon(for trigger: Trigger) -> NSImage {
     let image = NSImage(size: size)
     image.lockFocus()
     
-    // 1. Draw rounded rectangle background
+    // 1. Clean squircle background (Apple standard macOS app / document icon squircle)
     let bgRect = NSRect(origin: .zero, size: size)
-    let bgPath = NSBezierPath(roundedRect: bgRect, xRadius: 100, yRadius: 100)
-    NSColor(red: 0.14, green: 0.14, blue: 0.14, alpha: 1.0).set()
+    let bgPath = NSBezierPath(roundedRect: bgRect, xRadius: 110, yRadius: 110)
+    NSColor(red: 0.13, green: 0.13, blue: 0.14, alpha: 1.0).set()
     bgPath.fill()
-    
-    // Add a colorful gradient border
-    bgPath.lineWidth = 12
-    NSColor(red: 0.45, green: 0.2, blue: 0.8, alpha: 1.0).set()
-    bgPath.stroke()
     
     // 2. Gather keycaps to draw
     var keys: [String] = []
@@ -542,8 +537,8 @@ func generateShortcutIcon(for trigger: Trigger) -> NSImage {
     }
     
     // 3. Draw keycaps horizontally centered
-    let keycapWidth: CGFloat = keys.count > 3 ? 90 : 120
-    let keycapHeight: CGFloat = 120
+    let keycapWidth: CGFloat = keys.count > 3 ? 90 : 115
+    let keycapHeight: CGFloat = keys.count > 3 ? 90 : 115
     let spacing: CGFloat = 16
     let totalWidth = CGFloat(keys.count) * keycapWidth + CGFloat(keys.count - 1) * spacing
     var startX = (size.width - totalWidth) / 2
@@ -551,19 +546,20 @@ func generateShortcutIcon(for trigger: Trigger) -> NSImage {
     
     for key in keys {
         let rect = NSRect(x: startX, y: y, width: keycapWidth, height: keycapHeight)
-        let path = NSBezierPath(roundedRect: rect, xRadius: 20, yRadius: 20)
+        let path = NSBezierPath(roundedRect: rect, xRadius: 22, yRadius: 22)
         
         // Keycap background
         NSColor(white: 0.22, alpha: 1.0).set()
         path.fill()
         
-        // Keycap border
-        path.lineWidth = 4
+        // Keycap subtle border
+        path.lineWidth = 2.5
         NSColor(white: 0.35, alpha: 1.0).set()
         path.stroke()
         
-        // Keycap text
-        let font = NSFont.systemFont(ofSize: keycapWidth > 100 ? 44 : 32, weight: .bold)
+        // Keycap text with exact mathematical centering
+        let fontSize: CGFloat = keycapWidth > 100 ? 52 : 40
+        let font = NSFont.systemFont(ofSize: fontSize, weight: .bold)
         let style = NSMutableParagraphStyle()
         style.alignment = .center
         let attrs: [NSAttributedString.Key: Any] = [
@@ -572,10 +568,15 @@ func generateShortcutIcon(for trigger: Trigger) -> NSImage {
             .paragraphStyle: style
         ]
         
-        // Center text vertically inside keycap
-        let textHeight = font.capHeight
-        let textRect = NSRect(x: rect.origin.x, y: rect.origin.y + (keycapHeight - textHeight) / 2 - 8, width: rect.width, height: rect.height)
-        key.draw(in: textRect, withAttributes: attrs)
+        let attrString = NSAttributedString(string: key, attributes: attrs)
+        let stringSize = attrString.size()
+        let textRect = NSRect(
+            x: rect.origin.x,
+            y: rect.origin.y + (rect.height - stringSize.height) / 2,
+            width: rect.width,
+            height: stringSize.height
+        )
+        attrString.draw(in: textRect)
         
         startX += keycapWidth + spacing
     }
@@ -884,6 +885,8 @@ class MacroStore: ObservableObject {
             } else if item.pathExtension.lowercased() == "shortking" {
                 if let macro = ShortKingParser.parseFile(at: item) {
                     macro.parentFolderConfig = parentConfig
+                    let iconImage = generateShortcutIcon(for: macro.trigger)
+                    NSWorkspace.shared.setIcon(iconImage, forFile: macro.fileURL.path, options: [])
                     loadedMacros.append(macro)
                     nodes.append(.macro(item: macro))
                 }

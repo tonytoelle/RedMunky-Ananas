@@ -1,1 +1,1 @@
-{"iconName":"tag.fill","isRestrictedToApps":true,"colorName":"yellow","targetApps":[{"name":"Calculator","bundleId":"com.apple.calculator"},{"name":"Antigravity","bundleId":"com.google.antigravity"}]}
+{"isRestrictedToApps":true,"colorName":"yellow","targetApps":[{"bundleId":"com.apple.calculator","name":"Calculator"},{"bundleId":"com.google.antigravity","name":"Antigravity"}],"iconName":"star.fill"}
