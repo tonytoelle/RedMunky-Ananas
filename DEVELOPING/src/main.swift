@@ -3357,23 +3357,6 @@ struct MacroInspectorView: View {
         VStack(spacing: 0) {
             // Top Header Bar (Macro Title)
             HStack(spacing: 12) {
-                if !store.isSidebarVisible {
-                    Spacer()
-                        .frame(width: 72)
-
-                    Button {
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            store.isSidebarVisible.toggle()
-                        }
-                    } label: {
-                        Image(systemName: "sidebar.right")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundColor(.secondary)
-                            .frame(width: 24, height: 24)
-                    }
-                    .buttonStyle(.plain)
-                    .help("Toggle Sidebar")
-                }
 
                 HStack(spacing: 2) {
                     if isEditingName {
@@ -4610,31 +4593,9 @@ struct FolderInspectorView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if !store.isSidebarVisible {
-                HStack {
-                    Spacer()
-                        .frame(width: 72)
-
-                    Button {
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            store.isSidebarVisible.toggle()
-                        }
-                    } label: {
-                        Image(systemName: "sidebar.right")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundColor(.secondary)
-                            .frame(width: 24, height: 24)
-                    }
-                    .buttonStyle(.plain)
-                    .help("Toggle Sidebar")
-
-                    Spacer()
-                }
-                .frame(height: 38)
-            } else {
-                Spacer()
-                    .frame(height: 12)
-            }
+            // Titlebar clearance (toggle button is in fixed overlay)
+            Spacer()
+                .frame(height: 12)
 
             ScrollView {
                 VStack(spacing: 24) {
@@ -5319,28 +5280,9 @@ struct MainEditorView: View {
             HSplitView {
                 if store.isSidebarVisible {
                     VStack(alignment: .leading, spacing: 0) {
-                        // Sidebar top header aligned with macOS traffic lights
-                        HStack(spacing: 0) {
-                            Spacer()
-                                .frame(width: 72) // Space to clear traffic lights
-
-                            Button {
-                                withAnimation(.easeInOut(duration: 0.2)) {
-                                    store.isSidebarVisible.toggle()
-                                }
-                            } label: {
-                                Image(systemName: "sidebar.left")
-                                    .font(.system(size: 13, weight: .semibold))
-                                    .foregroundColor(.secondary)
-                                    .frame(width: 24, height: 24)
-                            }
-                            .buttonStyle(.plain)
-                            .help("Toggle Sidebar")
-                            .padding(.leading, 6)
-
-                            Spacer()
-                        }
-                        .frame(height: 38)
+                        // Titlebar clearance (toggle button is in fixed overlay)
+                        Spacer()
+                            .frame(height: 38)
 
                         // Search Capsule Pill
                         HStack(spacing: 6) {
@@ -5502,31 +5444,9 @@ struct MainEditorView: View {
                     .id(folderPath)
                 } else {
                     VStack(spacing: 0) {
-                        if !store.isSidebarVisible {
-                            HStack {
-                                Spacer()
-                                    .frame(width: 72)
-
-                                Button {
-                                    withAnimation(.easeInOut(duration: 0.2)) {
-                                        store.isSidebarVisible.toggle()
-                                    }
-                                } label: {
-                                    Image(systemName: "sidebar.right")
-                                        .font(.system(size: 13, weight: .semibold))
-                                        .foregroundColor(.secondary)
-                                        .frame(width: 24, height: 24)
-                                }
-                                .buttonStyle(.plain)
-                                .help("Toggle Sidebar")
-
-                                Spacer()
-                            }
+                        // Titlebar clearance (toggle button is in fixed overlay)
+                        Spacer()
                             .frame(height: 38)
-                        } else {
-                            Spacer()
-                                .frame(height: 38)
-                        }
                     
                     VStack(spacing: 16) {
                         ZStack {
@@ -5553,6 +5473,23 @@ struct MainEditorView: View {
                 .background(Color(white: 0.14))
             }
         }
+        }
+        .overlay(alignment: .topLeading) {
+            // Fixed sidebar toggle button — pinned next to macOS traffic lights
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    store.isSidebarVisible.toggle()
+                }
+            } label: {
+                Image(systemName: store.isSidebarVisible ? "sidebar.left" : "sidebar.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(.secondary)
+                    .frame(width: 24, height: 24)
+            }
+            .buttonStyle(.plain)
+            .help("Toggle Sidebar")
+            .padding(.leading, 78) // After traffic lights (72px) + gap
+            .padding(.top, 7)      // Vertically centered in 38px titlebar
         }
         .onChange(of: outerGeo.size.width) { oldWidth, newWidth in
             if newWidth < 580 && store.isSidebarVisible {
