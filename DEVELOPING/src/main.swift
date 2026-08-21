@@ -100,6 +100,8 @@ enum MacroAction: Equatable {
     case doAgain(target: DoAgainTarget)
     case moveCursor(point: CGPoint)
     case customAction(script: String)
+    case volumeUp
+    case volumeDown
     indirect case group(name: String, actions: [MacroActionItem])
 
     var iconName: String {
@@ -113,6 +115,8 @@ enum MacroAction: Equatable {
         case .doAgain:      return "arrow.counterclockwise"
         case .moveCursor:   return "cursorarrow.motionlines"
         case .customAction: return "terminal"
+        case .volumeUp:     return "speaker.wave.3.fill"
+        case .volumeDown:   return "speaker.wave.1.fill"
         case .group:        return "folder"
         }
     }
@@ -127,6 +131,7 @@ enum MacroAction: Equatable {
         case .doAgain:      return Color(red: 0.12, green: 0.58, blue: 0.65)
         case .moveCursor:   return Color(red: 0.28, green: 0.52, blue: 0.92)
         case .customAction: return Color.pink
+        case .volumeUp, .volumeDown: return Color.blue
         case .group:        return Color.orange
         }
     }
@@ -141,6 +146,8 @@ enum MacroAction: Equatable {
         case .doAgain:              return "Do Again"
         case .moveCursor:           return "Move Cursor"
         case .customAction:         return "Custom Action"
+        case .volumeUp:             return "Volume Up"
+        case .volumeDown:           return "Volume Down"
         case .group:                return "Group"
         }
     }
@@ -166,6 +173,10 @@ enum MacroAction: Equatable {
             return "Move cursor to coordinates (\(Int(p.x)), \(Int(p.y)))"
         case .customAction(let script):
             return "Run command: \(script)"
+        case .volumeUp:
+            return "Increase system volume (Native)"
+        case .volumeDown:
+            return "Decrease system volume (Native)"
         case .group(let name, let actions):
             return "Group: \"\(name)\" (\(actions.count) actions)"
         }
@@ -197,6 +208,10 @@ enum MacroAction: Equatable {
             return "\(Int(point.x)), \(Int(point.y))"
         case .customAction(let script):
             return script
+        case .volumeUp:
+            return "+"
+        case .volumeDown:
+            return "-"
         case .group(_, let actions):
             return "\(actions.count) actions"
         }
@@ -223,6 +238,10 @@ enum MacroAction: Equatable {
             return "ACTION: move \(Int(p.x)) \(Int(p.y))"
         case .customAction(let script):
             return "ACTION: custom_action \"\(script)\""
+        case .volumeUp:
+            return "ACTION: volume_up"
+        case .volumeDown:
+            return "ACTION: volume_down"
         case .group(let name, _):
             return "ACTION: group \"\(name)\""
         }
@@ -567,6 +586,10 @@ class ShortKingParser {
             var t = s.dropFirst(cmd.count).trimmingCharacters(in: .whitespaces)
             if t.hasPrefix("\"") && t.hasSuffix("\"") && t.count >= 2 { t = String(t.dropFirst().dropLast()) }
             return .customAction(script: t)
+        case "volume_up":
+            return .volumeUp
+        case "volume_down":
+            return .volumeDown
         default: break
         }
         return nil
@@ -665,6 +688,36 @@ class InputSimulator {
                 up.post(tap: .cghidEventTap)
             }
         }
+    }
+
+    static func postMediaKey(key: Int32) {
+        // Press
+        let eventDown = NSEvent.otherEvent(
+            with: .systemDefined,
+            location: .zero,
+            modifierFlags: NSEvent.ModifierFlags(rawValue: 0xa00),
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            subtype: 8,
+            data1: Int((key << 16) | (0xa << 8)),
+            data2: 0
+        )
+        eventDown?.cgEvent?.post(tap: .cghidEventTap)
+        
+        // Release
+        let eventUp = NSEvent.otherEvent(
+            with: .systemDefined,
+            location: .zero,
+            modifierFlags: NSEvent.ModifierFlags(rawValue: 0xb00),
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            subtype: 8,
+            data1: Int((key << 16) | (0xb << 8)),
+            data2: 0
+        )
+        eventUp?.cgEvent?.post(tap: .cghidEventTap)
     }
 
     static func execute(items: [MacroActionItem]) {
@@ -849,10 +902,17 @@ class InputSimulator {
                         if let output = String(data: data, encoding: .utf8), !output.isEmpty {
                             print("💻 Output/Error: \(output)")
                         }
-                        print("💻 Process exited with code: \(process.terminationStatus)")
                     } catch {
                         print("💻 Failed to run process: \(error)")
                     }
+                    
+                case .volumeUp:
+                    guard !isEmergencyStopped else { return }
+                    postMediaKey(key: 0) // NX_KEYTYPE_SOUND_UP
+                    
+                case .volumeDown:
+                    guard !isEmergencyStopped else { return }
+                    postMediaKey(key: 1) // NX_KEYTYPE_SOUND_DOWN
                 }
             }
         }
@@ -3891,6 +3951,28 @@ struct MacroInspectorView: View {
                                 ) {
                                     store.registerUndoState(for: macro)
                                     macro.actionItems.append(MacroActionItem(action: .customAction(script: "osascript -e 'set volume output volume (output volume of (get volume settings) + 6)'")))
+                                    store.saveMacro(macro)
+                                }
+
+                                // 11. Volume Up (Native)
+                                quickActionButton(
+                                    title: "Vol Up",
+                                    icon: "speaker.wave.3.fill",
+                                    color: Color.blue
+                                ) {
+                                    store.registerUndoState(for: macro)
+                                    macro.actionItems.append(MacroActionItem(action: .volumeUp))
+                                    store.saveMacro(macro)
+                                }
+
+                                // 12. Volume Down (Native)
+                                quickActionButton(
+                                    title: "Vol Down",
+                                    icon: "speaker.wave.1.fill",
+                                    color: Color.blue
+                                ) {
+                                    store.registerUndoState(for: macro)
+                                    macro.actionItems.append(MacroActionItem(action: .volumeDown))
                                     store.saveMacro(macro)
                                 }
                             }
