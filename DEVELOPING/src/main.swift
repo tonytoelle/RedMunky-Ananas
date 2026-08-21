@@ -1674,40 +1674,75 @@ struct InlineDelayEditView: View {
     }
 }
 
-struct InlineKeyEditView: View {
+struct InlineKeyRecorder: View {
     @Binding var action: MacroAction
     var onPreSave: () -> Void
     var onSave: () -> Void
     
-    @State private var keyValue: String = ""
+    @State private var isRecording = false
+    @State private var monitor: Any?
     
-    var body: some View {
-        TextField("key", text: $keyValue)
-            .textFieldStyle(.plain)
-            .font(.system(size: 12, weight: .medium, design: .monospaced))
-            .foregroundColor(.white)
-            .frame(width: 80)
-            .multilineTextAlignment(.trailing)
-            .onSubmit {
-                save()
-            }
-            .onAppear {
-                if case .pressKey(let k) = action {
-                    keyValue = KeyMap.name(for: k)
-                }
-            }
-            .onChange(of: action) { _, newValue in
-                if case .pressKey(let k) = newValue {
-                    keyValue = KeyMap.name(for: k)
-                }
-            }
+    var currentKeyName: String {
+        if case .pressKey(let k) = action {
+            return KeyMap.name(for: k).uppercased()
+        }
+        return "KEY"
     }
     
-    private func save() {
-        if let code = KeyMap.keyCode(for: keyValue) {
+    var body: some View {
+        Button {
+            isRecording ? stopRecording() : startRecording()
+        } label: {
+            HStack(spacing: 4) {
+                if isRecording {
+                    Image(systemName: "record.circle.fill")
+                        .foregroundColor(.red)
+                        .font(.system(size: 11))
+                    Text("Press key... (Esc)")
+                        .font(.system(size: 10, weight: .medium, design: .monospaced))
+                        .foregroundColor(.red)
+                } else {
+                    Text(currentKeyName)
+                        .font(.system(size: 12, weight: .bold, design: .monospaced))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color(white: 0.22))
+                        .cornerRadius(4)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 4)
+                                .stroke(Color.white.opacity(0.12), lineWidth: 0.5)
+                        )
+                }
+            }
+            .padding(.trailing, 4)
+        }
+        .buttonStyle(.plain)
+    }
+    
+    func startRecording() {
+        isRecording = true
+        monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            let kc = event.keyCode
+            // Esc alone = cancel
+            if kc == 53 && event.modifierFlags.intersection([.command, .shift, .option, .control]).isEmpty {
+                stopRecording()
+                return nil
+            }
+            
             onPreSave()
-            action = .pressKey(keyCode: code)
+            action = .pressKey(keyCode: kc)
+            stopRecording()
             onSave()
+            return nil
+        }
+    }
+    
+    func stopRecording() {
+        isRecording = false
+        if let m = monitor {
+            NSEvent.removeMonitor(m)
+            monitor = nil
         }
     }
 }
@@ -1755,7 +1790,7 @@ struct ActionCardView: View {
                     case .delay:
                         InlineDelayEditView(action: $item.action, onPreSave: onPreSave, onSave: onSave)
                     case .pressKey:
-                        InlineKeyEditView(action: $item.action, onPreSave: onPreSave, onSave: onSave)
+                        InlineKeyRecorder(action: $item.action, onPreSave: onPreSave, onSave: onSave)
                     default:
                         Text(item.action.parameterString)
                             .font(.system(size: 12, weight: .medium, design: .monospaced))
@@ -2020,6 +2055,16 @@ struct MacroInspectorView: View {
                         DraggableActionList(actionItems: $macro.actionItems) {
                             store.saveMacro(macro)
                         }
+
+                        // Minimalist + separator
+                        HStack {
+                            Spacer()
+                            Image(systemName: "plus")
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundColor(Color(white: 0.35))
+                            Spacer()
+                        }
+                        .padding(.vertical, 2)
 
                         // Add Action Section (5 Quick Action Buttons with Instant Coordinate Overlay)
                         VStack(alignment: .leading, spacing: 8) {
