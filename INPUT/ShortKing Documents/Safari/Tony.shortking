@@ -2,6 +2,6 @@
 TRIGGER: k
 
 # Actions:
-ACTION: click 750 426
 ACTION: right_click 717 446
+ACTION: click 750 426
 ACTION: drag 994 335 to 1018 304

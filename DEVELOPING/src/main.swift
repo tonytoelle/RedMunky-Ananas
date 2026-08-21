@@ -4775,10 +4775,14 @@ struct MainEditorView: View {
             }
         }
         }
-        .onChange(of: outerGeo.size.width) { _, newWidth in
+        .onChange(of: outerGeo.size.width) { oldWidth, newWidth in
             if newWidth < 580 && store.isSidebarVisible {
                 withAnimation(.easeInOut(duration: 0.2)) {
                     store.isSidebarVisible = false
+                }
+            } else if newWidth >= 680 && !store.isSidebarVisible && oldWidth < 680 {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    store.isSidebarVisible = true
                 }
             }
         }
