@@ -6,6 +6,3 @@ ACTION: press enter
 ACTION: click 1082 482
 ACTION: press enter
 ACTION: click 552 230
-ACTION: drag 866 408 to 1001 408
-ACTION: delay 300
-ACTION: type "Masadsadantap"

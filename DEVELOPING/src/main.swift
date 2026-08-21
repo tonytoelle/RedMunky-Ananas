@@ -474,10 +474,105 @@ class InputSimulator {
 }
 
 // ==========================================
+// MARK: - Shortcut Icon Generator
+// ==========================================
+func generateShortcutIcon(for trigger: Trigger) -> NSImage {
+    let size = NSSize(width: 512, height: 512)
+    let image = NSImage(size: size)
+    image.lockFocus()
+    
+    // 1. Draw rounded rectangle background
+    let bgRect = NSRect(origin: .zero, size: size)
+    let bgPath = NSBezierPath(roundedRect: bgRect, xRadius: 100, yRadius: 100)
+    NSColor(red: 0.14, green: 0.14, blue: 0.14, alpha: 1.0).set()
+    bgPath.fill()
+    
+    // Add a colorful gradient border
+    bgPath.lineWidth = 12
+    NSColor(red: 0.45, green: 0.2, blue: 0.8, alpha: 1.0).set()
+    bgPath.stroke()
+    
+    // 2. Gather keycaps to draw
+    var keys: [String] = []
+    if trigger.requireControl { keys.append("⌃") }
+    if trigger.requireOption  { keys.append("⌥") }
+    if trigger.requireShift   { keys.append("⇧") }
+    if trigger.requireCmd     { keys.append("⌘") }
+    
+    let keyName = KeyMap.name(for: trigger.keyCode)
+    if keyName != "None" && !keyName.isEmpty {
+        keys.append(keyName.uppercased())
+    }
+    
+    if keys.isEmpty {
+        keys.append("👑")
+    }
+    
+    // 3. Draw keycaps horizontally centered
+    let keycapWidth: CGFloat = keys.count > 3 ? 90 : 120
+    let keycapHeight: CGFloat = 120
+    let spacing: CGFloat = 16
+    let totalWidth = CGFloat(keys.count) * keycapWidth + CGFloat(keys.count - 1) * spacing
+    var startX = (size.width - totalWidth) / 2
+    let y = (size.height - keycapHeight) / 2
+    
+    for key in keys {
+        let rect = NSRect(x: startX, y: y, width: keycapWidth, height: keycapHeight)
+        let path = NSBezierPath(roundedRect: rect, xRadius: 20, yRadius: 20)
+        
+        // Keycap background
+        NSColor(white: 0.22, alpha: 1.0).set()
+        path.fill()
+        
+        // Keycap border
+        path.lineWidth = 4
+        NSColor(white: 0.35, alpha: 1.0).set()
+        path.stroke()
+        
+        // Keycap text
+        let font = NSFont.systemFont(ofSize: keycapWidth > 100 ? 44 : 32, weight: .bold)
+        let style = NSMutableParagraphStyle()
+        style.alignment = .center
+        let attrs: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .foregroundColor: NSColor.white,
+            .paragraphStyle: style
+        ]
+        
+        // Center text vertically inside keycap
+        let textHeight = font.capHeight
+        let textRect = NSRect(x: rect.origin.x, y: rect.origin.y + (keycapHeight - textHeight) / 2 - 8, width: rect.width, height: rect.height)
+        key.draw(in: textRect, withAttributes: attrs)
+        
+        startX += keycapWidth + spacing
+    }
+    
+    image.unlockFocus()
+    return image
+}
+
+// ==========================================
 // MARK: - Macro Store
 // ==========================================
 class MacroStore: ObservableObject {
     static let shared = MacroStore()
+
+    let undoManager = UndoManager()
+
+    func registerUndoState(for macro: MacroItem) {
+        let oldActions = macro.actionItems
+        let oldTrigger = macro.trigger
+        
+        undoManager.registerUndo(withTarget: macro) { [weak self] target in
+            guard let self = self else { return }
+            self.registerUndoState(for: target)
+            
+            target.actionItems = oldActions
+            target.trigger = oldTrigger
+            self.saveMacro(target)
+            self.objectWillChange.send()
+        }
+    }
 
     @Published var macros: [MacroItem] = []
     @Published var selectedMacroID: UUID?
@@ -559,6 +654,10 @@ class MacroStore: ObservableObject {
         let content = ShortKingParser.generateScript(trigger: macro.trigger, actions: macro.actions)
         try? content.write(to: macro.fileURL, atomically: true, encoding: .utf8)
         registerAllCarbonHotKeys()
+        
+        // Update Finder custom icon based on shortcut trigger
+        let iconImage = generateShortcutIcon(for: macro.trigger)
+        NSWorkspace.shared.setIcon(iconImage, forFile: macro.fileURL.path, options: [])
     }
 
     func renameMacro(_ macro: MacroItem, newBaseName: String) {
@@ -849,6 +948,9 @@ struct HotKeyRecorder: View {
             if kc == 53 && !isCmd && !isShift && !isOpt && !isCtrl { stopRecording(); return nil }
             // Any modifier combo = record
             if isCmd || isShift || isOpt || isCtrl {
+                if let selected = MacroStore.shared.selectedMacro {
+                    MacroStore.shared.registerUndoState(for: selected)
+                }
                 trigger = Trigger(keyCode: kc, requireCmd: isCmd, requireShift: isShift, requireOption: isOpt, requireControl: isCtrl)
                 stopRecording()
                 onChanged()
@@ -1472,6 +1574,7 @@ struct KeyEditView: View {
 // ==========================================
 struct InlineTextEditView: View {
     @Binding var action: MacroAction
+    var onPreSave: () -> Void
     var onSave: () -> Void
     
     @State private var textValue: String = ""
@@ -1503,6 +1606,7 @@ struct InlineTextEditView: View {
     }
     
     private func save() {
+        onPreSave()
         if case .typeText = action {
             action = .typeText(text: textValue)
         } else if case .pasteText = action {
@@ -1514,6 +1618,7 @@ struct InlineTextEditView: View {
 
 struct InlineDelayEditView: View {
     @Binding var action: MacroAction
+    var onPreSave: () -> Void
     var onSave: () -> Void
     
     @State private var msValue: String = ""
@@ -1546,6 +1651,7 @@ struct InlineDelayEditView: View {
     }
     
     private func save() {
+        onPreSave()
         let ms = UInt32(msValue) ?? 0
         action = .delay(ms: ms)
         onSave()
@@ -1554,6 +1660,7 @@ struct InlineDelayEditView: View {
 
 struct InlineKeyEditView: View {
     @Binding var action: MacroAction
+    var onPreSave: () -> Void
     var onSave: () -> Void
     
     @State private var keyValue: String = ""
@@ -1582,6 +1689,7 @@ struct InlineKeyEditView: View {
     
     private func save() {
         if let code = KeyMap.keyCode(for: keyValue) {
+            onPreSave()
             action = .pressKey(keyCode: code)
             onSave()
         }
@@ -1592,6 +1700,7 @@ struct ActionCardView: View {
     let index: Int
     @Binding var item: MacroActionItem
     var onDelete: () -> Void
+    var onPreSave: () -> Void
     var onSave: () -> Void
 
     var body: some View {
@@ -1626,11 +1735,11 @@ struct ActionCardView: View {
                     // Render appropriate parameter editor/display
                     switch item.action {
                     case .typeText, .pasteText:
-                        InlineTextEditView(action: $item.action, onSave: onSave)
+                        InlineTextEditView(action: $item.action, onPreSave: onPreSave, onSave: onSave)
                     case .delay:
-                        InlineDelayEditView(action: $item.action, onSave: onSave)
+                        InlineDelayEditView(action: $item.action, onPreSave: onPreSave, onSave: onSave)
                     case .pressKey:
-                        InlineKeyEditView(action: $item.action, onSave: onSave)
+                        InlineKeyEditView(action: $item.action, onPreSave: onPreSave, onSave: onSave)
                     default:
                         Text(item.action.parameterString)
                             .font(.system(size: 12, weight: .medium, design: .monospaced))
@@ -1643,11 +1752,13 @@ struct ActionCardView: View {
                     switch item.action {
                     case .click(_, let button):
                         CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .click(button: button)) { newPoint in
+                            onPreSave()
                             item.action = .click(point: newPoint, button: button)
                             onSave()
                         }
                     case .drag:
                         CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .drag) { start, end in
+                            onPreSave()
                             item.action = .drag(start: start, end: end)
                             onSave()
                         }
@@ -1695,8 +1806,16 @@ struct DraggableActionList: View {
                         index: idx,
                         item: $item,
                         onDelete: {
+                            if let selected = MacroStore.shared.selectedMacro {
+                                MacroStore.shared.registerUndoState(for: selected)
+                            }
                             actionItems.removeAll { $0.id == item.id }
                             onSave()
+                        },
+                        onPreSave: {
+                            if let selected = MacroStore.shared.selectedMacro {
+                                MacroStore.shared.registerUndoState(for: selected)
+                            }
                         },
                         onSave: onSave
                     )
@@ -1740,6 +1859,9 @@ struct ActionDropDelegate: DropDelegate {
               let fromIdx = items.firstIndex(where: { $0.id == dragID }),
               let toIdx   = items.firstIndex(where: { $0.id == item.id }),
               fromIdx != toIdx else { return }
+        if let selected = MacroStore.shared.selectedMacro {
+            MacroStore.shared.registerUndoState(for: selected)
+        }
         withAnimation { items.move(fromOffsets: IndexSet(integer: fromIdx), toOffset: toIdx > fromIdx ? toIdx + 1 : toIdx) }
     }
 }
@@ -1899,6 +2021,7 @@ struct MacroInspectorView: View {
                                     color: Color(red: 0.08, green: 0.45, blue: 0.82)
                                 ) {
                                     CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .click(button: .left)) { pt in
+                                        store.registerUndoState(for: macro)
                                         macro.actionItems.append(MacroActionItem(action: .click(point: pt, button: .left)))
                                         store.saveMacro(macro)
                                     }
@@ -1911,6 +2034,7 @@ struct MacroInspectorView: View {
                                     color: Color(red: 0.04, green: 0.52, blue: 0.54)
                                 ) {
                                     CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .click(button: .right)) { pt in
+                                        store.registerUndoState(for: macro)
                                         macro.actionItems.append(MacroActionItem(action: .click(point: pt, button: .right)))
                                         store.saveMacro(macro)
                                     }
@@ -1923,6 +2047,7 @@ struct MacroInspectorView: View {
                                     color: Color(red: 0.52, green: 0.22, blue: 0.75)
                                 ) {
                                     CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .drag) { start, end in
+                                        store.registerUndoState(for: macro)
                                         macro.actionItems.append(MacroActionItem(action: .drag(start: start, end: end)))
                                         store.saveMacro(macro)
                                     }
@@ -1934,6 +2059,7 @@ struct MacroInspectorView: View {
                                     icon: "timer",
                                     color: Color(red: 0.88, green: 0.42, blue: 0.04)
                                 ) {
+                                    store.registerUndoState(for: macro)
                                     macro.actionItems.append(MacroActionItem(action: .delay(ms: 300)))
                                     store.saveMacro(macro)
                                 }
@@ -1944,6 +2070,7 @@ struct MacroInspectorView: View {
                                     icon: "text.cursor",
                                     color: Color(red: 0.12, green: 0.58, blue: 0.24)
                                 ) {
+                                    store.registerUndoState(for: macro)
                                     macro.actionItems.append(MacroActionItem(action: .typeText(text: "Hello ShortKing")))
                                     store.saveMacro(macro)
                                 }
@@ -1954,6 +2081,7 @@ struct MacroInspectorView: View {
                                     icon: "keyboard",
                                     color: Color(red: 0.32, green: 0.28, blue: 0.72)
                                 ) {
+                                    store.registerUndoState(for: macro)
                                     macro.actionItems.append(MacroActionItem(action: .pressKey(keyCode: 36)))
                                     store.saveMacro(macro)
                                 }
@@ -2873,21 +3001,52 @@ struct MainEditorView: View {
     }
 }
 
+class EditorWindow: NSWindow {
+    override var undoManager: UndoManager? {
+        return MacroStore.shared.undoManager
+    }
+}
+
 // ==========================================
 // MARK: - App Delegate with Complete Standard Menu Bar & Settings Window
 // ==========================================
 class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
+    static var shared: AppDelegate?
+
     var statusItem: NSStatusItem!
     var statusMenu: NSMenu!
     var window: NSWindow?
     var settingsWindow: NSWindow?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        AppDelegate.shared = self
         CarbonHotKeyManager.shared.installHandlerIfNeeded()
         PermissionManager.shared.checkStatus()
         setupMainMenu()
         setupMenuBar()
         showEditorWindow()
+    }
+
+    func application(_ sender: NSApplication, openFiles filenames: [String]) {
+        guard let first = filenames.first else { return }
+        let url = URL(fileURLWithPath: first)
+        
+        let watchDir = MacroStore.shared.watchDirectoryURL
+        let destURL = watchDir.appendingPathComponent(url.lastPathComponent)
+        
+        if url.path != destURL.path {
+            if !FileManager.default.fileExists(atPath: destURL.path) {
+                try? FileManager.default.copyItem(at: url, to: destURL)
+            }
+        }
+        
+        MacroStore.shared.loadMacros()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            if let found = MacroStore.shared.macros.first(where: { $0.fileName == url.lastPathComponent }) {
+                MacroStore.shared.selectedMacroID = found.id
+                self.showEditorWindow()
+            }
+        }
     }
 
     // MARK: - Standard macOS Main Menu Bar (Top Screen)
@@ -3067,7 +3226,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // MARK: - Actions
     @objc func showEditorWindow() {
         if window == nil {
-            let win = NSWindow(
+            let win = EditorWindow(
                 contentRect: NSRect(x: 0, y: 0, width: 900, height: 560),
                 styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
                 backing: .buffered, defer: false)
