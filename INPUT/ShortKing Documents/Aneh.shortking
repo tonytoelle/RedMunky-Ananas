@@ -6,3 +6,4 @@ ACTION: type "Hello ShortKing"
 ACTION: press return
 ACTION: click 874 469
 ACTION: click 827 495
+ACTION: press return

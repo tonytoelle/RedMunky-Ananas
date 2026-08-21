@@ -1,5 +1,10 @@
 # ShortKing Project Rules
 
+## Auto Compile & Relaunch App After Coding Changes
+Every time swift code changes or modifications are completed:
+1. Compile the app using `./DEVELOPING/build.sh` which automatically kills the active instance and opens the newly built `ShortKing.app`.
+2. Follow up immediately with the Auto Git Sync.
+
 ## Auto Git Sync After Coding Changes
 Every time code changes or modifications are completed, automatically perform a Git Sync:
 1. Stage all changes: `git add .`
