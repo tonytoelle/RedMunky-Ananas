@@ -1,0 +1,5 @@
+# ShortKing Macro Script
+TRIGGER: cmd+left
+
+# Actions:
+ACTION: custom_action "~/tile_left.sh"
