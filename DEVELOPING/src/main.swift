@@ -5100,6 +5100,7 @@ struct SidebarNodeView: View {
                     Spacer()
 
                     ShortcutBadgeView(trigger: macro.trigger, isDimmedMini: true)
+                        .opacity(isSelected ? 0.5 : 1.0)
                 }
                 .padding(.leading, CGFloat(depth * 14 + 4))
                 .padding(.trailing, 8)
