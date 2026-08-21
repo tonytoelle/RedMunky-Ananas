@@ -2,4 +2,4 @@
 TRIGGER: ctrl+q
 
 # Actions:
-ACTION: custom_action "lsappinfo list | grep -B 4 'type=\"Foreground\"' | grep 'bundleID=' | sed -E 's/.*bundleID=\"([^\"]*)\".*/\\1/' | while read -r bid; do [ -n \"$bid\" ] && [ \"$bid\" != \"com.apple.finder\" ] && [ \"$bid\" != \"com.redmunky.shortking\" ] && [ \"$bid\" != \"com.google.antigravity\" ] && [ \"$bid\" != \"com.googlecode.iterm2\" ] && [ \"$bid\" != \"com.apple.Terminal\" ] && osascript -e \"tell application id \\\"$bid\\\" to quit\"; done"
+ACTION: custom_action "/Users/tonytoelle/Documents/PROJECTS/RedMunky\\ -\\ ShortKing/INPUT/ShortKing\\ Documents/Global\\ Shortcut/quit_all.sh"
