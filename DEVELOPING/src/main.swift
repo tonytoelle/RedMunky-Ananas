@@ -74,6 +74,17 @@ struct MacroActionItem: Identifiable, Equatable {
     }
 }
 
+enum DoAgainTarget: Equatable {
+    case origin
+    case step(Int)
+    case action(UUID)
+    
+    var isOrigin: Bool {
+        if case .origin = self { return true }
+        return false
+    }
+}
+
 enum MacroAction: Equatable {
     case click(point: CGPoint, button: CGMouseButton)
     case drag(start: CGPoint, end: CGPoint)
@@ -82,7 +93,7 @@ enum MacroAction: Equatable {
     case pasteText(text: String)
     case pressKey(keyCode: CGKeyCode)
     case pressShortcut(trigger: Trigger)
-    case restoreCursor
+    case doAgain(target: DoAgainTarget)
 
     var iconName: String {
         switch self {
@@ -92,7 +103,7 @@ enum MacroAction: Equatable {
         case .typeText:     return "text.cursor"
         case .pasteText:    return "doc.on.clipboard"
         case .pressKey, .pressShortcut: return "keyboard"
-        case .restoreCursor: return "arrow.counterclockwise"
+        case .doAgain:      return "arrow.counterclockwise"
         }
     }
     var color: Color {
@@ -103,7 +114,7 @@ enum MacroAction: Equatable {
         case .typeText:     return Color(red: 0.12, green: 0.58, blue: 0.24)
         case .pasteText:    return Color(red: 0.04, green: 0.52, blue: 0.54)
         case .pressKey, .pressShortcut: return Color(red: 0.32, green: 0.28, blue: 0.72)
-        case .restoreCursor: return Color(red: 0.12, green: 0.58, blue: 0.65)
+        case .doAgain:      return Color(red: 0.12, green: 0.58, blue: 0.65)
         }
     }
     var title: String {
@@ -114,7 +125,7 @@ enum MacroAction: Equatable {
         case .typeText:             return "Type"
         case .pasteText:            return "Paste"
         case .pressKey, .pressShortcut: return "Key Press"
-        case .restoreCursor:        return "Origin"
+        case .doAgain:              return "Do Again"
         }
     }
     var details: String {
@@ -126,7 +137,15 @@ enum MacroAction: Equatable {
         case .pasteText(let t):     return "Paste: \"\(t)\""
         case .pressKey(let k):      return "Press key: \(KeyMap.name(for: k))"
         case .pressShortcut(let t): return "Hotkey combo: \(t.displayString)"
-        case .restoreCursor:        return "Move cursor back to position before macro started"
+        case .doAgain(let target):
+            switch target {
+            case .origin:
+                return "Move cursor back to position before macro started"
+            case .step(let idx):
+                return "Move cursor to coordinates of Action \(idx)"
+            case .action:
+                return "Move cursor to target action coordinates"
+            }
         }
     }
     var parameterString: String {
@@ -143,8 +162,15 @@ enum MacroAction: Equatable {
             return KeyMap.name(for: keyCode)
         case .pressShortcut(let trigger):
             return trigger.displayString
-        case .restoreCursor:
-            return "Origin"
+        case .doAgain(let target):
+            switch target {
+            case .origin:
+                return "Origin"
+            case .step(let idx):
+                return "Action \(idx)"
+            case .action:
+                return "Action"
+            }
         }
     }
     var scriptLine: String {
@@ -156,7 +182,24 @@ enum MacroAction: Equatable {
         case .pasteText(let t):     return "ACTION: paste \"\(t)\""
         case .pressKey(let k):      return "ACTION: press \(KeyMap.name(for: k).lowercased())"
         case .pressShortcut(let t): return "ACTION: press_shortcut \(t.scriptString)"
-        case .restoreCursor:        return "ACTION: restore_cursor"
+        case .doAgain(let target):
+            switch target {
+            case .origin:
+                return "ACTION: do_again"
+            case .step(let idx):
+                return "ACTION: do_again step_\(idx)"
+            case .action:
+                return "ACTION: do_again"
+            }
+        }
+    }
+    
+    var hasCoordinates: Bool {
+        switch self {
+        case .click, .drag:
+            return true
+        default:
+            return false
         }
     }
 }
@@ -355,6 +398,19 @@ class ShortKingParser {
                 }
             }
         }
+        
+        // Resolve step references to action IDs
+        for i in 0..<items.count {
+            if case .doAgain(let target) = items[i].action, case .step(let idx) = target {
+                let targetIdx = idx - 1
+                if targetIdx >= 0 && targetIdx < items.count {
+                    items[i].action = .doAgain(target: .action(items[targetIdx].id))
+                } else {
+                    items[i].action = .doAgain(target: .origin)
+                }
+            }
+        }
+        
         guard let t = trigger else { return nil }
         return MacroItem(fileName: url.lastPathComponent, fileURL: url, trigger: t, actionItems: items)
     }
@@ -390,17 +446,46 @@ class ShortKingParser {
             if parts.count >= 2, let code = KeyMap.keyCode(for: parts[1]) { return .pressKey(keyCode: code) }
         case "press_shortcut":
             if parts.count >= 2, let trig = parseTrigger(parts[1]) { return .pressShortcut(trigger: trig) }
-        case "restore_cursor", "restore_origin", "move_to_origin":
-            return .restoreCursor
+        case "restore_cursor", "restore_origin", "move_to_origin", "do_again":
+            if parts.count >= 2, let last = parts.last, last.hasPrefix("step_") {
+                let numStr = last.replacingOccurrences(of: "step_", with: "")
+                if let idx = Int(numStr) {
+                    return .doAgain(target: .step(idx))
+                }
+            }
+            return .doAgain(target: .origin)
         default: break
         }
         return nil
     }
 
-    static func generateScript(trigger: Trigger, actions: [MacroAction]) -> String {
+    static func generateScript(trigger: Trigger, actionItems: [MacroActionItem]) -> String {
         var lines = ["# ShortKing Macro Script", "TRIGGER: \(trigger.scriptString)", "", "# Actions:"]
-        lines += actions.map { $0.scriptLine }
+        for item in actionItems {
+            switch item.action {
+            case .doAgain(let target):
+                switch target {
+                case .origin:
+                    lines.append("ACTION: do_again")
+                case .step(let idx):
+                    lines.append("ACTION: do_again step_\(idx)")
+                case .action(let tid):
+                    if let idx = actionItems.firstIndex(where: { $0.id == tid }) {
+                        lines.append("ACTION: do_again step_\(idx + 1)")
+                    } else {
+                        lines.append("ACTION: do_again")
+                    }
+                }
+            default:
+                lines.append(item.action.scriptLine)
+            }
+        }
         return lines.joined(separator: "\n") + "\n"
+    }
+
+    static func generateScript(trigger: Trigger, actions: [MacroAction]) -> String {
+        let items = actions.map { MacroActionItem(action: $0) }
+        return generateScript(trigger: trigger, actionItems: items)
     }
 }
 
@@ -422,7 +507,7 @@ class InputSimulator {
         }
     }
 
-    static func execute(actions: [MacroAction]) {
+    static func execute(items: [MacroActionItem]) {
         isEmergencyStopped = false
         
         // Initial delay allowing user to release physical hotkey combination
@@ -432,9 +517,9 @@ class InputSimulator {
         // Record cursor origin position in Quartz screen coordinates
         let originQuartzPos = CGEvent(source: nil)?.location ?? .zero
 
-        for action in actions {
+        for item in items {
             guard !isEmergencyStopped else { return }
-            switch action {
+            switch item.action {
             case .click(let point, let button):
                 let dT: CGEventType = button == .left ? .leftMouseDown : .rightMouseDown
                 let uT: CGEventType = button == .left ? .leftMouseUp   : .rightMouseUp
@@ -539,14 +624,42 @@ class InputSimulator {
                 d?.post(tap: .cghidEventTap); usleep(20000)
                 u?.post(tap: .cghidEventTap); usleep(20000)
 
-            case .restoreCursor:
+            case .doAgain(let target):
                 guard !isEmergencyStopped else { return }
-                let moveEvent = CGEvent(mouseEventSource: source, mouseType: .mouseMoved, mouseCursorPosition: originQuartzPos, mouseButton: .left)
+                var targetPos = originQuartzPos
+                switch target {
+                case .origin:
+                    targetPos = originQuartzPos
+                case .step(let idx):
+                    let targetIdx = idx - 1
+                    if targetIdx >= 0 && targetIdx < items.count {
+                        let targetItem = items[targetIdx]
+                        if case .click(let point, _) = targetItem.action {
+                            targetPos = point
+                        } else if case .drag(let start, _) = targetItem.action {
+                            targetPos = start
+                        }
+                    }
+                case .action(let tid):
+                    if let targetItem = items.first(where: { $0.id == tid }) {
+                        if case .click(let point, _) = targetItem.action {
+                            targetPos = point
+                        } else if case .drag(let start, _) = targetItem.action {
+                            targetPos = start
+                        }
+                    }
+                }
+                let moveEvent = CGEvent(mouseEventSource: source, mouseType: .mouseMoved, mouseCursorPosition: targetPos, mouseButton: .left)
                 moveEvent?.flags = []
                 moveEvent?.post(tap: .cghidEventTap)
                 usleep(30000)
             }
         }
+    }
+
+    static func execute(actions: [MacroAction]) {
+        let items = actions.map { MacroActionItem(action: $0) }
+        execute(items: items)
     }
 }
 
@@ -979,7 +1092,7 @@ class MacroStore: ObservableObject {
         }
         CarbonHotKeyManager.shared.unregisterAll()
         for macro in macros {
-            let actions = macro.actions
+            let items = macro.actionItems
             let folderConfig = macro.parentFolderConfig
             CarbonHotKeyManager.shared.register(trigger: macro.trigger) {
                 // App targeting restriction check
@@ -997,7 +1110,7 @@ class MacroStore: ObservableObject {
                     }
                 }
                 print("🚀 Executing: \(macro.fileName)")
-                InputSimulator.execute(actions: actions)
+                InputSimulator.execute(items: items)
             }
         }
     }
@@ -1195,8 +1308,8 @@ class MacroStore: ObservableObject {
     }
 
     func runMacro(_ macro: MacroItem) {
-        let actions = macro.actions
-        DispatchQueue.global(qos: .userInitiated).async { InputSimulator.execute(actions: actions) }
+        let items = macro.actionItems
+        DispatchQueue.global(qos: .userInitiated).async { InputSimulator.execute(items: items) }
     }
 }
 
@@ -2207,6 +2320,80 @@ struct InlineKeyRecorder: View {
     }
 }
 
+struct InlineDoAgainPicker: View {
+    @Binding var action: MacroAction
+    var actionItems: [MacroActionItem]
+    var currentIndex: Int
+    var onPreSave: () -> Void
+    var onSave: () -> Void
+    
+    var body: some View {
+        if case .doAgain(let currentTarget) = action {
+            Menu {
+                Button(action: {
+                    onPreSave()
+                    action = .doAgain(target: .origin)
+                    onSave()
+                }) {
+                    HStack {
+                        Text("Origin (Start Position)")
+                        if currentTarget == .origin {
+                            Image(systemName: "checkmark")
+                        }
+                    }
+                }
+                
+                ForEach(0..<actionItems.count, id: \.self) { idx in
+                    let otherItem = actionItems[idx]
+                    if idx != currentIndex, otherItem.action.hasCoordinates {
+                        Button(action: {
+                            onPreSave()
+                            action = .doAgain(target: .action(otherItem.id))
+                            onSave()
+                        }) {
+                            HStack {
+                                Text("Action \(idx + 1): \(otherItem.action.title) (\(otherItem.action.parameterString))")
+                                if case .action(let tid) = currentTarget, tid == otherItem.id {
+                                    Image(systemName: "checkmark")
+                                }
+                            }
+                        }
+                    }
+                }
+            } label: {
+                HStack(spacing: 4) {
+                    Text(targetLabel(for: currentTarget))
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundColor(.cyan)
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.system(size: 8))
+                        .foregroundColor(.cyan)
+                }
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3)
+                .background(Color.cyan.opacity(0.12))
+                .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+        }
+    }
+    
+    private func targetLabel(for target: DoAgainTarget) -> String {
+        switch target {
+        case .origin:
+            return "Origin"
+        case .step(let idx):
+            return "Action \(idx)"
+        case .action(let tid):
+            if let idx = actionItems.firstIndex(where: { $0.id == tid }) {
+                return "Action \(idx + 1)"
+            }
+            return "Action"
+        }
+    }
+}
+
 struct ActionCardView: View {
     let index: Int
     @Binding var item: MacroActionItem
@@ -2235,11 +2422,22 @@ struct ActionCardView: View {
 
                 // Title & Parameters
                 HStack(spacing: 8) {
-                    Text(item.action.title)
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(.white)
-                        .lineLimit(1)
-                        .fixedSize(horizontal: true, vertical: false)
+                    HStack(alignment: .top, spacing: 2) {
+                        Text(item.action.title)
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(.white)
+                            .lineLimit(1)
+                            .fixedSize(horizontal: true, vertical: false)
+                        
+                        Text("\(index + 1)")
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundColor(.secondary)
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 0.5)
+                            .background(Color.white.opacity(0.12))
+                            .clipShape(Circle())
+                            .offset(y: -4) // superscript style
+                    }
                     
                     Spacer()
                     
@@ -2251,6 +2449,15 @@ struct ActionCardView: View {
                         InlineDelayEditView(action: $item.action, onPreSave: onPreSave, onSave: onSave)
                     case .pressKey, .pressShortcut:
                         InlineKeyRecorder(action: $item.action, onPreSave: onPreSave, onSave: onSave)
+                    case .doAgain:
+                        if let selected = MacroStore.shared.selectedMacro {
+                            InlineDoAgainPicker(action: $item.action, actionItems: selected.actionItems, currentIndex: index, onPreSave: onPreSave, onSave: onSave)
+                        } else {
+                            Text(item.action.parameterString)
+                                .font(.system(size: 12, weight: .medium, design: .monospaced))
+                                .foregroundColor(.secondary)
+                                .padding(.trailing, 8)
+                        }
                     default:
                         Text(item.action.parameterString)
                             .font(.system(size: 12, weight: .medium, design: .monospaced))
@@ -2646,8 +2853,8 @@ struct MacroInspectorView: View {
                                 newAction = .typeText(text: "Hello ShortKing")
                             case "Key":
                                 newAction = .pressKey(keyCode: 36)
-                            case "Origin":
-                                newAction = .restoreCursor
+                            case "Origin", "Do Again":
+                                newAction = .doAgain(target: .origin)
                             default:
                                 newAction = .delay(ms: 300)
                             }
@@ -2774,14 +2981,14 @@ struct MacroInspectorView: View {
                                     store.saveMacro(macro)
                                 }
 
-                                // 7. Origin (Restore original cursor position)
+                                // 7. Do Again (Restore original cursor position or target another action)
                                 quickActionButton(
-                                    title: "Origin",
+                                    title: "Do Again",
                                     icon: "arrow.counterclockwise",
                                     color: Color(red: 0.12, green: 0.58, blue: 0.65)
                                 ) {
                                     store.registerUndoState(for: macro)
-                                    macro.actionItems.append(MacroActionItem(action: .restoreCursor))
+                                    macro.actionItems.append(MacroActionItem(action: .doAgain(target: .origin)))
                                     store.saveMacro(macro)
                                 }
                             }

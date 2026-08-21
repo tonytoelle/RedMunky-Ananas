@@ -2,4 +2,7 @@
 TRIGGER: cmd+k
 
 # Actions:
+ACTION: click 1116 464
+ACTION: click 517 339
+ACTION: click 1138 352
 ACTION: restore_cursor
