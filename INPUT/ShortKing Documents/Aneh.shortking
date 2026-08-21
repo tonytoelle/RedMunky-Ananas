@@ -2,8 +2,10 @@
 TRIGGER: cmd+shift+k
 
 # Actions:
-ACTION: press return
+ACTION: press enter
 ACTION: type "Helasdasdo SsdsfhortKing"
 ACTION: click 1082 482
 ACTION: click 552 230
-ACTION: press return
+ACTION: press enter
+ACTION: drag 866 408 to 1001 408
+ACTION: delay 300

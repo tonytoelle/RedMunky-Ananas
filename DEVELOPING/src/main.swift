@@ -94,7 +94,7 @@ enum MacroAction: Equatable {
     }
     var color: Color {
         switch self {
-        case .click:        return Color(red: 0.08, green: 0.45, blue: 0.82)
+        case .click(_, let button): return button == .left ? Color(red: 0.08, green: 0.45, blue: 0.82) : Color(red: 0.04, green: 0.52, blue: 0.54)
         case .drag:         return Color(red: 0.52, green: 0.22, blue: 0.75)
         case .delay:        return Color(red: 0.88, green: 0.42, blue: 0.04)
         case .typeText:     return Color(red: 0.12, green: 0.58, blue: 0.24)
