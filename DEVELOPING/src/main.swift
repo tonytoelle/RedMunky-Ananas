@@ -3120,32 +3120,20 @@ struct MacroInspectorView: View {
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
-            VStack(spacing: 6) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 7, style: .continuous)
-                        .fill(color)
-                        .frame(width: 30, height: 30)
-                    Image(systemName: icon)
-                        .foregroundColor(.white)
-                        .font(.system(size: 13, weight: .semibold))
-                }
-
-                Text(title)
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(.white)
-                    .lineLimit(1)
+            ZStack {
+                Circle()
+                    .fill(color.opacity(0.12))
+                    .frame(width: 32, height: 32)
+                Image(systemName: icon)
+                    .foregroundColor(color)
+                    .font(.system(size: 14, weight: .semibold))
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 10)
-            .padding(.horizontal, 2)
-            .background(Color(white: 0.13))
-            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .stroke(Color.white.opacity(0.06), lineWidth: 1)
-            )
+            .padding(.vertical, 6)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .help(title)
         .onDrag {
             return NSItemProvider(object: "action_template:\(title)" as NSString)
         }
