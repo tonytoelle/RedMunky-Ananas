@@ -4624,18 +4624,18 @@ struct FolderInspectorView: View {
                            let nsImage = NSWorkspace.shared.icon(forFile: appURL.path) as NSImage? {
                             Image(nsImage: nsImage)
                                 .resizable()
-                                .frame(width: 82, height: 82)
+                                .frame(width: 112, height: 112)
                         } else {
                             ZStack {
-                                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                                RoundedRectangle(cornerRadius: 28, style: .continuous)
                                     .fill(config.color.opacity(0.18))
-                                    .frame(width: 88, height: 88)
+                                    .frame(width: 112, height: 112)
                                     .overlay(
-                                        RoundedRectangle(cornerRadius: 22, style: .continuous)
+                                        RoundedRectangle(cornerRadius: 28, style: .continuous)
                                             .stroke(config.color.opacity(0.35), lineWidth: 1.5)
                                     )
                                 Image(systemName: config.iconName)
-                                    .font(.system(size: 38, weight: .medium))
+                                    .font(.system(size: 52, weight: .medium))
                                     .foregroundColor(config.color)
                             }
                         }
@@ -5035,11 +5035,11 @@ struct SidebarNodeView: View {
                                    let nsImage = NSWorkspace.shared.icon(forFile: appURL.path) as NSImage? {
                                     Image(nsImage: nsImage)
                                         .resizable()
-                                        .frame(width: 17, height: 17)
+                                        .frame(width: 22, height: 22)
                                 } else {
                                     Image(systemName: config.iconName)
                                         .foregroundColor(config.color)
-                                        .font(.system(size: 15))
+                                        .font(.system(size: 17))
                                 }
 
                                 Text(name)
