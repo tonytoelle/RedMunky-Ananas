@@ -1,0 +1,5 @@
+# ShortKing Macro Script
+TRIGGER: ctrl+q
+
+# Actions:
+ACTION: custom_action "osascript -e 'tell application \"System Events\" to set visibleApps to name of every application process whose visible is true and name is not \"Finder\" and name is not \"ShortKing\"' -e 'repeat with theApp in visibleApps' -e 'tell application theApp to quit' -e 'end repeat'"
