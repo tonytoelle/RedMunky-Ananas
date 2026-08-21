@@ -4941,26 +4941,28 @@ struct SidebarNodeView: View {
                             onSelect(url.path, flags)
                         }
                     } label: {
-                        HStack(spacing: 6) {
-                            Image(systemName: config.iconName)
-                                .foregroundColor(config.color)
-                                .font(.system(size: 13))
+                        HStack(spacing: 0) {
+                            HStack(spacing: 6) {
+                                Image(systemName: config.iconName)
+                                    .foregroundColor(config.color)
+                                    .font(.system(size: 13))
 
-                            Text(name)
-                                .font(.system(size: 13, weight: .bold))
-                                .foregroundColor(isSelected ? .white : Color(white: 0.92))
-                                .lineLimit(1)
+                                Text(name)
+                                    .font(.system(size: 13, weight: .bold))
+                                    .foregroundColor(isSelected ? .white : Color(white: 0.92))
+                                    .lineLimit(1)
+                            }
+                            
+                            Spacer()
+                            
+                            Text("\(children.count)")
+                                .font(.system(size: 10, weight: .medium, design: .monospaced))
+                                .foregroundColor(Color(white: 0.45))
+                                .padding(.trailing, 6)
                         }
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-
-                    Spacer()
-
-                    Text("\(children.count)")
-                        .font(.system(size: 10, weight: .medium, design: .monospaced))
-                        .foregroundColor(Color(white: 0.45))
-                        .padding(.trailing, 6)
 
                     // Chevron button (only toggles fold)
                     Button {
