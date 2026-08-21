@@ -2,5 +2,3 @@
 TRIGGER: shift+p
 
 # Actions:
-ACTION: press a
-ACTION: type "Hello from ShortKing!"

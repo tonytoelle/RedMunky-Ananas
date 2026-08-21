@@ -274,7 +274,7 @@ class ShortKingParser {
                 }
             }
         }
-        guard let t = trigger, !items.isEmpty else { return nil }
+        guard let t = trigger else { return nil }
         return MacroItem(fileName: url.lastPathComponent, fileURL: url, trigger: t, actionItems: items)
     }
 
@@ -588,9 +588,46 @@ class MacroStore: ObservableObject {
         loadMacros()
     }
 
+    func duplicateMacro(_ macro: MacroItem) {
+        let baseName = macro.fileName.replacingOccurrences(of: ".shortking", with: "")
+        var newName = "\(baseName) copy"
+        var newURL = watchDirectoryURL.appendingPathComponent("\(newName).shortking")
+        var copyIndex = 2
+        while FileManager.default.fileExists(atPath: newURL.path) {
+            newName = "\(baseName) copy \(copyIndex)"
+            newURL = watchDirectoryURL.appendingPathComponent("\(newName).shortking")
+            copyIndex += 1
+        }
+        
+        // Save current changes first
+        saveMacro(macro)
+        
+        do {
+            try FileManager.default.copyItem(at: macro.fileURL, to: newURL)
+            loadMacros()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                if let created = self.macros.first(where: { $0.fileURL.lastPathComponent == "\(newName).shortking" }) {
+                    self.selectedMacroID = created.id
+                }
+            }
+        } catch {
+            print("❌ Failed to duplicate macro: \(error)")
+        }
+    }
+
     func deleteMacro(_ macro: MacroItem) {
-        try? FileManager.default.removeItem(at: macro.fileURL)
-        loadMacros()
+        do {
+            if FileManager.default.fileExists(atPath: macro.fileURL.path) {
+                try FileManager.default.removeItem(at: macro.fileURL)
+            }
+            loadMacros()
+        } catch {
+            print("❌ Failed to delete macro: \(error)")
+        }
+    }
+
+    func revealInFinder(_ macro: MacroItem) {
+        NSWorkspace.shared.activateFileViewerSelecting([macro.fileURL])
     }
 
     func runMacro(_ macro: MacroItem) {
@@ -2620,6 +2657,35 @@ struct MainEditorView: View {
                             }
                             .buttonStyle(.plain)
                             .contentShape(Rectangle())
+                            .contextMenu {
+                                Button {
+                                    store.runMacro(macro)
+                                } label: {
+                                    Label("Run Macro", systemImage: "play.fill")
+                                }
+
+                                Divider()
+
+                                Button {
+                                    store.duplicateMacro(macro)
+                                } label: {
+                                    Label("Duplicate", systemImage: "plus.square.on.square")
+                                }
+
+                                Button {
+                                    store.revealInFinder(macro)
+                                } label: {
+                                    Label("Reveal in Finder", systemImage: "folder")
+                                }
+
+                                Divider()
+
+                                Button(role: .destructive) {
+                                    store.deleteMacro(macro)
+                                } label: {
+                                    Label("Delete Macro", systemImage: "trash")
+                                }
+                            }
                         }
                     }
                     .padding(.horizontal, 10)
