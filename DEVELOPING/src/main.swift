@@ -1427,8 +1427,8 @@ struct CaptureOverlaySwiftUIView: View {
                 Color.black.opacity(0.05)
                     .edgesIgnoringSafeArea(.all)
                 
-                // Crosshair guide lines (hidden for Left Click action edit)
-                if !isLeftClick {
+                // Crosshair guide lines (hidden for Left Click and Drag)
+                if shouldShowCrosshair {
                     Path { path in
                         // Horizontal hairline
                         path.move(to: CGPoint(x: 0, y: geo.size.height - state.currentLocation.y))
@@ -1570,11 +1570,13 @@ struct CaptureOverlaySwiftUIView: View {
         }
     }
 
-    private var isLeftClick: Bool {
-        if case .click(let b) = state.mode, b == .left {
-            return true
+    private var shouldShowCrosshair: Bool {
+        switch state.mode {
+        case .click(let b):
+            return b != .left
+        case .drag:
+            return false
         }
-        return false
     }
 }
 
