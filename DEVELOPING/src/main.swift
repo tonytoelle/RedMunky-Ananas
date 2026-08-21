@@ -4973,7 +4973,7 @@ struct SidebarNodeView: View {
                                 .font(.system(size: 13))
 
                             Text(name)
-                                .font(.system(size: 13, weight: isSelected ? .bold : .semibold))
+                                .font(.system(size: 13, weight: .bold))
                                 .foregroundColor(isSelected ? .white : Color(white: 0.92))
                                 .lineLimit(1)
                         }
@@ -5094,7 +5094,7 @@ struct SidebarNodeView: View {
                     }
                 }
             }
-            .padding(.bottom, 12)
+            .padding(.bottom, (isExpanded && !children.isEmpty) ? 12 : 0)
 
         case .macro(let macro):
             let isSelected = selectedPaths.contains(macro.fileURL.path) || (store.selectedFilePath == macro.fileURL.path && selectedPaths.isEmpty)
@@ -5120,7 +5120,7 @@ struct SidebarNodeView: View {
                     }
 
                     Text(macro.fileName.replacingOccurrences(of: ".shortking", with: ""))
-                        .font(.system(size: 13, weight: isSelected ? .semibold : .medium))
+                        .font(.system(size: 13, weight: .regular))
                         .foregroundColor(isSelected ? .white : Color(white: 0.90))
                         .lineLimit(1)
 
@@ -5128,7 +5128,7 @@ struct SidebarNodeView: View {
 
                     ShortcutBadgeView(trigger: macro.trigger, isDimmedMini: true)
                 }
-                .padding(.leading, CGFloat(depth * 14 + 20))
+                .padding(.leading, CGFloat(depth * 14 + 4))
                 .padding(.trailing, 8)
                 .padding(.vertical, 6)
                 .frame(maxWidth: .infinity, alignment: .leading)

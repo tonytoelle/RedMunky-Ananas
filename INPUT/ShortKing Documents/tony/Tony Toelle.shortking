@@ -3,11 +3,11 @@ TRIGGER: shift+opt+k
 
 # Actions:
 ACTION: click 403 295
+ACTION: click 719 272
 ACTION: right_click 819 228
 ACTION: drag 1140 317 to 812 538
-ACTION: click 1340 514
 ACTION: group "New Groupasd"
-ACTION: delay 5050
 ACTION: delay 300
 ACTION: click 839 624
+ACTION: delay 5050
 ACTION: end_group
