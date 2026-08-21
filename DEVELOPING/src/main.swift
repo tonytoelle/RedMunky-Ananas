@@ -833,11 +833,26 @@ class InputSimulator {
                     
                 case .customAction(let script):
                     guard !isEmergencyStopped else { return }
+                    print("💻 Executing custom action: \(script)")
                     let process = Process()
                     process.executableURL = URL(fileURLWithPath: "/bin/zsh")
                     process.arguments = ["-c", script]
-                    try? process.run()
-                    process.waitUntilExit()
+                    
+                    let pipe = Pipe()
+                    process.standardOutput = pipe
+                    process.standardError = pipe
+                    
+                    do {
+                        try process.run()
+                        process.waitUntilExit()
+                        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+                        if let output = String(data: data, encoding: .utf8), !output.isEmpty {
+                            print("💻 Output/Error: \(output)")
+                        }
+                        print("💻 Process exited with code: \(process.terminationStatus)")
+                    } catch {
+                        print("💻 Failed to run process: \(error)")
+                    }
                 }
             }
         }
