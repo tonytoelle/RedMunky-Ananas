@@ -98,6 +98,7 @@ enum MacroAction: Equatable {
     case pressShortcut(trigger: Trigger)
     case doAgain(target: DoAgainTarget)
     case moveCursor(point: CGPoint)
+    indirect case group(name: String, actions: [MacroActionItem])
 
     var iconName: String {
         switch self {
@@ -109,6 +110,7 @@ enum MacroAction: Equatable {
         case .pressKey, .pressShortcut: return "keyboard"
         case .doAgain:      return "arrow.counterclockwise"
         case .moveCursor:   return "cursorarrow.motionlines"
+        case .group:        return "folder"
         }
     }
     var color: Color {
@@ -121,6 +123,7 @@ enum MacroAction: Equatable {
         case .pressKey, .pressShortcut: return Color(red: 0.32, green: 0.28, blue: 0.72)
         case .doAgain:      return Color(red: 0.12, green: 0.58, blue: 0.65)
         case .moveCursor:   return Color(red: 0.28, green: 0.52, blue: 0.92)
+        case .group:        return Color.orange
         }
     }
     var title: String {
@@ -133,6 +136,7 @@ enum MacroAction: Equatable {
         case .pressKey, .pressShortcut: return "Key Press"
         case .doAgain:              return "Do Again"
         case .moveCursor:           return "Move Cursor"
+        case .group:                return "Group"
         }
     }
     var details: String {
@@ -155,6 +159,8 @@ enum MacroAction: Equatable {
             }
         case .moveCursor(let p):
             return "Move cursor to coordinates (\(Int(p.x)), \(Int(p.y)))"
+        case .group(let name, let actions):
+            return "Group: \"\(name)\" (\(actions.count) actions)"
         }
     }
     var parameterString: String {
@@ -182,6 +188,8 @@ enum MacroAction: Equatable {
             }
         case .moveCursor(let point):
             return "\(Int(point.x)), \(Int(point.y))"
+        case .group(_, let actions):
+            return "\(actions.count) actions"
         }
     }
     var scriptLine: String {
@@ -204,6 +212,8 @@ enum MacroAction: Equatable {
             }
         case .moveCursor(let p):
             return "ACTION: move \(Int(p.x)) \(Int(p.y))"
+        case .group(let name, _):
+            return "ACTION: group \"\(name)\""
         }
     }
     
@@ -399,7 +409,9 @@ class ShortKingParser {
     static func parseFile(at url: URL) -> MacroItem? {
         guard let content = try? String(contentsOf: url, encoding: .utf8) else { return nil }
         var trigger: Trigger?
-        var items: [MacroActionItem] = []
+        var groupStack: [[MacroActionItem]] = [[]]
+        var groupNames: [String] = []
+        
         for rawLine in content.components(separatedBy: .newlines) {
             let line = rawLine.trimmingCharacters(in: .whitespaces)
             guard !line.isEmpty, !line.hasPrefix("#"), !line.hasPrefix("//") else { continue }
@@ -415,26 +427,67 @@ class ShortKingParser {
                     repeats = val
                     cleanActionStr = String(actionStr.prefix(actionStr.count - lastPart.count)).trimmingCharacters(in: .whitespaces)
                 }
-                if let a = parseAction(cleanActionStr) {
-                    items.append(MacroActionItem(action: a, repeatCount: repeats))
+                
+                if cleanActionStr.lowercased().hasPrefix("group") {
+                    var gName = "Group"
+                    let namePart = cleanActionStr.dropFirst(5).trimmingCharacters(in: .whitespaces)
+                    if namePart.hasPrefix("\"") && namePart.hasSuffix("\"") && namePart.count >= 2 {
+                        gName = String(namePart.dropFirst().dropLast())
+                    } else if !namePart.isEmpty {
+                        gName = namePart
+                    }
+                    groupStack.append([])
+                    groupNames.append(gName)
+                } else if cleanActionStr.lowercased() == "end_group" {
+                    if groupStack.count > 1 {
+                        let subActions = groupStack.popLast()!
+                        let name = groupNames.popLast()!
+                        let groupItem = MacroActionItem(action: .group(name: name, actions: subActions), repeatCount: repeats)
+                        groupStack[groupStack.count - 1].append(groupItem)
+                    }
+                } else {
+                    if let a = parseAction(cleanActionStr) {
+                        groupStack[groupStack.count - 1].append(MacroActionItem(action: a, repeatCount: repeats))
+                    }
                 }
             }
         }
         
-        // Resolve step references to action IDs
-        for i in 0..<items.count {
-            if case .doAgain(let target) = items[i].action, case .step(let idx) = target {
-                let targetIdx = idx - 1
-                if targetIdx >= 0 && targetIdx < items.count {
-                    items[i].action = .doAgain(target: .action(items[targetIdx].id))
-                } else {
-                    items[i].action = .doAgain(target: .origin)
+        let items = groupStack.first ?? []
+        
+        func flattenActions(_ actionItems: [MacroActionItem]) -> [MacroActionItem] {
+            var flat: [MacroActionItem] = []
+            for item in actionItems {
+                flat.append(item)
+                if case .group(_, let sub) = item.action {
+                    flat.append(contentsOf: flattenActions(sub))
+                }
+            }
+            return flat
+        }
+        let flatItems = flattenActions(items)
+        
+        func resolveDoAgainTargets(in actionItems: inout [MacroActionItem], flat: [MacroActionItem]) {
+            for i in 0..<actionItems.count {
+                if case .doAgain(let target) = actionItems[i].action, case .step(let idx) = target {
+                    let targetIdx = idx - 1
+                    if targetIdx >= 0 && targetIdx < flat.count {
+                        actionItems[i].action = .doAgain(target: .action(flat[targetIdx].id))
+                    } else {
+                        actionItems[i].action = .doAgain(target: .origin)
+                    }
+                } else if case .group(let name, var sub) = actionItems[i].action {
+                    resolveDoAgainTargets(in: &sub, flat: flat)
+                    actionItems[i].action = .group(name: name, actions: sub)
                 }
             }
         }
+        
+        var resolvedItems = items
+        resolveDoAgainTargets(in: &resolvedItems, flat: flatItems)
         
         guard let t = trigger else { return nil }
-        return MacroItem(fileName: url.lastPathComponent, fileURL: url, trigger: t, actionItems: items)
+        return MacroItem(fileName: url.lastPathComponent, fileURL: url, trigger: t, actionItems: resolvedItems)
     }
 
     static func parseAction(_ s: String) -> MacroAction? {
@@ -483,7 +536,8 @@ class ShortKingParser {
 
     static func generateScript(trigger: Trigger, actionItems: [MacroActionItem]) -> String {
         var lines = ["# ShortKing Macro Script", "TRIGGER: \(trigger.scriptString)", "", "# Actions:"]
-        for item in actionItems {
+        
+        func appendActionItem(_ item: MacroActionItem) {
             var line = ""
             switch item.action {
             case .doAgain(let target):
@@ -493,12 +547,36 @@ class ShortKingParser {
                 case .step(let idx):
                     line = "ACTION: do_again step_\(idx)"
                 case .action(let tid):
-                    if let idx = actionItems.firstIndex(where: { $0.id == tid }) {
-                        line = "ACTION: do_again step_\(idx + 1)"
+                    func findFlatIndex(id: UUID, currentItems: [MacroActionItem], indexTracker: inout Int) -> Int? {
+                        for current in currentItems {
+                            indexTracker += 1
+                            if current.id == id { return indexTracker }
+                            if case .group(_, let sub) = current.action {
+                                if let found = findFlatIndex(id: id, currentItems: sub, indexTracker: &indexTracker) {
+                                    return found
+                                }
+                            }
+                        }
+                        return nil
+                    }
+                    var tracker = 0
+                    if let idx = findFlatIndex(id: tid, currentItems: actionItems, indexTracker: &tracker) {
+                        line = "ACTION: do_again step_\(idx)"
                     } else {
                         line = "ACTION: do_again"
                     }
                 }
+            case .group(let name, let subActions):
+                line = "ACTION: group \"\(name)\""
+                if item.repeatCount > 1 {
+                    line += " x\(item.repeatCount)"
+                }
+                lines.append(line)
+                for subItem in subActions {
+                    appendActionItem(subItem)
+                }
+                lines.append("ACTION: end_group")
+                return
             default:
                 line = item.action.scriptLine
             }
@@ -507,6 +585,10 @@ class ShortKingParser {
                 line += " x\(item.repeatCount)"
             }
             lines.append(line)
+        }
+        
+        for item in actionItems {
+            appendActionItem(item)
         }
         return lines.joined(separator: "\n") + "\n"
     }
@@ -544,12 +626,18 @@ class InputSimulator {
 
         // Record cursor origin position in Quartz screen coordinates
         let originQuartzPos = CGEvent(source: nil)?.location ?? .zero
+        executeSubActions(items: items, originQuartzPos: originQuartzPos)
+    }
 
+    private static func executeSubActions(items: [MacroActionItem], originQuartzPos: CGPoint) {
         for item in items {
             let repeats = max(1, item.repeatCount)
             for _ in 0..<repeats {
                 guard !isEmergencyStopped else { return }
                 switch item.action {
+                case .group(_, let subActions):
+                    executeSubActions(items: subActions, originQuartzPos: originQuartzPos)
+                    
                 case .click(let point, let button):
                     let dT: CGEventType = button == .left ? .leftMouseDown : .rightMouseDown
                     let uT: CGEventType = button == .left ? .leftMouseUp   : .rightMouseUp
@@ -984,7 +1072,43 @@ class MacroStore: ObservableObject {
     @Published var selectedFolderPath: String?
     @Published var watchDirectoryURL: URL
     @Published var isSidebarVisible = true
-    @Published var selectedActionID: UUID? = nil
+    @Published var selectedActionIDs: Set<UUID> = []
+    @Published var lastSelectedActionID: UUID? = nil
+    
+    var selectedActionID: UUID? {
+        get { selectedActionIDs.first }
+        set {
+            if let val = newValue {
+                selectedActionIDs = [val]
+                lastSelectedActionID = val
+            } else {
+                selectedActionIDs.removeAll()
+                lastSelectedActionID = nil
+            }
+        }
+    }
+
+    func handleActionSelect(_ itemID: UUID, items: [MacroActionItem], modifiers: NSEvent.ModifierFlags) {
+        if modifiers.contains(.command) {
+            if selectedActionIDs.contains(itemID) {
+                selectedActionIDs.remove(itemID)
+            } else {
+                selectedActionIDs.insert(itemID)
+            }
+            lastSelectedActionID = itemID
+        } else if modifiers.contains(.shift), let last = lastSelectedActionID,
+                   let i1 = items.firstIndex(where: { $0.id == last }),
+                   let i2 = items.firstIndex(where: { $0.id == itemID }) {
+            let range = min(i1, i2)...max(i1, i2)
+            for idx in range {
+                selectedActionIDs.insert(items[idx].id)
+            }
+            lastSelectedActionID = itemID
+        } else {
+            selectedActionIDs = [itemID]
+            lastSelectedActionID = itemID
+        }
+    }
 
     var selectedMacroID: UUID? {
         get { selectedMacro?.id }
@@ -2522,20 +2646,30 @@ struct ActionCardView: View {
                     }
                 }
                 .frame(width: 32, height: 32)
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    store.selectedActionID = item.id
-                }
 
                 // Title & Parameters
                 HStack(spacing: 8) {
                     if detailWidth >= 400 {
                         HStack(spacing: 4) {
-                            Text(item.action.title)
-                                .font(.system(size: detailWidth < 520 ? 11 : 13, weight: .semibold))
+                            if case .group(let name, let subActions) = item.action {
+                                TextField("Group Name", text: Binding(
+                                    get: { name },
+                                    set: { newName in
+                                        onPreSave()
+                                        item.action = .group(name: newName, actions: subActions)
+                                        onSave()
+                                    }
+                                ))
+                                .textFieldStyle(.plain)
+                                .font(.system(size: detailWidth < 520 ? 11 : 13, weight: .bold))
                                 .foregroundColor(.white)
-                                .lineLimit(1)
-                                .fixedSize(horizontal: true, vertical: false)
+                            } else {
+                                Text(item.action.title)
+                                    .font(.system(size: detailWidth < 520 ? 11 : 13, weight: .semibold))
+                                    .foregroundColor(.white)
+                                    .lineLimit(1)
+                                    .fixedSize(horizontal: true, vertical: false)
+                            }
                             
                             if item.repeatCount > 1 {
                                 Text("\(item.repeatCount)x")
@@ -2546,10 +2680,6 @@ struct ActionCardView: View {
                                     .background(Color.white.opacity(0.15))
                                     .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
                             }
-                        }
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            store.selectedActionID = item.id
                         }
                     }
                     
@@ -2572,6 +2702,11 @@ struct ActionCardView: View {
                                 .foregroundColor(.secondary)
                                 .padding(.trailing, 8)
                         }
+                    case .group(_, let subActions):
+                        Text("\(subActions.count) actions")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(.secondary)
+                            .padding(.trailing, 8)
                     default:
                         Text(item.action.parameterString)
                             .font(.system(size: 12, weight: .medium, design: .monospaced))
@@ -2605,17 +2740,83 @@ struct ActionCardView: View {
                     }
                 }
             }
+            
+            // Nested Group Preview
+            if case .group(_, let subActions) = item.action {
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(subActions) { subItem in
+                        HStack(spacing: 8) {
+                            Image(systemName: subItem.action.iconName)
+                                .foregroundColor(subItem.action.color)
+                                .font(.system(size: 10))
+                            Text(subItem.action.title)
+                                .font(.system(size: 11))
+                                .foregroundColor(.secondary)
+                            Spacer()
+                            Text(subItem.action.parameterString)
+                                .font(.system(size: 10, design: .monospaced))
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.white.opacity(0.03))
+                        .clipShape(RoundedRectangle(cornerRadius: 4))
+                    }
+                }
+                .padding(.top, 4)
+                .padding(.leading, 24)
+            }
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 11)
-        .background(store.selectedActionID == item.id ? Color(white: 0.23) : Color(white: 0.18))
+        .background(store.selectedActionIDs.contains(item.id) ? Color(white: 0.23) : Color(white: 0.18))
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .stroke(store.selectedActionID == item.id ? Color.accentColor : Color.white.opacity(0.06),
-                        lineWidth: store.selectedActionID == item.id ? 1.5 : 1)
+                .stroke(store.selectedActionIDs.contains(item.id) ? Color.accentColor : Color.white.opacity(0.06),
+                        lineWidth: store.selectedActionIDs.contains(item.id) ? 1.5 : 1)
         )
+        .contentShape(Rectangle())
+        .onTapGesture {
+            let modifiers = NSEvent.modifierFlags
+            if let selected = MacroStore.shared.selectedMacro {
+                store.handleActionSelect(item.id, items: selected.actionItems, modifiers: modifiers)
+            }
+        }
         .contextMenu {
+            if !store.selectedActionIDs.isEmpty {
+                Button("Group Selected Actions") {
+                    if let selected = MacroStore.shared.selectedMacro {
+                        store.registerUndoState(for: selected)
+                        let itemsToGroup = selected.actionItems.filter { store.selectedActionIDs.contains($0.id) }
+                        guard !itemsToGroup.isEmpty else { return }
+                        
+                        if let firstIdx = selected.actionItems.firstIndex(where: { store.selectedActionIDs.contains($0.id) }) {
+                            selected.actionItems.removeAll { store.selectedActionIDs.contains($0.id) }
+                            let groupItem = MacroActionItem(action: .group(name: "New Group", actions: itemsToGroup))
+                            selected.actionItems.insert(groupItem, at: firstIdx)
+                            store.selectedActionIDs = [groupItem.id]
+                            store.saveMacro(selected)
+                        }
+                    }
+                }
+            }
+            
+            if case .group(_, let subActions) = item.action {
+                Button("Ungroup Actions") {
+                    if let selected = MacroStore.shared.selectedMacro,
+                       let idx = selected.actionItems.firstIndex(where: { $0.id == item.id }) {
+                        store.registerUndoState(for: selected)
+                        selected.actionItems.remove(at: idx)
+                        selected.actionItems.insert(contentsOf: subActions, at: idx)
+                        store.selectedActionIDs.removeAll()
+                        store.saveMacro(selected)
+                    }
+                }
+            }
+            
+            Divider()
+            
             Button("Duplicate") {
                 if let selected = MacroStore.shared.selectedMacro,
                    let idx = selected.actionItems.firstIndex(where: { $0.id == item.id }) {
@@ -2630,8 +2831,8 @@ struct ActionCardView: View {
                 if let selected = MacroStore.shared.selectedMacro {
                     store.registerUndoState(for: selected)
                     selected.actionItems.removeAll { $0.id == item.id }
-                    if store.selectedActionID == item.id {
-                        store.selectedActionID = nil
+                    if store.selectedActionIDs.contains(item.id) {
+                        store.selectedActionIDs.remove(item.id)
                     }
                     store.saveMacro(selected)
                 }
@@ -2865,10 +3066,23 @@ struct ActionDropDelegate: DropDelegate {
                 }
             }
         } else if let dragID = draggingID {
-            guard let fromIdx = items.firstIndex(where: { $0.id == dragID }),
-                  fromIdx != index else { return }
-            withAnimation(.spring(response: 0.2, dampingFraction: 0.8)) {
-                items.move(fromOffsets: IndexSet(integer: fromIdx), toOffset: index > fromIdx ? index + 1 : index)
+            let selectedIDs = MacroStore.shared.selectedActionIDs
+            if selectedIDs.contains(dragID) {
+                let indices = items.enumerated().filter { selectedIDs.contains($1.id) }.map { $0.offset }
+                guard !indices.isEmpty else { return }
+                if !selectedIDs.contains(item.id) {
+                    let fromOffsets = IndexSet(indices)
+                    withAnimation(.spring(response: 0.2, dampingFraction: 0.8)) {
+                        let to = index > (indices.first ?? 0) ? index + 1 : index
+                        items.move(fromOffsets: fromOffsets, toOffset: to)
+                    }
+                }
+            } else {
+                guard let fromIdx = items.firstIndex(where: { $0.id == dragID }),
+                      fromIdx != index else { return }
+                withAnimation(.spring(response: 0.2, dampingFraction: 0.8)) {
+                    items.move(fromOffsets: IndexSet(integer: fromIdx), toOffset: index > fromIdx ? index + 1 : index)
+                }
             }
         }
     }
@@ -3207,6 +3421,17 @@ struct MacroInspectorView: View {
                                     macro.actionItems.append(MacroActionItem(action: .doAgain(target: .origin)))
                                     store.saveMacro(macro)
                                 }
+
+                                // 9. Group (Container Action)
+                                quickActionButton(
+                                    title: "Group",
+                                    icon: "folder",
+                                    color: Color.orange
+                                ) {
+                                    store.registerUndoState(for: macro)
+                                    macro.actionItems.append(MacroActionItem(action: .group(name: "New Group", actions: [])))
+                                    store.saveMacro(macro)
+                                }
                             }
                         }
                         .padding(.horizontal, 14)
@@ -3232,10 +3457,20 @@ struct MacroInspectorView: View {
                            firstResponder.isKind(of: NSClassFromString("NSText")!) || firstResponder.isKind(of: NSClassFromString("NSTextView")!) {
                             return event
                         }
-                        if let selectedID = store.selectedActionID {
+                        if !store.selectedActionIDs.isEmpty {
                             store.registerUndoState(for: macro)
-                            macro.actionItems.removeAll { $0.id == selectedID }
-                            store.selectedActionID = nil
+                            // Recursively remove selected action items from the main list and sub-groups
+                            func recursiveRemove(from list: inout [MacroActionItem], targetIDs: Set<UUID>) {
+                                list.removeAll { targetIDs.contains($0.id) }
+                                for i in 0..<list.count {
+                                    if case .group(let name, var sub) = list[i].action {
+                                        recursiveRemove(from: &sub, targetIDs: targetIDs)
+                                        list[i].action = .group(name: name, actions: sub)
+                                    }
+                                }
+                            }
+                            recursiveRemove(from: &macro.actionItems, targetIDs: store.selectedActionIDs)
+                            store.selectedActionIDs.removeAll()
                             store.saveMacro(macro)
                             return nil
                         }
