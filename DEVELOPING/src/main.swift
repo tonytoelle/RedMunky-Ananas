@@ -5281,6 +5281,7 @@ struct MainEditorView: View {
     @State private var folderInputText = ""
     @State private var showingFolderAlert = false
     @FocusState private var isSearchFocused: Bool
+    @State private var keyMonitor: Any? = nil
 
     var displayNodes: [FileSystemNode] {
         if searchText.isEmpty {
@@ -5518,6 +5519,37 @@ struct MainEditorView: View {
                     if case .folder(_, let url, _, _) = node {
                         expandedFolders.insert(url.path)
                     }
+                }
+                
+                keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+                    // 123 is Left Arrow, 124 is Right Arrow
+                    if event.keyCode == 123 || event.keyCode == 124 {
+                        let targetPath = store.selectedFolderPath ?? selectedPaths.first
+                        if let path = targetPath, !path.hasSuffix(".shortking") {
+                            if event.keyCode == 123 { // Collapse
+                                if expandedFolders.contains(path) {
+                                    withAnimation(.easeInOut(duration: 0.15)) {
+                                        expandedFolders.remove(path)
+                                    }
+                                    return nil // consume the event
+                                }
+                            } else if event.keyCode == 124 { // Expand
+                                if !expandedFolders.contains(path) {
+                                    withAnimation(.easeInOut(duration: 0.15)) {
+                                        expandedFolders.insert(path)
+                                    }
+                                    return nil // consume the event
+                                }
+                            }
+                        }
+                    }
+                    return event
+                }
+            }
+            .onDisappear {
+                if let monitor = keyMonitor {
+                    NSEvent.removeMonitor(monitor)
+                    keyMonitor = nil
                 }
             }
         }
