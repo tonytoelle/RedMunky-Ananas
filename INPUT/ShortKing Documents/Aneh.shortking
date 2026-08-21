@@ -2,7 +2,7 @@
 TRIGGER: cmd+shift+k
 
 # Actions:
-ACTION: press enter
-ACTION: click 1082 482
-ACTION: press enter
+ACTION: press return
+ACTION: click 890 244
+ACTION: press return
 ACTION: click 552 230

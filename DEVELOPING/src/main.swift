@@ -578,6 +578,8 @@ class MacroStore: ObservableObject {
     @Published var selectedMacroID: UUID?
     @Published var watchDirectoryURL: URL
 
+    private var pendingSelectionName: String?
+
     var selectedMacro: MacroItem? {
         get { macros.first(where: { $0.id == selectedMacroID }) }
     }
@@ -601,9 +603,12 @@ class MacroStore: ObservableObject {
                           .compactMap { ShortKingParser.parseFile(at: $0) }
                           .sorted { $0.fileName < $1.fileName }
         DispatchQueue.main.async {
-            let prevSelectedName = self.macros.first(where: { $0.id == self.selectedMacroID })?.fileName
+            let targetName = self.pendingSelectionName ?? self.macros.first(where: { $0.id == self.selectedMacroID })?.fileName
+            self.pendingSelectionName = nil
             self.macros = loaded
-            if let matched = loaded.first(where: { $0.fileName == prevSelectedName }) {
+            if let target = targetName, let matched = loaded.first(where: { $0.fileName == target }) {
+                self.selectedMacroID = matched.id
+            } else if let prevID = self.selectedMacroID, let matched = loaded.first(where: { $0.id == prevID }) {
                 self.selectedMacroID = matched.id
             } else {
                 self.selectedMacroID = loaded.first?.id
@@ -671,6 +676,9 @@ class MacroStore: ObservableObject {
         
         guard oldURL != newURL else { return }
         
+        // Track the target selection immediately
+        self.pendingSelectionName = newFileName
+        
         do {
             // First save any current changes to the old file path
             saveMacro(macro)
@@ -696,7 +704,9 @@ class MacroStore: ObservableObject {
 
     func createNewMacro() {
         let count = macros.count + 1
-        let url = watchDirectoryURL.appendingPathComponent("macro_\(count).shortking")
+        let fileName = "macro_\(count).shortking"
+        let url = watchDirectoryURL.appendingPathComponent(fileName)
+        self.pendingSelectionName = fileName
         let t = Trigger(keyCode: 40, requireCmd: true, requireShift: true, requireOption: false, requireControl: false)
         let a: [MacroAction] = [.delay(ms: 500), .typeText(text: "Hello ShortKing!")]
         try? ShortKingParser.generateScript(trigger: t, actions: a).write(to: url, atomically: true, encoding: .utf8)
@@ -714,17 +724,15 @@ class MacroStore: ObservableObject {
             copyIndex += 1
         }
         
+        let newFileName = "\(newName).shortking"
+        self.pendingSelectionName = newFileName
+        
         // Save current changes first
         saveMacro(macro)
         
         do {
             try FileManager.default.copyItem(at: macro.fileURL, to: newURL)
             loadMacros()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                if let created = self.macros.first(where: { $0.fileURL.lastPathComponent == "\(newName).shortking" }) {
-                    self.selectedMacroID = created.id
-                }
-            }
         } catch {
             print("❌ Failed to duplicate macro: \(error)")
         }
@@ -2099,6 +2107,9 @@ struct MacroInspectorView: View {
         }
         .onChange(of: macro.id) { _, _ in
             tempName = macro.fileName.replacingOccurrences(of: ".shortking", with: "")
+        }
+        .onChange(of: macro.fileName) { _, newFileName in
+            tempName = newFileName.replacingOccurrences(of: ".shortking", with: "")
         }
     }
 
