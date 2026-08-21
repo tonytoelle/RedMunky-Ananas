@@ -1740,6 +1740,7 @@ struct ActionDropDelegate: DropDelegate {
 struct MacroInspectorView: View {
     @ObservedObject var macro: MacroItem
     @ObservedObject var store = MacroStore.shared
+    @ObservedObject var permissions = PermissionManager.shared
 
     @State private var isDirty = false
     @State private var tempName: String = ""
@@ -1758,20 +1759,14 @@ struct MacroInspectorView: View {
                         .onSubmit {
                             store.renameMacro(macro, newBaseName: tempName)
                         }
-
-                    Text(".shortking")
-                        .font(.system(size: 13, weight: .medium, design: .monospaced))
-                        .foregroundColor(Color(white: 0.42))
-                        .lineLimit(1)
-                        .fixedSize(horizontal: true, vertical: false)
                 }
                 .fixedSize(horizontal: true, vertical: false)
 
                 Spacer()
 
-                if !PermissionManager.shared.isAccessibilityGranted {
+                if !permissions.isAccessibilityGranted {
                     Button {
-                        PermissionManager.shared.openAccessibilitySettings()
+                        permissions.openAccessibilitySettings()
                     } label: {
                         Image(systemName: "exclamationmark.shield.fill")
                             .foregroundColor(.yellow)
@@ -1828,6 +1823,10 @@ struct MacroInspectorView: View {
                                     .foregroundColor(.white)
                                     .font(.system(size: 16, weight: .semibold))
                             }
+
+                            Text("Key Press")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundColor(.white)
 
                             Spacer()
 
