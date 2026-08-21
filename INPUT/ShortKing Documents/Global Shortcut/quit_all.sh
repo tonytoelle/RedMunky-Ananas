@@ -7,6 +7,8 @@ EXCLUDED=(
   "com.google.antigravity"
   "com.googlecode.iterm2"
   "com.apple.Terminal"
+  "ca.spreadspace.Hidden"
+  "ca.spreadspace.HiddenBar"
 )
 
 while IFS= read -r bid; do
