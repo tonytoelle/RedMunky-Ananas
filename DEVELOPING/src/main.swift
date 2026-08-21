@@ -3337,7 +3337,7 @@ struct MacroInspectorView: View {
                         }
 
                         if !isTriggerCollapsed {
-                            VStack(spacing: 8) {
+                            VStack(spacing: 12) {
                                 ForEach(0..<macro.triggers.count, id: \.self) { idx in
                                     HStack(spacing: 12) {
                                         ZStack {
@@ -3382,14 +3382,16 @@ struct MacroInspectorView: View {
                                             .buttonStyle(.plain)
                                         }
                                     }
-                                    .padding(.horizontal, 14)
-                                    .padding(.vertical, 11)
-                                    .background(Color(white: 0.18))
-                                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                            .stroke(Color.white.opacity(0.06), lineWidth: 1)
-                                    )
+                                    
+                                    if idx < macro.triggers.count - 1 {
+                                        Divider()
+                                            .background(Color.white.opacity(0.06))
+                                    }
+                                }
+
+                                if macro.triggers.count > 0 {
+                                    Divider()
+                                        .background(Color.white.opacity(0.06))
                                 }
 
                                 Button(action: {
@@ -3416,8 +3418,15 @@ struct MacroInspectorView: View {
                                     )
                                 }
                                 .buttonStyle(.plain)
-                                .padding(.top, 4)
                             }
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 12)
+                            .background(Color(white: 0.18))
+                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                            )
                         }
                     }
 
