@@ -1,0 +1,12 @@
+{
+  "iconName": "folder.fill",
+  "colorName": "blue",
+  "isRestrictedToApps": true,
+  "targetApps": [
+    {
+      "name": "Safari",
+      "bundleId": "com.apple.Safari"
+    }
+  ],
+  "customAppIconBundleId": "com.apple.Safari"
+}
