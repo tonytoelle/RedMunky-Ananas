@@ -3013,7 +3013,7 @@ struct MacroInspectorView: View {
                                 .padding(.leading, 2)
                                 .padding(.top, 6)
 
-                            HStack(spacing: 8) {
+                            LazyVGrid(columns: [GridItem(.adaptive(minimum: 32, maximum: 40), spacing: 8)], spacing: 8) {
                                 // 1. Left Click (Instant Screen Coordinate Capture)
                                 quickActionButton(
                                     title: "Left Click",
@@ -4787,7 +4787,7 @@ struct MainEditorView: View {
             }
         }
     }
-    .frame(minWidth: 320, minHeight: 400)
+    .frame(minWidth: 180, minHeight: 350)
 }
 }
 
