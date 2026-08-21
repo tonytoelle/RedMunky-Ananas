@@ -3121,11 +3121,11 @@ struct MacroInspectorView: View {
     ) -> some View {
         Button(action: action) {
             ZStack {
-                Circle()
-                    .fill(color.opacity(0.12))
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(color)
                     .frame(width: 32, height: 32)
                 Image(systemName: icon)
-                    .foregroundColor(color)
+                    .foregroundColor(.white)
                     .font(.system(size: 14, weight: .semibold))
             }
             .frame(maxWidth: .infinity)
