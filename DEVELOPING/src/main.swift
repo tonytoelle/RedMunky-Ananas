@@ -857,6 +857,50 @@ class MacroStore: ObservableObject {
         NSWorkspace.shared.activateFileViewerSelecting([url])
     }
 
+    func moveItems(paths: [String], toFolder targetFolderURL: URL) {
+        for path in paths {
+            let sourceURL = URL(fileURLWithPath: path)
+            let fileName = sourceURL.lastPathComponent
+            let destURL = targetFolderURL.appendingPathComponent(fileName)
+            
+            guard sourceURL.standardizedFileURL.path != destURL.standardizedFileURL.path else { continue }
+            
+            // Avoid moving a parent folder into its own subfolder
+            if targetFolderURL.path.hasPrefix(sourceURL.path + "/") { continue }
+            
+            do {
+                if FileManager.default.fileExists(atPath: destURL.path) {
+                    let base = sourceURL.deletingPathExtension().lastPathComponent
+                    let ext = sourceURL.pathExtension
+                    var newName = "\(base) copy"
+                    if !ext.isEmpty { newName += ".\(ext)" }
+                    var uniqueDest = targetFolderURL.appendingPathComponent(newName)
+                    var idx = 2
+                    while FileManager.default.fileExists(atPath: uniqueDest.path) {
+                        newName = "\(base) copy \(idx)"
+                        if !ext.isEmpty { newName += ".\(ext)" }
+                        uniqueDest = targetFolderURL.appendingPathComponent(newName)
+                        idx += 1
+                    }
+                    try FileManager.default.moveItem(at: sourceURL, to: uniqueDest)
+                } else {
+                    try FileManager.default.moveItem(at: sourceURL, to: destURL)
+                }
+            } catch {
+                print("❌ Failed to move item: \(error)")
+            }
+        }
+        loadMacros()
+    }
+
+    func deleteItems(paths: [String]) {
+        for path in paths {
+            let url = URL(fileURLWithPath: path)
+            try? FileManager.default.removeItem(at: url)
+        }
+        loadMacros()
+    }
+
     func runMacro(_ macro: MacroItem) {
         let actions = macro.actions
         DispatchQueue.global(qos: .userInitiated).async { InputSimulator.execute(actions: actions) }
@@ -2982,52 +3026,94 @@ struct SidebarNodeView: View {
     let node: FileSystemNode
     let depth: Int
     @Binding var expandedFolders: Set<String>
+    @Binding var selectedPaths: Set<String>
     @ObservedObject var store = MacroStore.shared
+    var onSelect: (String, NSEvent.ModifierFlags) -> Void
     var onPromptFolder: (Bool, URL?, String) -> Void
+
+    @State private var isDropTarget = false
 
     var body: some View {
         switch node {
         case .folder(let name, let url, let children):
             let isExpanded = expandedFolders.contains(url.path)
+            let isSelected = selectedPaths.contains(url.path)
             
             VStack(alignment: .leading, spacing: 2) {
                 // Folder Row
-                Button {
-                    withAnimation(.easeInOut(duration: 0.15)) {
-                        if isExpanded {
-                            expandedFolders.remove(url.path)
-                        } else {
-                            expandedFolders.insert(url.path)
+                HStack(spacing: 0) {
+                    // Chevron button (only toggles fold)
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.15)) {
+                            if isExpanded {
+                                expandedFolders.remove(url.path)
+                            } else {
+                                expandedFolders.insert(url.path)
+                            }
                         }
-                    }
-                } label: {
-                    HStack(spacing: 6) {
+                    } label: {
                         Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
                             .font(.system(size: 10, weight: .bold))
                             .foregroundColor(Color(white: 0.55))
-                            .frame(width: 12)
-
-                        Image(systemName: "folder.fill")
-                            .foregroundColor(Color(red: 0.35, green: 0.65, blue: 0.95))
-                            .font(.system(size: 13))
-
-                        Text(name)
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundColor(Color(white: 0.92))
-                            .lineLimit(1)
-
-                        Spacer()
-
-                        Text("\(children.count)")
-                            .font(.system(size: 10, weight: .medium, design: .monospaced))
-                            .foregroundColor(Color(white: 0.45))
+                            .frame(width: 16, height: 22)
+                            .contentShape(Rectangle())
                     }
-                    .padding(.leading, CGFloat(depth * 14 + 4))
-                    .padding(.trailing, 8)
-                    .padding(.vertical, 5)
-                    .contentShape(Rectangle())
+                    .buttonStyle(.plain)
+
+                    // Folder title & icon (click to select or double click to toggle)
+                    Button {
+                        let flags = NSEvent.modifierFlags
+                        onSelect(url.path, flags)
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "folder.fill")
+                                .foregroundColor(Color(red: 0.35, green: 0.65, blue: 0.95))
+                                .font(.system(size: 13))
+
+                            Text(name)
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundColor(Color(white: 0.92))
+                                .lineLimit(1)
+
+                            Spacer()
+
+                            Text("\(children.count)")
+                                .font(.system(size: 10, weight: .medium, design: .monospaced))
+                                .foregroundColor(Color(white: 0.45))
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
+                .padding(.leading, CGFloat(depth * 14 + 4))
+                .padding(.trailing, 8)
+                .padding(.vertical, 4)
+                .background(
+                    isDropTarget
+                        ? Color.accentColor.opacity(0.3)
+                        : (isSelected ? Color(red: 0.05, green: 0.45, blue: 0.95).opacity(0.7) : Color.clear)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .stroke(isDropTarget ? Color.accentColor : Color.clear, lineWidth: 1.5)
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .onDrag {
+                    let pathsToDrag = selectedPaths.contains(url.path) ? Array(selectedPaths) : [url.path]
+                    return NSItemProvider(object: pathsToDrag.joined(separator: "\n") as NSString)
+                }
+                .onDrop(of: [.plainText, .utf8PlainText, .fileURL], isTargeted: $isDropTarget) { providers in
+                    for provider in providers {
+                        _ = provider.loadObject(ofClass: NSString.self) { string, _ in
+                            guard let str = string as? String else { return }
+                            let paths = str.components(separatedBy: "\n").filter { !$0.isEmpty }
+                            DispatchQueue.main.async {
+                                store.moveItems(paths: paths, toFolder: url)
+                            }
+                        }
+                    }
+                    return true
+                }
                 .contextMenu {
                     Button {
                         store.createNewMacro(inFolder: url)
@@ -3071,6 +3157,8 @@ struct SidebarNodeView: View {
                             node: child,
                             depth: depth + 1,
                             expandedFolders: $expandedFolders,
+                            selectedPaths: $selectedPaths,
+                            onSelect: onSelect,
                             onPromptFolder: onPromptFolder
                         )
                     }
@@ -3078,10 +3166,11 @@ struct SidebarNodeView: View {
             }
 
         case .macro(let macro):
-            let isSelected = store.selectedFilePath == macro.fileURL.path
+            let isSelected = selectedPaths.contains(macro.fileURL.path) || (store.selectedFilePath == macro.fileURL.path && selectedPaths.isEmpty)
 
             Button {
-                store.selectedFilePath = macro.fileURL.path
+                let flags = NSEvent.modifierFlags
+                onSelect(macro.fileURL.path, flags)
             } label: {
                 HStack(spacing: 8) {
                     ZStack {
@@ -3102,7 +3191,7 @@ struct SidebarNodeView: View {
 
                     ShortcutBadgeView(trigger: macro.trigger, isDimmedMini: true)
                 }
-                .padding(.leading, CGFloat(depth * 14 + 18))
+                .padding(.leading, CGFloat(depth * 14 + 20))
                 .padding(.trailing, 8)
                 .padding(.vertical, 6)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -3115,6 +3204,10 @@ struct SidebarNodeView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
             }
             .buttonStyle(.plain)
+            .onDrag {
+                let pathsToDrag = selectedPaths.contains(macro.fileURL.path) ? Array(selectedPaths) : [macro.fileURL.path]
+                return NSItemProvider(object: pathsToDrag.joined(separator: "\n") as NSString)
+            }
             .contextMenu {
                 Button {
                     store.runMacro(macro)
@@ -3139,9 +3232,14 @@ struct SidebarNodeView: View {
                 Divider()
 
                 Button(role: .destructive) {
-                    store.deleteMacro(macro)
+                    if !selectedPaths.isEmpty {
+                        store.deleteItems(paths: Array(selectedPaths))
+                        selectedPaths.removeAll()
+                    } else {
+                        store.deleteMacro(macro)
+                    }
                 } label: {
-                    Label("Delete Macro", systemImage: "trash")
+                    Label("Delete", systemImage: "trash")
                 }
             }
         }
@@ -3169,6 +3267,9 @@ struct MainEditorView: View {
     @ObservedObject var store = MacroStore.shared
     @State private var searchText = ""
     @State private var expandedFolders: Set<String> = []
+    @State private var selectedPaths: Set<String> = []
+    @State private var lastClickedPath: String? = nil
+    @State private var isRootDropTarget = false
     
     // Folder modal/alert states
     @State private var folderPrompt: FolderPromptState?
@@ -3199,6 +3300,50 @@ struct MainEditorView: View {
             }
         }
         return result
+    }
+
+    func getVisiblePaths(from nodes: [FileSystemNode]) -> [String] {
+        var paths: [String] = []
+        for node in nodes {
+            switch node {
+            case .folder(_, let url, let children):
+                paths.append(url.path)
+                if expandedFolders.contains(url.path) {
+                    paths.append(contentsOf: getVisiblePaths(from: children))
+                }
+            case .macro(let item):
+                paths.append(item.fileURL.path)
+            }
+        }
+        return paths
+    }
+
+    func handleSelect(path: String, modifiers: NSEvent.ModifierFlags) {
+        if modifiers.contains(.command) {
+            if selectedPaths.contains(path) {
+                selectedPaths.remove(path)
+            } else {
+                selectedPaths.insert(path)
+            }
+            lastClickedPath = path
+        } else if modifiers.contains(.shift), let last = lastClickedPath {
+            let allPaths = getVisiblePaths(from: displayNodes)
+            if let i1 = allPaths.firstIndex(of: last), let i2 = allPaths.firstIndex(of: path) {
+                let range = min(i1, i2)...max(i1, i2)
+                for p in allPaths[range] {
+                    selectedPaths.insert(p)
+                }
+            } else {
+                selectedPaths.insert(path)
+            }
+        } else {
+            selectedPaths = [path]
+            lastClickedPath = path
+        }
+        
+        if let macro = store.macros.first(where: { selectedPaths.contains($0.fileURL.path) }) {
+            store.selectedFilePath = macro.fileURL.path
+        }
     }
 
     var body: some View {
@@ -3248,6 +3393,8 @@ struct MainEditorView: View {
                                     node: node,
                                     depth: 0,
                                     expandedFolders: $expandedFolders,
+                                    selectedPaths: $selectedPaths,
+                                    onSelect: handleSelect,
                                     onPromptFolder: { isNew, url, name in
                                         folderPrompt = FolderPromptState(isNewFolder: isNew, targetURL: url, initialName: name)
                                         folderInputText = name
@@ -3259,6 +3406,18 @@ struct MainEditorView: View {
                     }
                     .padding(.horizontal, 8)
                     .padding(.bottom, 12)
+                }
+                .onDrop(of: [.plainText, .utf8PlainText, .fileURL], isTargeted: $isRootDropTarget) { providers in
+                    for provider in providers {
+                        _ = provider.loadObject(ofClass: NSString.self) { string, _ in
+                            guard let str = string as? String else { return }
+                            let paths = str.components(separatedBy: "\n").filter { !$0.isEmpty }
+                            DispatchQueue.main.async {
+                                store.moveItems(paths: paths, toFolder: store.watchDirectoryURL)
+                            }
+                        }
+                    }
+                    return true
                 }
 
                 Divider()
@@ -3285,14 +3444,19 @@ struct MainEditorView: View {
                     .buttonStyle(.borderless)
                     .help("New Folder")
 
-                    if let m = store.selectedMacro {
+                    if !selectedPaths.isEmpty || store.selectedMacro != nil {
                         Button {
-                            store.deleteMacro(m)
+                            if !selectedPaths.isEmpty {
+                                store.deleteItems(paths: Array(selectedPaths))
+                                selectedPaths.removeAll()
+                            } else if let m = store.selectedMacro {
+                                store.deleteMacro(m)
+                            }
                         } label: {
                             Image(systemName: "trash").font(.system(size: 13))
                         }
                         .buttonStyle(.borderless)
-                        .help("Delete Selected Macro")
+                        .help("Delete Selected Items")
                         .foregroundColor(.red)
                     }
 
