@@ -151,6 +151,38 @@ enum MacroAction: Equatable {
     }
 }
 
+// ==========================================
+// MARK: - Folder Configuration & App Targeting
+// ==========================================
+struct TargetApp: Codable, Identifiable, Equatable {
+    var id: String { bundleId }
+    let name: String
+    let bundleId: String
+}
+
+struct FolderConfig: Codable, Equatable {
+    var iconName: String = "folder.fill"
+    var colorName: String = "blue"
+    var isRestrictedToApps: Bool = false
+    var targetApps: [TargetApp] = []
+    
+    var color: Color {
+        switch colorName.lowercased() {
+        case "blue":   return Color(red: 0.25, green: 0.65, blue: 0.95)
+        case "purple": return Color(red: 0.68, green: 0.45, blue: 0.95)
+        case "orange": return Color(red: 0.98, green: 0.58, blue: 0.20)
+        case "green":  return Color(red: 0.30, green: 0.80, blue: 0.45)
+        case "pink":   return Color(red: 0.98, green: 0.45, blue: 0.65)
+        case "indigo": return Color(red: 0.42, green: 0.38, blue: 0.88)
+        case "red":    return Color(red: 0.95, green: 0.30, blue: 0.30)
+        case "yellow": return Color(red: 0.98, green: 0.80, blue: 0.20)
+        case "teal":   return Color(red: 0.20, green: 0.75, blue: 0.80)
+        case "gray":   return Color(white: 0.60)
+        default:       return Color(red: 0.25, green: 0.65, blue: 0.95)
+        }
+    }
+}
+
 // MacroItem uses @Published for reactive updates
 class MacroItem: Identifiable, ObservableObject {
     let id: UUID
@@ -158,15 +190,17 @@ class MacroItem: Identifiable, ObservableObject {
     @Published var fileURL: URL
     @Published var trigger: Trigger
     @Published var actionItems: [MacroActionItem]  // items have stable IDs for drag-drop
+    var parentFolderConfig: FolderConfig?
 
     var actions: [MacroAction] { actionItems.map(\.action) }
 
-    init(fileName: String, fileURL: URL, trigger: Trigger, actionItems: [MacroActionItem]) {
+    init(fileName: String, fileURL: URL, trigger: Trigger, actionItems: [MacroActionItem], parentFolderConfig: FolderConfig? = nil) {
         self.id = UUID()
         self.fileName = fileName
         self.fileURL = fileURL
         self.trigger = trigger
         self.actionItems = actionItems
+        self.parentFolderConfig = parentFolderConfig
     }
 }
 
@@ -552,19 +586,19 @@ func generateShortcutIcon(for trigger: Trigger) -> NSImage {
 // MARK: - File System Hierarchy Tree
 // ==========================================
 enum FileSystemNode: Identifiable {
-    case folder(name: String, url: URL, children: [FileSystemNode])
+    case folder(name: String, url: URL, config: FolderConfig, children: [FileSystemNode])
     case macro(item: MacroItem)
 
     var id: String {
         switch self {
-        case .folder(_, let url, _): return "folder:" + url.path
+        case .folder(_, let url, _, _): return "folder:" + url.path
         case .macro(let item): return "macro:" + item.fileURL.path
         }
     }
 
     var name: String {
         switch self {
-        case .folder(let name, _, _): return name
+        case .folder(let name, _, _, _): return name
         case .macro(let item): return item.fileName.replacingOccurrences(of: ".shortking", with: "")
         }
     }
@@ -578,7 +612,14 @@ enum FileSystemNode: Identifiable {
 
     var folderURL: URL? {
         switch self {
-        case .folder(_, let url, _): return url
+        case .folder(_, let url, _, _): return url
+        case .macro: return nil
+        }
+    }
+
+    var folderConfig: FolderConfig? {
+        switch self {
+        case .folder(_, _, let config, _): return config
         case .macro: return nil
         }
     }
@@ -610,6 +651,7 @@ class MacroStore: ObservableObject {
     @Published var treeNodes: [FileSystemNode] = []
     @Published var macros: [MacroItem] = []
     @Published var selectedFilePath: String?
+    @Published var selectedFolderPath: String?
     @Published var watchDirectoryURL: URL
 
     var selectedMacroID: UUID? {
@@ -617,6 +659,7 @@ class MacroStore: ObservableObject {
         set {
             if let id = newValue {
                 selectedFilePath = macros.first(where: { $0.id == id })?.fileURL.path
+                selectedFolderPath = nil
             } else {
                 selectedFilePath = nil
             }
@@ -628,15 +671,33 @@ class MacroStore: ObservableObject {
         set {
             if let name = newValue {
                 selectedFilePath = macros.first(where: { $0.fileName == name })?.fileURL.path
+                selectedFolderPath = nil
             }
         }
     }
 
     var selectedMacro: MacroItem? {
         get {
-            guard let path = selectedFilePath else { return macros.first }
-            return macros.first(where: { $0.fileURL.path == path }) ?? macros.first
+            guard let path = selectedFilePath else { return nil }
+            return macros.first(where: { $0.fileURL.path == path })
         }
+    }
+
+    func loadFolderConfig(at folderURL: URL) -> FolderConfig {
+        let configFile = folderURL.appendingPathComponent(".folder_config.json")
+        guard let data = try? Data(contentsOf: configFile),
+              let config = try? JSONDecoder().decode(FolderConfig.self, from: data) else {
+            return FolderConfig()
+        }
+        return config
+    }
+
+    func saveFolderConfig(_ config: FolderConfig, for folderURL: URL) {
+        let configFile = folderURL.appendingPathComponent(".folder_config.json")
+        if let data = try? JSONEncoder().encode(config) {
+            try? data.write(to: configFile, options: .atomic)
+        }
+        loadMacros()
     }
 
     private var dirFD: CInt = -1
@@ -651,7 +712,7 @@ class MacroStore: ObservableObject {
         startWatching()
     }
 
-    private func scanDirectory(at url: URL, loadedMacros: inout [MacroItem]) -> [FileSystemNode] {
+    private func scanDirectory(at url: URL, loadedMacros: inout [MacroItem], parentConfig: FolderConfig? = nil) -> [FileSystemNode] {
         guard let items = try? FileManager.default.contentsOfDirectory(at: url, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles]) else {
             return []
         }
@@ -669,10 +730,12 @@ class MacroStore: ObservableObject {
         for item in sorted {
             let isDir = (try? item.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false
             if isDir {
-                let children = scanDirectory(at: item, loadedMacros: &loadedMacros)
-                nodes.append(.folder(name: item.lastPathComponent, url: item, children: children))
+                let config = loadFolderConfig(at: item)
+                let children = scanDirectory(at: item, loadedMacros: &loadedMacros, parentConfig: config)
+                nodes.append(.folder(name: item.lastPathComponent, url: item, config: config, children: children))
             } else if item.pathExtension.lowercased() == "shortking" {
                 if let macro = ShortKingParser.parseFile(at: item) {
+                    macro.parentFolderConfig = parentConfig
                     loadedMacros.append(macro)
                     nodes.append(.macro(item: macro))
                 }
@@ -691,8 +754,11 @@ class MacroStore: ObservableObject {
             self.macros = loaded
             if let current = self.selectedFilePath, loaded.contains(where: { $0.fileURL.path == current }) {
                 // Keep current selection
+            } else if let currentFolder = self.selectedFolderPath, FileManager.default.fileExists(atPath: currentFolder) {
+                // Keep folder selection
             } else if let firstMacro = loaded.first {
                 self.selectedFilePath = firstMacro.fileURL.path
+                self.selectedFolderPath = nil
             } else {
                 self.selectedFilePath = nil
             }
@@ -712,7 +778,22 @@ class MacroStore: ObservableObject {
         CarbonHotKeyManager.shared.unregisterAll()
         for macro in macros {
             let actions = macro.actions
+            let folderConfig = macro.parentFolderConfig
             CarbonHotKeyManager.shared.register(trigger: macro.trigger) {
+                // App targeting restriction check
+                if let cfg = folderConfig, cfg.isRestrictedToApps && !cfg.targetApps.isEmpty {
+                    if let frontApp = NSWorkspace.shared.frontmostApplication {
+                        let activeBundle = frontApp.bundleIdentifier ?? ""
+                        let activeName = frontApp.localizedName ?? ""
+                        let matches = cfg.targetApps.contains { target in
+                            target.bundleId == activeBundle || target.name.localizedCaseInsensitiveCompare(activeName) == .orderedSame
+                        }
+                        if !matches {
+                            print("⏭️ Skipping macro '\(macro.fileName)' because frontmost app '\(activeName)' is not in folder target list.")
+                            return
+                        }
+                    }
+                }
                 print("🚀 Executing: \(macro.fileName)")
                 InputSimulator.execute(actions: actions)
             }
@@ -3013,6 +3094,349 @@ struct SettingsView: View {
 }
 
 // ==========================================
+// MARK: - Folder Inspector View (Settings, Color, Icon, App-Specific Targeting)
+// ==========================================
+struct FolderInspectorView: View {
+    let folderURL: URL
+    let initialConfig: FolderConfig
+    let itemCount: Int
+    @ObservedObject var store = MacroStore.shared
+
+    @State private var folderName: String = ""
+    @State private var config: FolderConfig = FolderConfig()
+    @State private var isShowingRenameAlert: Bool = false
+    @State private var renameText: String = ""
+
+    let availableColors: [(name: String, label: String, color: Color)] = [
+        ("blue", "Blue", Color(red: 0.25, green: 0.65, blue: 0.95)),
+        ("purple", "Purple", Color(red: 0.68, green: 0.45, blue: 0.95)),
+        ("orange", "Orange", Color(red: 0.98, green: 0.58, blue: 0.20)),
+        ("green", "Green", Color(red: 0.30, green: 0.80, blue: 0.45)),
+        ("pink", "Pink", Color(red: 0.98, green: 0.45, blue: 0.65)),
+        ("indigo", "Indigo", Color(red: 0.42, green: 0.38, blue: 0.88)),
+        ("red", "Red", Color(red: 0.95, green: 0.30, blue: 0.30)),
+        ("yellow", "Yellow", Color(red: 0.98, green: 0.80, blue: 0.20)),
+        ("teal", "Teal", Color(red: 0.20, green: 0.75, blue: 0.80)),
+        ("gray", "Gray", Color(white: 0.60))
+    ]
+
+    let availableIcons: [String] = [
+        "folder.fill", "folder.badge.gearshape", "star.fill", "bookmark.fill", "tag.fill",
+        "film.fill", "video.fill", "waveform", "music.note", "camera.fill", "photo.fill",
+        "chevron.left.forwardslash.chevron.right", "terminal.fill", "cpu.fill", "hammer.fill", "wrench.and.screwdriver.fill",
+        "paintpalette.fill", "paintbrush.fill", "wand.and.stars", "pencil.and.ruler.fill", "crop",
+        "briefcase.fill", "doc.text.fill", "chart.bar.fill", "envelope.fill", "calendar",
+        "gamecontroller.fill", "bolt.fill", "keyboard.fill", "slider.horizontal.3", "flame.fill"
+    ]
+
+    var runningApps: [NSRunningApplication] {
+        return NSWorkspace.shared.runningApplications.filter {
+            $0.activationPolicy == .regular &&
+            $0.bundleIdentifier != nil &&
+            $0.bundleIdentifier != Bundle.main.bundleIdentifier &&
+            $0.localizedName != nil
+        }.sorted { ($0.localizedName ?? "") < ($1.localizedName ?? "") }
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                // Header Card
+                HStack(spacing: 16) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .fill(config.color.opacity(0.18))
+                            .frame(width: 58, height: 58)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                    .stroke(config.color.opacity(0.4), lineWidth: 1.5)
+                            )
+                        Image(systemName: config.iconName)
+                            .font(.system(size: 26, weight: .semibold))
+                            .foregroundColor(config.color)
+                    }
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(folderName)
+                            .font(.system(size: 20, weight: .bold))
+                            .foregroundColor(.white)
+                            .lineLimit(1)
+
+                        HStack(spacing: 8) {
+                            Text("\(itemCount) macros")
+                                .font(.system(size: 12))
+                                .foregroundColor(.secondary)
+
+                            Text("•")
+                                .foregroundColor(Color(white: 0.35))
+
+                            Button("Reveal in Finder") {
+                                store.revealFolderInFinder(folderURL)
+                            }
+                            .buttonStyle(.plain)
+                            .font(.system(size: 12))
+                            .foregroundColor(.accentColor)
+                        }
+                    }
+
+                    Spacer()
+
+                    Button {
+                        renameText = folderName
+                        isShowingRenameAlert = true
+                    } label: {
+                        Label("Rename", systemImage: "pencil")
+                    }
+                    .buttonStyle(.bordered)
+                }
+                .padding(16)
+                .background(Color(white: 0.16))
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+                // SECTION 1: App Targeting (Top Priority)
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Image(systemName: "macwindow.on.rectangle")
+                            .foregroundColor(.accentColor)
+                            .font(.system(size: 14, weight: .semibold))
+                        Text("Target Applications")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(.white)
+                        Spacer()
+                        Toggle("", isOn: $config.isRestrictedToApps)
+                            .toggleStyle(.switch)
+                            .onChange(of: config.isRestrictedToApps) {
+                                saveConfig()
+                            }
+                    }
+
+                    Text("When enabled, shortcuts inside this folder will only run when one of the specified applications is active and focused.")
+                        .font(.system(size: 11.5))
+                        .foregroundColor(Color(white: 0.65))
+
+                    if config.isRestrictedToApps {
+                        Divider().background(Color(white: 0.25))
+
+                        if config.targetApps.isEmpty {
+                            HStack {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .foregroundColor(.orange)
+                                Text("No applications added yet. Macros will not trigger until at least one target app is added below.")
+                                    .font(.system(size: 11.5))
+                                    .foregroundColor(.orange)
+                            }
+                            .padding(10)
+                            .background(Color.orange.opacity(0.12))
+                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        } else {
+                            VStack(spacing: 6) {
+                                ForEach(config.targetApps) { target in
+                                    HStack(spacing: 10) {
+                                        if let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: target.bundleId) {
+                                            Image(nsImage: NSWorkspace.shared.icon(forFile: appURL.path))
+                                                .resizable()
+                                                .frame(width: 22, height: 22)
+                                        } else {
+                                            Image(systemName: "app.fill")
+                                                .foregroundColor(.accentColor)
+                                                .frame(width: 22, height: 22)
+                                        }
+
+                                        VStack(alignment: .leading, spacing: 1) {
+                                            Text(target.name)
+                                                .font(.system(size: 13, weight: .medium))
+                                                .foregroundColor(.white)
+                                            Text(target.bundleId)
+                                                .font(.system(size: 10, design: .monospaced))
+                                                .foregroundColor(Color(white: 0.5))
+                                        }
+
+                                        Spacer()
+
+                                        Button {
+                                            config.targetApps.removeAll { $0.bundleId == target.bundleId }
+                                            saveConfig()
+                                        } label: {
+                                            Image(systemName: "xmark.circle.fill")
+                                                .foregroundColor(Color(white: 0.5))
+                                                .font(.system(size: 14))
+                                        }
+                                        .buttonStyle(.plain)
+                                        .help("Remove application")
+                                    }
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 6)
+                                    .background(Color(white: 0.20))
+                                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                                }
+                            }
+                        }
+
+                        // Add Application Buttons
+                        HStack(spacing: 10) {
+                            Menu {
+                                ForEach(runningApps, id: \.processIdentifier) { app in
+                                    if let bId = app.bundleIdentifier, let name = app.localizedName {
+                                        Button {
+                                            if !config.targetApps.contains(where: { $0.bundleId == bId }) {
+                                                config.targetApps.append(TargetApp(name: name, bundleId: bId))
+                                                saveConfig()
+                                            }
+                                        } label: {
+                                            if let icon = app.icon {
+                                                Image(nsImage: icon)
+                                            }
+                                            Text(name)
+                                        }
+                                    }
+                                }
+                            } label: {
+                                Label("Add Running App…", systemImage: "plus.app")
+                            }
+                            .menuStyle(.borderlessButton)
+                            .buttonStyle(.bordered)
+
+                            Button {
+                                pickAppFromDisk()
+                            } label: {
+                                Label("Browse Applications…", systemImage: "folder.badge.gearshape")
+                            }
+                            .buttonStyle(.bordered)
+                        }
+                        .padding(.top, 4)
+                    }
+                }
+                .padding(16)
+                .background(Color(white: 0.16))
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+                // SECTION 2: Folder Appearance (Color & Icon)
+                VStack(alignment: .leading, spacing: 16) {
+                    HStack {
+                        Image(systemName: "paintpalette.fill")
+                            .foregroundColor(config.color)
+                            .font(.system(size: 14, weight: .semibold))
+                        Text("Folder Appearance")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(.white)
+                    }
+
+                    // Color Picker Palette
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("COLOR")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundColor(Color(white: 0.5))
+
+                        HStack(spacing: 10) {
+                            ForEach(availableColors, id: \.name) { item in
+                                Button {
+                                    config.colorName = item.name
+                                    saveConfig()
+                                } label: {
+                                    ZStack {
+                                        Circle()
+                                            .fill(item.color)
+                                            .frame(width: 26, height: 26)
+                                        if config.colorName.lowercased() == item.name.lowercased() {
+                                            Image(systemName: "checkmark")
+                                                .font(.system(size: 11, weight: .bold))
+                                                .foregroundColor(.white)
+                                        }
+                                    }
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+
+                    Divider().background(Color(white: 0.25))
+
+                    // Icon Picker Grid
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("ICON")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundColor(Color(white: 0.5))
+
+                        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 8), spacing: 8) {
+                            ForEach(availableIcons, id: \.self) { icon in
+                                let isSelected = config.iconName == icon
+                                Button {
+                                    config.iconName = icon
+                                    saveConfig()
+                                } label: {
+                                    ZStack {
+                                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                            .fill(isSelected ? config.color.opacity(0.3) : Color(white: 0.22))
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                                    .stroke(isSelected ? config.color : Color.clear, lineWidth: 1.5)
+                                            )
+                                            .frame(height: 38)
+                                        Image(systemName: icon)
+                                            .font(.system(size: 16))
+                                            .foregroundColor(isSelected ? config.color : Color(white: 0.85))
+                                    }
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+                }
+                .padding(16)
+                .background(Color(white: 0.16))
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            }
+            .padding(20)
+        }
+        .background(Color(white: 0.14))
+        .onAppear {
+            folderName = folderURL.lastPathComponent
+            config = initialConfig
+        }
+        .onChange(of: folderURL) { _, newURL in
+            folderName = newURL.lastPathComponent
+            config = store.loadFolderConfig(at: newURL)
+        }
+        .alert("Rename Folder", isPresented: $isShowingRenameAlert) {
+            TextField("Folder Name", text: $renameText)
+            Button("Cancel", role: .cancel) {}
+            Button("Rename") {
+                if !renameText.isEmpty && renameText != folderName {
+                    store.renameFolder(at: folderURL, newName: renameText)
+                    folderName = renameText
+                }
+            }
+        }
+    }
+
+    private func saveConfig() {
+        store.saveFolderConfig(config, for: folderURL)
+    }
+
+    private func pickAppFromDisk() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.allowedContentTypes = [.application]
+        panel.directoryURL = URL(fileURLWithPath: "/Applications")
+        
+        if panel.runModal() == .OK, let url = panel.url {
+            let bundle = Bundle(url: url)
+            let bundleId = bundle?.bundleIdentifier ?? url.deletingPathExtension().lastPathComponent
+            let name = bundle?.infoDictionary?["CFBundleName"] as? String ??
+                       bundle?.infoDictionary?["CFBundleDisplayName"] as? String ??
+                       url.deletingPathExtension().lastPathComponent
+            
+            if !config.targetApps.contains(where: { $0.bundleId == bundleId }) {
+                config.targetApps.append(TargetApp(name: name, bundleId: bundleId))
+                saveConfig()
+            }
+        }
+    }
+}
+
+// ==========================================
 // MARK: - Sidebar Tree Node View (Obsidian / Finder Style)
 // ==========================================
 struct FolderPromptState: Identifiable {
@@ -3035,9 +3459,9 @@ struct SidebarNodeView: View {
 
     var body: some View {
         switch node {
-        case .folder(let name, let url, let children):
+        case .folder(let name, let url, let config, let children):
             let isExpanded = expandedFolders.contains(url.path)
-            let isSelected = selectedPaths.contains(url.path)
+            let isSelected = selectedPaths.contains(url.path) || store.selectedFolderPath == url.path
             
             VStack(alignment: .leading, spacing: 2) {
                 // Folder Row
@@ -3060,19 +3484,25 @@ struct SidebarNodeView: View {
                     }
                     .buttonStyle(.plain)
 
-                    // Folder title & icon (click to select or double click to toggle)
+                    // Folder title & icon (click to select and open folder settings)
                     Button {
                         let flags = NSEvent.modifierFlags
-                        onSelect(url.path, flags)
+                        if flags.contains(.command) || flags.contains(.shift) {
+                            onSelect(url.path, flags)
+                        } else {
+                            store.selectedFolderPath = url.path
+                            store.selectedFilePath = nil
+                            onSelect(url.path, flags)
+                        }
                     } label: {
                         HStack(spacing: 6) {
-                            Image(systemName: "folder.fill")
-                                .foregroundColor(Color(red: 0.35, green: 0.65, blue: 0.95))
+                            Image(systemName: config.iconName)
+                                .foregroundColor(config.color)
                                 .font(.system(size: 13))
 
                             Text(name)
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundColor(Color(white: 0.92))
+                                .font(.system(size: 13, weight: isSelected ? .bold : .semibold))
+                                .foregroundColor(isSelected ? .white : Color(white: 0.92))
                                 .lineLimit(1)
 
                             Spacer()
@@ -3115,6 +3545,15 @@ struct SidebarNodeView: View {
                     return true
                 }
                 .contextMenu {
+                    Button {
+                        store.selectedFolderPath = url.path
+                        store.selectedFilePath = nil
+                    } label: {
+                        Label("Folder Settings…", systemImage: "gearshape")
+                    }
+
+                    Divider()
+
                     Button {
                         store.createNewMacro(inFolder: url)
                     } label: {
@@ -3170,7 +3609,13 @@ struct SidebarNodeView: View {
 
             Button {
                 let flags = NSEvent.modifierFlags
-                onSelect(macro.fileURL.path, flags)
+                if flags.contains(.command) || flags.contains(.shift) {
+                    onSelect(macro.fileURL.path, flags)
+                } else {
+                    store.selectedFilePath = macro.fileURL.path
+                    store.selectedFolderPath = nil
+                    onSelect(macro.fileURL.path, flags)
+                }
             } label: {
                 HStack(spacing: 8) {
                     ZStack {
@@ -3288,10 +3733,10 @@ struct MainEditorView: View {
         var result: [FileSystemNode] = []
         for node in nodes {
             switch node {
-            case .folder(let name, let url, let children):
+            case .folder(let name, let url, let config, let children):
                 let matching = filterTree(nodes: children, query: query)
                 if !matching.isEmpty || name.localizedCaseInsensitiveContains(query) {
-                    result.append(.folder(name: name, url: url, children: matching))
+                    result.append(.folder(name: name, url: url, config: config, children: matching))
                 }
             case .macro(let item):
                 if item.fileName.localizedCaseInsensitiveContains(query) || item.trigger.displayString.localizedCaseInsensitiveContains(query) {
@@ -3306,7 +3751,7 @@ struct MainEditorView: View {
         var paths: [String] = []
         for node in nodes {
             switch node {
-            case .folder(_, let url, let children):
+            case .folder(_, let url, _, let children):
                 paths.append(url.path)
                 if expandedFolders.contains(url.path) {
                     paths.append(contentsOf: getVisiblePaths(from: children))
@@ -3316,6 +3761,23 @@ struct MainEditorView: View {
             }
         }
         return paths
+    }
+
+    func findFolderInfo(path: String, in nodes: [FileSystemNode]) -> (name: String, url: URL, config: FolderConfig, count: Int)? {
+        for node in nodes {
+            switch node {
+            case .folder(let name, let url, let config, let children):
+                if url.path == path {
+                    return (name, url, config, children.count)
+                }
+                if let found = findFolderInfo(path: path, in: children) {
+                    return found
+                }
+            case .macro:
+                break
+            }
+        }
+        return nil
     }
 
     func handleSelect(path: String, modifiers: NSEvent.ModifierFlags) {
@@ -3343,6 +3805,7 @@ struct MainEditorView: View {
         
         if let macro = store.macros.first(where: { selectedPaths.contains($0.fileURL.path) }) {
             store.selectedFilePath = macro.fileURL.path
+            store.selectedFolderPath = nil
         }
     }
 
@@ -3486,18 +3949,26 @@ struct MainEditorView: View {
             }
             .onAppear {
                 for node in store.treeNodes {
-                    if case .folder(_, let url, _) = node {
+                    if case .folder(_, let url, _, _) = node {
                         expandedFolders.insert(url.path)
                     }
                 }
             }
 
             // ═══════════════════════════════════════════════════
-            // RIGHT DETAIL CANVAS (Macro Inspector Canvas)
+            // RIGHT DETAIL CANVAS (Macro Inspector or Folder Inspector)
             // ═══════════════════════════════════════════════════
             if let macro = store.selectedMacro {
                 MacroInspectorView(macro: macro)
                     .id(macro.id)
+            } else if let folderPath = store.selectedFolderPath,
+                      let folderInfo = findFolderInfo(path: folderPath, in: store.treeNodes) {
+                FolderInspectorView(
+                    folderURL: folderInfo.url,
+                    initialConfig: folderInfo.config,
+                    itemCount: folderInfo.count
+                )
+                .id(folderPath)
             } else {
                 VStack(spacing: 16) {
                     ZStack {
@@ -3508,10 +3979,10 @@ struct MainEditorView: View {
                             .font(.system(size: 40))
                             .foregroundColor(.accentColor)
                     }
-                    Text("No Macro Selected")
+                    Text("No Selection")
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(.white)
-                    Text("Choose a macro from the sidebar or create a new one.")
+                    Text("Choose a macro or folder from the sidebar.")
                         .font(.system(size: 12))
                         .foregroundColor(.secondary)
                     Button("Create New Macro") {
