@@ -1,5 +1,5 @@
 #!/bin/zsh
-# Quit foreground applications, hide excluded ones (except Finder & ShortKing itself)
+# Quit foreground applications, hide excluded ones (including closing Finder windows)
 
 EXCLUDED=(
   "com.apple.finder"
@@ -21,9 +21,11 @@ while IFS= read -r bid; do
   done
   
   if $skip; then
-    # Menggunakan system events untuk menyembunyikan secara global (hanya jika bukan Finder/ShortKing)
-    if [[ "$bid" != "com.apple.finder" && "$bid" != "com.redmunky.shortking" ]]; then
-      # Cara paling aman menyembunyikan aplikasi tanpa memicu error window
+    # Jika Finder, tutup seluruh jendela Finder yang terbuka
+    if [[ "$bid" == "com.apple.finder" ]]; then
+      osascript -e "tell application \"Finder\" to close every window" 2>/dev/null &
+    # Jika aplikasi exclude lainnya (selain ShortKing), sembunyikan aplikasinya
+    elif [[ "$bid" != "com.redmunky.shortking" ]]; then
       osascript -e "tell application \"System Events\" to set visible of every process whose bundle identifier is \"$bid\" to false" 2>/dev/null &
     fi
   else
