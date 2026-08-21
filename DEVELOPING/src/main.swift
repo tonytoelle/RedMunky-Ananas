@@ -94,6 +94,7 @@ enum MacroAction: Equatable {
     case pressKey(keyCode: CGKeyCode)
     case pressShortcut(trigger: Trigger)
     case doAgain(target: DoAgainTarget)
+    case moveCursor(point: CGPoint)
 
     var iconName: String {
         switch self {
@@ -104,6 +105,7 @@ enum MacroAction: Equatable {
         case .pasteText:    return "doc.on.clipboard"
         case .pressKey, .pressShortcut: return "keyboard"
         case .doAgain:      return "arrow.counterclockwise"
+        case .moveCursor:   return "cursorarrow.motionlines"
         }
     }
     var color: Color {
@@ -115,6 +117,7 @@ enum MacroAction: Equatable {
         case .pasteText:    return Color(red: 0.04, green: 0.52, blue: 0.54)
         case .pressKey, .pressShortcut: return Color(red: 0.32, green: 0.28, blue: 0.72)
         case .doAgain:      return Color(red: 0.12, green: 0.58, blue: 0.65)
+        case .moveCursor:   return Color(red: 0.28, green: 0.52, blue: 0.92)
         }
     }
     var title: String {
@@ -126,6 +129,7 @@ enum MacroAction: Equatable {
         case .pasteText:            return "Paste"
         case .pressKey, .pressShortcut: return "Key Press"
         case .doAgain:              return "Do Again"
+        case .moveCursor:           return "Move Cursor"
         }
     }
     var details: String {
@@ -146,6 +150,8 @@ enum MacroAction: Equatable {
             case .action:
                 return "Move cursor to target action coordinates"
             }
+        case .moveCursor(let p):
+            return "Move cursor to coordinates (\(Int(p.x)), \(Int(p.y)))"
         }
     }
     var parameterString: String {
@@ -171,6 +177,8 @@ enum MacroAction: Equatable {
             case .action:
                 return "Action"
             }
+        case .moveCursor(let point):
+            return "\(Int(point.x)), \(Int(point.y))"
         }
     }
     var scriptLine: String {
@@ -191,12 +199,14 @@ enum MacroAction: Equatable {
             case .action:
                 return "ACTION: do_again"
             }
+        case .moveCursor(let p):
+            return "ACTION: move \(Int(p.x)) \(Int(p.y))"
         }
     }
     
     var hasCoordinates: Bool {
         switch self {
-        case .click, .drag:
+        case .click, .drag, .moveCursor:
             return true
         default:
             return false
@@ -638,6 +648,8 @@ class InputSimulator {
                             targetPos = point
                         } else if case .drag(let start, _) = targetItem.action {
                             targetPos = start
+                        } else if case .moveCursor(let point) = targetItem.action {
+                            targetPos = point
                         }
                     }
                 case .action(let tid):
@@ -646,10 +658,19 @@ class InputSimulator {
                             targetPos = point
                         } else if case .drag(let start, _) = targetItem.action {
                             targetPos = start
+                        } else if case .moveCursor(let point) = targetItem.action {
+                            targetPos = point
                         }
                     }
                 }
                 let moveEvent = CGEvent(mouseEventSource: source, mouseType: .mouseMoved, mouseCursorPosition: targetPos, mouseButton: .left)
+                moveEvent?.flags = []
+                moveEvent?.post(tap: .cghidEventTap)
+                usleep(30000)
+
+            case .moveCursor(let point):
+                guard !isEmergencyStopped else { return }
+                let moveEvent = CGEvent(mouseEventSource: source, mouseType: .mouseMoved, mouseCursorPosition: point, mouseButton: .left)
                 moveEvent?.flags = []
                 moveEvent?.post(tap: .cghidEventTap)
                 usleep(30000)
@@ -2480,6 +2501,12 @@ struct ActionCardView: View {
                             item.action = .drag(start: start, end: end)
                             onSave()
                         }
+                    case .moveCursor:
+                        CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .click(button: .left)) { newPoint in
+                            onPreSave()
+                            item.action = .moveCursor(point: newPoint)
+                            onSave()
+                        }
                     default:
                         break
                     }
@@ -2855,6 +2882,8 @@ struct MacroInspectorView: View {
                                 newAction = .pressKey(keyCode: 36)
                             case "Origin", "Do Again":
                                 newAction = .doAgain(target: .origin)
+                            case "Move Cursor":
+                                newAction = .moveCursor(point: .zero)
                             default:
                                 newAction = .delay(ms: 300)
                             }
@@ -2867,7 +2896,7 @@ struct MacroInspectorView: View {
                             }
                             store.saveMacro(macro)
                             
-                            // Immediately trigger capture overlay for click/drag actions
+                            // Immediately trigger capture overlay for click/drag/move actions
                             switch newAction {
                             case .click(_, let button):
                                 CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .click(button: button)) { newPoint in
@@ -2882,6 +2911,14 @@ struct MacroInspectorView: View {
                                     if let idx = macro.actionItems.firstIndex(where: { $0.id == newItem.id }) {
                                         store.registerUndoState(for: macro)
                                         macro.actionItems[idx].action = .drag(start: start, end: end)
+                                        store.saveMacro(macro)
+                                    }
+                                }
+                            case .moveCursor:
+                                CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .click(button: .left)) { newPoint in
+                                    if let idx = macro.actionItems.firstIndex(where: { $0.id == newItem.id }) {
+                                        store.registerUndoState(for: macro)
+                                        macro.actionItems[idx].action = .moveCursor(point: newPoint)
                                         store.saveMacro(macro)
                                     }
                                 }
@@ -2948,7 +2985,20 @@ struct MacroInspectorView: View {
                                     }
                                 }
 
-                                // 4. Delay
+                                // 4. Move (Warp mouse cursor to captured coordinate)
+                                quickActionButton(
+                                    title: "Move",
+                                    icon: "cursorarrow.motionlines",
+                                    color: Color(red: 0.28, green: 0.52, blue: 0.92)
+                                ) {
+                                    CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .click(button: .left)) { point in
+                                        store.registerUndoState(for: macro)
+                                        macro.actionItems.append(MacroActionItem(action: .moveCursor(point: point)))
+                                        store.saveMacro(macro)
+                                    }
+                                }
+
+                                // 5. Delay
                                 quickActionButton(
                                     title: "Delay",
                                     icon: "timer",
@@ -2959,7 +3009,7 @@ struct MacroInspectorView: View {
                                     store.saveMacro(macro)
                                 }
 
-                                // 5. Text
+                                // 6. Text
                                 quickActionButton(
                                     title: "Text",
                                     icon: "text.cursor",
@@ -2970,7 +3020,7 @@ struct MacroInspectorView: View {
                                     store.saveMacro(macro)
                                 }
 
-                                // 6. Key
+                                // 7. Key
                                 quickActionButton(
                                     title: "Key",
                                     icon: "keyboard",
@@ -2981,7 +3031,7 @@ struct MacroInspectorView: View {
                                     store.saveMacro(macro)
                                 }
 
-                                // 7. Do Again (Restore original cursor position or target another action)
+                                // 8. Do Again (Restore original cursor position or target another action)
                                 quickActionButton(
                                     title: "Do Again",
                                     icon: "arrow.counterclockwise",
