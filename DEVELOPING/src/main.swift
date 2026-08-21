@@ -1314,8 +1314,7 @@ class MacroStore: ObservableObject {
         }
     }
 
-    private var dirFD: CInt = -1
-    private var watchSource: DispatchSourceFileSystemObject?
+    private var watchStream: FSEventStreamRef?
 
     init() {
         let defaultPath = "/Users/tonytoelle/Documents/PROJECTS/RedMunky - ShortKing/INPUT/ShortKing Documents"
@@ -1435,11 +1434,11 @@ class MacroStore: ObservableObject {
     }
 
     func stopWatching() {
-        watchSource?.cancel()
-        watchSource = nil
-        if dirFD >= 0 {
-            close(dirFD)
-            dirFD = -1
+        if let stream = watchStream {
+            FSEventStreamStop(stream)
+            FSEventStreamInvalidate(stream)
+            FSEventStreamRelease(stream)
+            watchStream = nil
         }
     }
 
@@ -1447,19 +1446,45 @@ class MacroStore: ObservableObject {
 
     func startWatching() {
         stopWatching()
-        dirFD = open(watchDirectoryURL.path, O_EVTONLY)
-        guard dirFD >= 0 else { return }
-        let src = DispatchSource.makeFileSystemObjectSource(fileDescriptor: dirFD, eventMask: [.write, .delete, .rename], queue: .main)
-        src.setEventHandler { [weak self] in
-            guard let self = self, !self.isReloading else { return }
-            self.isReloading = true
+        
+        let pathsToWatch = [watchDirectoryURL.path] as CFArray
+        
+        var context = FSEventStreamContext(
+            version: 0,
+            info: UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque()),
+            retain: nil,
+            release: nil,
+            copyDescription: nil
+        )
+        
+        let callback: FSEventStreamCallback = { (streamRef, clientCallBackInfo, numEvents, eventPaths, eventFlags, eventIds) in
+            guard let info = clientCallBackInfo else { return }
+            let store = Unmanaged<MacroStore>.fromOpaque(info).takeUnretainedValue()
+            
+            guard !store.isReloading else { return }
+            store.isReloading = true
+            
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                self.loadMacros()
-                self.isReloading = false
+                store.loadMacros()
+                store.isReloading = false
             }
         }
-        watchSource = src
-        src.resume()
+        
+        let flags = FSEventStreamCreateFlags(kFSEventStreamCreateFlagFileEvents | kFSEventStreamCreateFlagNoDefer)
+        
+        guard let stream = FSEventStreamCreate(
+            nil,
+            callback,
+            &context,
+            pathsToWatch,
+            FSEventStreamEventId(kFSEventStreamEventIdSinceNow),
+            0.5, // Latency in seconds
+            flags
+        ) else { return }
+        
+        FSEventStreamSetDispatchQueue(stream, DispatchQueue.main)
+        FSEventStreamStart(stream)
+        watchStream = stream
     }
 
     func saveMacro(_ macro: MacroItem) {
