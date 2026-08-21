@@ -4825,24 +4825,6 @@ struct SidebarNodeView: View {
             VStack(alignment: .leading, spacing: 2) {
                 // Folder Row
                 HStack(spacing: 0) {
-                    // Chevron button (only toggles fold)
-                    Button {
-                        withAnimation(.easeInOut(duration: 0.15)) {
-                            if isExpanded {
-                                expandedFolders.remove(url.path)
-                            } else {
-                                expandedFolders.insert(url.path)
-                            }
-                        }
-                    } label: {
-                        Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundColor(Color(white: 0.55))
-                            .frame(width: 16, height: 22)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-
                     // Folder title & icon (click to select and open folder settings)
                     Button {
                         let flags = NSEvent.modifierFlags
@@ -4863,14 +4845,33 @@ struct SidebarNodeView: View {
                                 .font(.system(size: 13, weight: isSelected ? .bold : .semibold))
                                 .foregroundColor(isSelected ? .white : Color(white: 0.92))
                                 .lineLimit(1)
-
-                            Spacer()
-
-                            Text("\(children.count)")
-                                .font(.system(size: 10, weight: .medium, design: .monospaced))
-                                .foregroundColor(Color(white: 0.45))
                         }
                         .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+
+                    Spacer()
+
+                    Text("\(children.count)")
+                        .font(.system(size: 10, weight: .medium, design: .monospaced))
+                        .foregroundColor(Color(white: 0.45))
+                        .padding(.trailing, 6)
+
+                    // Chevron button (only toggles fold)
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.15)) {
+                            if isExpanded {
+                                expandedFolders.remove(url.path)
+                            } else {
+                                expandedFolders.insert(url.path)
+                            }
+                        }
+                    } label: {
+                        Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundColor(Color(white: 0.55))
+                            .frame(width: 20, height: 22)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                 }
