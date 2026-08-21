@@ -4609,31 +4609,31 @@ struct FolderInspectorView: View {
                     Button {
                         withAnimation { isAppearanceExpanded.toggle() }
                     } label: {
-                        ZStack {
-                            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                                .fill(config.color.opacity(0.18))
-                                .frame(width: 88, height: 88)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 22, style: .continuous)
-                                        .stroke(config.color.opacity(0.35), lineWidth: 1.5)
-                                )
-                            let appBundleId: String? = {
-                                if let customId = config.customAppIconBundleId, !customId.isEmpty {
-                                    return customId
-                                }
-                                if config.isRestrictedToApps && config.targetApps.count == 1 {
-                                    return config.targetApps[0].bundleId
-                                }
-                                return nil
-                            }()
-                            
-                            if let bundleId = appBundleId,
-                               let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId),
-                               let nsImage = NSWorkspace.shared.icon(forFile: appURL.path) as NSImage? {
-                                Image(nsImage: nsImage)
-                                    .resizable()
-                                    .frame(width: 52, height: 52)
-                            } else {
+                        let appBundleId: String? = {
+                            if let customId = config.customAppIconBundleId, !customId.isEmpty {
+                                return customId
+                            }
+                            if config.isRestrictedToApps && config.targetApps.count == 1 {
+                                return config.targetApps[0].bundleId
+                            }
+                            return nil
+                        }()
+                        
+                        if let bundleId = appBundleId,
+                           let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId),
+                           let nsImage = NSWorkspace.shared.icon(forFile: appURL.path) as NSImage? {
+                            Image(nsImage: nsImage)
+                                .resizable()
+                                .frame(width: 82, height: 82)
+                        } else {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                                    .fill(config.color.opacity(0.18))
+                                    .frame(width: 88, height: 88)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 22, style: .continuous)
+                                            .stroke(config.color.opacity(0.35), lineWidth: 1.5)
+                                    )
                                 Image(systemName: config.iconName)
                                     .font(.system(size: 38, weight: .medium))
                                     .foregroundColor(config.color)
@@ -5035,11 +5035,11 @@ struct SidebarNodeView: View {
                                    let nsImage = NSWorkspace.shared.icon(forFile: appURL.path) as NSImage? {
                                     Image(nsImage: nsImage)
                                         .resizable()
-                                        .frame(width: 14, height: 14)
+                                        .frame(width: 17, height: 17)
                                 } else {
                                     Image(systemName: config.iconName)
                                         .foregroundColor(config.color)
-                                        .font(.system(size: 13))
+                                        .font(.system(size: 15))
                                 }
 
                                 Text(name)
