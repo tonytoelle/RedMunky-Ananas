@@ -454,11 +454,7 @@ class ShortKingParser {
             }
         }
         guard let k = key, let code = KeyMap.keyCode(for: k) else { return nil }
-        var finalShift = shift
-        if k == ">" || k == "<" {
-            finalShift = true
-        }
-        return Trigger(keyCode: code, requireCmd: cmd, requireShift: finalShift, requireOption: opt, requireControl: ctrl)
+        return Trigger(keyCode: code, requireCmd: cmd, requireShift: shift, requireOption: opt, requireControl: ctrl)
     }
 
     static func parseFile(at url: URL) -> MacroItem? {
