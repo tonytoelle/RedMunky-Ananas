@@ -3,6 +3,8 @@ import Cocoa
 import ApplicationServices
 import SwiftUI
 import Carbon
+import CoreImage
+import CoreImage.CIFilterBuiltins
 
 // ==========================================
 // MARK: - KeyCode Mapping Helper
@@ -603,32 +605,47 @@ func nsColor(for colorName: String) -> NSColor {
 
 func generateFinderFolderIcon(config: FolderConfig) -> NSImage {
     let size = NSSize(width: 512, height: 512)
-    let image = NSImage(size: size)
-    image.lockFocus()
+    let finalImage = NSImage(size: size)
     
+    // 1. Get base macOS folder
+    guard let baseFolder = NSImage(named: NSImage.folderName) else {
+        return finalImage
+    }
+    
+    var folderCG: CGImage?
+    var r = NSRect(origin: .zero, size: size)
+    folderCG = baseFolder.cgImage(forProposedRect: &r, context: nil, hints: nil)
+    
+    finalImage.lockFocus()
     guard let context = NSGraphicsContext.current?.cgContext else {
-        image.unlockFocus()
-        return image
+        finalImage.unlockFocus()
+        return finalImage
     }
     
     let folderRect = NSRect(origin: .zero, size: size)
     
-    // 1. Draw base macOS folder
-    if let baseFolder = NSImage(named: NSImage.folderName) {
+    if config.colorName.lowercased() == "blue" {
+        baseFolder.draw(in: folderRect)
+    } else if let folderCG = folderCG {
+        // Tint folder using CoreImage Monochrome filter
+        let ciImage = CIImage(cgImage: folderCG)
+        let mono = CIFilter.colorMonochrome()
+        mono.inputImage = ciImage
+        mono.color = CIColor(color: nsColor(for: config.colorName)) ?? CIColor.red
+        mono.intensity = 0.92
+        
+        let ciContext = CIContext()
+        if let outCI = mono.outputImage, let tintedCG = ciContext.createCGImage(outCI, from: outCI.extent) {
+            context.draw(tintedCG, in: folderRect)
+        } else {
+            baseFolder.draw(in: folderRect)
+        }
+    } else {
         baseFolder.draw(in: folderRect)
     }
     
-    // 2. Tint folder with custom color
-    if config.colorName.lowercased() != "blue" {
-        context.saveGState()
-        context.setBlendMode(.color)
-        nsColor(for: config.colorName).withAlphaComponent(0.85).setFill()
-        context.fill(folderRect)
-        context.restoreGState()
-    }
-    
-    // 3. Draw embossed SF Symbol icon badge on the front of the folder
-    let symbolConfig = NSImage.SymbolConfiguration(pointSize: 110, weight: .semibold)
+    // 2. Draw embossed SF Symbol icon badge on the front of the folder
+    let symbolConfig = NSImage.SymbolConfiguration(pointSize: 130, weight: .semibold)
     if let symbolImage = NSImage(systemSymbolName: config.iconName, accessibilityDescription: nil)?.withSymbolConfiguration(symbolConfig) {
         let symbolSize = symbolImage.size
         let flapCenterY: CGFloat = 205
@@ -641,7 +658,7 @@ func generateFinderFolderIcon(config: FolderConfig) -> NSImage {
         )
         
         context.saveGState()
-        context.setShadow(offset: CGSize(width: 0, height: -2), blur: 5, color: NSColor.black.withAlphaComponent(0.5).cgColor)
+        context.setShadow(offset: CGSize(width: 0, height: -2), blur: 6, color: NSColor.black.withAlphaComponent(0.5).cgColor)
         
         // Tint symbol white
         if let tintedSym = symbolImage.copy() as? NSImage {
@@ -655,8 +672,8 @@ func generateFinderFolderIcon(config: FolderConfig) -> NSImage {
         context.restoreGState()
     }
     
-    image.unlockFocus()
-    return image
+    finalImage.unlockFocus()
+    return finalImage
 }
 
 func updateFinderFolderIcon(for folderURL: URL, config: FolderConfig) {
@@ -665,6 +682,13 @@ func updateFinderFolderIcon(for folderURL: URL, config: FolderConfig) {
         DispatchQueue.main.async {
             NSWorkspace.shared.setIcon(iconImage, forFile: folderURL.path, options: [])
             NSWorkspace.shared.noteFileSystemChanged(folderURL.path)
+            
+            // Tell macOS Finder to instantly refresh the folder item
+            let script = "tell application \"Finder\" to update item (POSIX file \"\(folderURL.path)\" as alias)"
+            if let appleScript = NSAppleScript(source: script) {
+                var error: NSDictionary?
+                appleScript.executeAndReturnError(&error)
+            }
         }
     }
 }
