@@ -3275,7 +3275,7 @@ struct MacroInspectorView: View {
             .padding(.bottom, 12)
 
             // Main Detail ScrollView
-            ScrollView {
+            ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 14) {
                     // Card 1: Trigger HotKey (Simplified, no redundant text)
                     VStack(alignment: .leading, spacing: 6) {
@@ -3790,7 +3790,7 @@ struct SettingsView: View {
                 .padding(.bottom, 10)
 
                 // Categories ScrollView
-                ScrollView {
+                ScrollView(showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 2) {
                         // Connectivity Group
                         sidebarRow(category: .wifi)
@@ -3867,7 +3867,7 @@ struct SettingsView: View {
                 Divider()
 
                 // Content View (Overview Cards or Sub-pages)
-                ScrollView {
+                ScrollView(showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 14) {
                         if let subpage = navigationStack.last {
                             renderSubpage(subpage)
