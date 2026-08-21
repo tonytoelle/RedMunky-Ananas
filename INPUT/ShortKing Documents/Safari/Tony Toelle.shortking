@@ -1,6 +1,0 @@
-# ShortKing Macro Script
-TRIGGER: cmd+shift+k
-
-# Actions:
-ACTION: type "Hello ShortKing!"
-ACTION: delay 500

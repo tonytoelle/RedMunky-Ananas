@@ -5745,18 +5745,24 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let url = URL(fileURLWithPath: first)
         
         let watchDir = MacroStore.shared.watchDirectoryURL
-        let destURL = watchDir.appendingPathComponent(url.lastPathComponent)
+        let isInsideWatchDir = url.standardizedFileURL.path.hasPrefix(watchDir.standardizedFileURL.path)
         
-        if url.path != destURL.path {
-            if !FileManager.default.fileExists(atPath: destURL.path) {
-                try? FileManager.default.copyItem(at: url, to: destURL)
+        var targetURL = url
+        if !isInsideWatchDir {
+            let destURL = watchDir.appendingPathComponent(url.lastPathComponent)
+            if url.path != destURL.path {
+                if !FileManager.default.fileExists(atPath: destURL.path) {
+                    try? FileManager.default.copyItem(at: url, to: destURL)
+                }
             }
+            targetURL = destURL
         }
         
         MacroStore.shared.loadMacros()
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            if let found = MacroStore.shared.macros.first(where: { $0.fileName == url.lastPathComponent }) {
-                MacroStore.shared.selectedMacroID = found.id
+            if let found = MacroStore.shared.macros.first(where: { $0.fileURL.standardizedFileURL.path == targetURL.standardizedFileURL.path }) {
+                MacroStore.shared.selectedFilePath = found.fileURL.path
+                MacroStore.shared.selectedFolderPath = nil
                 self.showEditorWindow()
             }
         }
