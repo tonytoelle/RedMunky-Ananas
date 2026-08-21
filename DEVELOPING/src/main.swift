@@ -804,178 +804,687 @@ struct HotKeyRecorder: View {
 }
 
 // ==========================================
-// MARK: - Add Action Sheet
+// MARK: - Interactive Coordinate Capture Overlay Window (Screenshot HUD Style)
 // ==========================================
-struct AddActionSheet: View {
-    @Binding var isPresented: Bool
-    var onAdd: (MacroAction) -> Void
+class CaptureOverlayState: ObservableObject {
+    @Published var mode: CaptureOverlayWindow.Mode = .click(button: .left)
+    @Published var currentLocation: CGPoint = .zero       // In Cocoa window coordinates (bottom-left origin)
+    @Published var quartzLocation: CGPoint = .zero        // In Quartz display coordinates (top-left origin)
+    @Published var dragStep: Int = 1                     // 1: Start point, 2: End point
+    @Published var dragStartLocation: CGPoint? = nil      // Start in Cocoa window coordinates
+    @Published var dragStartQuartz: CGPoint? = nil        // Start in Quartz coordinates
+}
 
-    @State private var tab = 0
-    @State private var textMode = 0 // 0: Type keystrokes, 1: Paste instant (clipboard)
-    @State private var inputX = "500"; @State private var inputY = "500"
-    @State private var inputX2 = "700"; @State private var inputY2 = "500"
-    @State private var delayMs = "300"
-    @State private var typeText = "Hello!"
-    @State private var pressKeyStr = "return"
-
+struct CaptureOverlaySwiftUIView: View {
+    @ObservedObject var state: CaptureOverlayState
+    
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                Text("Add New Action").font(.headline)
-                Spacer()
-                Button("✕") { isPresented = false }.buttonStyle(.plain).foregroundColor(.secondary)
-            }
-
-            Picker("", selection: $tab) {
-                Label("Click", systemImage: "cursorarrow.click").tag(0)
-                Label("Drag", systemImage: "hand.draw").tag(1)
-                Label("Delay", systemImage: "timer").tag(2)
-                Label("Text", systemImage: "text.cursor").tag(3)
-                Label("Key", systemImage: "keyboard").tag(4)
-            }.pickerStyle(.segmented)
-
-            Divider()
-
-            // Content per tab
-            Group {
-                if tab == 0 {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Click Coordinates").font(.subheadline.bold())
-                        HStack {
-                            Text("X:"); TextField("X", text: $inputX).frame(width: 70)
-                            Text("Y:"); TextField("Y", text: $inputY).frame(width: 70)
-                            Spacer()
-                            Button("📍 Use Cursor") {
-                                let p = NSEvent.mouseLocation
-                                let screen = NSScreen.main?.frame.height ?? 0
-                                inputX = "\(Int(p.x))"; inputY = "\(Int(screen - p.y))"
-                            }.buttonStyle(.bordered)
-                        }
-                    }
-                } else if tab == 1 {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Drag Coordinates").font(.subheadline.bold())
-                        HStack {
-                            Text("Start X:"); TextField("", text: $inputX).frame(width: 60)
-                            Text("Y:"); TextField("", text: $inputY).frame(width: 60)
-                            Button("📍 Cursor") {
-                                let p = NSEvent.mouseLocation
-                                let screen = NSScreen.main?.frame.height ?? 0
-                                inputX = "\(Int(p.x))"; inputY = "\(Int(screen - p.y))"
-                            }.buttonStyle(.bordered)
-                        }
-                        HStack {
-                            Text("End X:  "); TextField("", text: $inputX2).frame(width: 60)
-                            Text("Y:"); TextField("", text: $inputY2).frame(width: 60)
-                            Button("📍 Cursor") {
-                                let p = NSEvent.mouseLocation
-                                let screen = NSScreen.main?.frame.height ?? 0
-                                inputX2 = "\(Int(p.x))"; inputY2 = "\(Int(screen - p.y))"
-                            }.buttonStyle(.bordered)
-                        }
-                    }
-                } else if tab == 2 {
-                    HStack { Text("Duration (ms):"); TextField("300", text: $delayMs).frame(width: 80) }
-                } else if tab == 3 {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Picker("Metode Pengisian Teks:", selection: $textMode) {
-                            Text("⌨️ Type Keystroke (Karakter per Karakter)").tag(0)
-                            Text("📋 Paste via Clipboard (Instan & Akurat)").tag(1)
-                        }
-                        .pickerStyle(.segmented)
-
-                        HStack {
-                            Text("Text:"); TextField("Hello World!", text: $typeText)
-                        }
-
-                        Text(textMode == 0 ? "Simulasi ketikan keyboard huruf per huruf dengan delay stabil (33 char/detik)." : "Menempelkan teks langsung menggunakan clipboard (sangat cepat & cocok untuk teks panjang/emoji).")
-                            .font(.caption).foregroundColor(.secondary)
-                    }
-                } else if tab == 4 {
-                    HStack {
-                        Text("Key name:")
-                        TextField("enter / space / tab / a-z / f1-f12", text: $pressKeyStr)
-                    }
-                    Text("Examples: enter, space, tab, escape, delete, up, down, left, right, a-z, f1-f12")
-                        .font(.caption).foregroundColor(.secondary)
+        GeometryReader { geo in
+            ZStack {
+                // Subtle dark transparent backdrop
+                Color.black.opacity(0.05)
+                    .edgesIgnoringSafeArea(.all)
+                
+                // Crosshair hair lines
+                Path { path in
+                    // Horizontal hairline
+                    path.move(to: CGPoint(x: 0, y: geo.size.height - state.currentLocation.y))
+                    path.addLine(to: CGPoint(x: geo.size.width, y: geo.size.height - state.currentLocation.y))
+                    // Vertical hairline
+                    path.move(to: CGPoint(x: state.currentLocation.x, y: 0))
+                    path.addLine(to: CGPoint(x: state.currentLocation.x, y: geo.size.height))
                 }
-            }
-
-            Divider()
-
-            HStack {
-                Spacer()
-                Button("Cancel") { isPresented = false }
-                Button("Add Action") {
-                    var newAction: MacroAction?
-                    if tab == 0, let x=Double(inputX), let y=Double(inputY) {
-                        newAction = .click(point: CGPoint(x:x,y:y), button:.left)
-                    } else if tab == 1, let x1=Double(inputX),let y1=Double(inputY),let x2=Double(inputX2),let y2=Double(inputY2) {
-                        newAction = .drag(start: CGPoint(x:x1,y:y1), end: CGPoint(x:x2,y:y2))
-                    } else if tab == 2, let ms=UInt32(delayMs) {
-                        newAction = .delay(ms: ms)
-                    } else if tab == 3 {
-                        newAction = (textMode == 0) ? .typeText(text: typeText) : .pasteText(text: typeText)
-                    } else if tab == 4, let code=KeyMap.keyCode(for: pressKeyStr) {
-                        newAction = .pressKey(keyCode: code)
+                .stroke(Color.white.opacity(0.4), style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
+                
+                // If Drag Step 2: Draw connecting line and start point pin
+                if case .drag = state.mode, state.dragStep == 2, let start = state.dragStartLocation {
+                    let startCocoaY = geo.size.height - start.y
+                    let currentCocoaY = geo.size.height - state.currentLocation.y
+                    
+                    Path { path in
+                        path.move(to: CGPoint(x: start.x, y: startCocoaY))
+                        path.addLine(to: CGPoint(x: state.currentLocation.x, y: currentCocoaY))
                     }
-                    if let a = newAction { onAdd(a); isPresented = false }
-                }.buttonStyle(.borderedProminent)
+                    .stroke(Color.purple.opacity(0.85), style: StrokeStyle(lineWidth: 2.5, lineCap: .round, dash: [6, 4]))
+                    
+                    // Pin marker at Start Point
+                    ZStack {
+                        Circle()
+                            .fill(Color.purple)
+                            .frame(width: 24, height: 24)
+                            .shadow(color: .black.opacity(0.5), radius: 3)
+                        Text("1")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(.white)
+                    }
+                    .position(x: start.x, y: startCocoaY)
+                }
+                
+                // Custom Crosshair Reticle Center
+                let curCocoaY = geo.size.height - state.currentLocation.y
+                ZStack {
+                    Circle()
+                        .stroke(Color.white, lineWidth: 1.5)
+                        .frame(width: 28, height: 28)
+                        .shadow(color: .black.opacity(0.5), radius: 2)
+                    
+                    Circle()
+                        .fill(cursorAccentColor)
+                        .frame(width: 6, height: 6)
+                }
+                .position(x: state.currentLocation.x, y: curCocoaY)
+                
+                // Floating Coordinates HUD Pill (Ekor kursor mirip macOS screenshot)
+                cursorHUD
+                    .position(hudPosition(in: geo.size))
             }
         }
-        .padding(20)
-        .frame(width: 500)
+    }
+    
+    private var cursorAccentColor: Color {
+        switch state.mode {
+        case .click(let b):
+            return b == .left ? Color(red: 0.08, green: 0.45, blue: 0.82) : Color(red: 0.04, green: 0.52, blue: 0.54)
+        case .drag:
+            return Color.purple
+        }
+    }
+    
+    private func hudPosition(in size: CGSize) -> CGPoint {
+        let curY = size.height - state.currentLocation.y
+        var x = state.currentLocation.x + 95
+        var y = curY - 38
+        
+        // Clamping to screen bounds so HUD is never cut off
+        if x + 100 > size.width {
+            x = state.currentLocation.x - 95
+        }
+        if y - 30 < 0 {
+            y = curY + 45
+        }
+        return CGPoint(x: x, y: y)
+    }
+    
+    private var cursorHUD: some View {
+        HStack(spacing: 8) {
+            // Mode Icon or Step Badge
+            if case .drag = state.mode {
+                ZStack {
+                    Circle()
+                        .fill(Color.purple)
+                        .frame(width: 22, height: 22)
+                    Text("\(state.dragStep)")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundColor(.white)
+                }
+            } else if case .click(let b) = state.mode {
+                Image(systemName: b == .left ? "cursorarrow.click" : "cursorarrow.click")
+                    .foregroundColor(b == .left ? Color(red: 0.35, green: 0.7, blue: 1.0) : Color.teal)
+                    .font(.system(size: 14, weight: .semibold))
+            }
+            
+            VStack(alignment: .leading, spacing: 1) {
+                // Coordinate Display
+                HStack(spacing: 6) {
+                    Text("X: \(Int(state.quartzLocation.x))")
+                        .font(.system(size: 12, weight: .bold, design: .monospaced))
+                        .foregroundColor(.white)
+                    Text("Y: \(Int(state.quartzLocation.y))")
+                        .font(.system(size: 12, weight: .bold, design: .monospaced))
+                        .foregroundColor(.white)
+                }
+                
+                // Instruction tip
+                Text(tipText)
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundColor(Color(white: 0.75))
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color.black.opacity(0.85))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(Color.white.opacity(0.2), lineWidth: 1)
+        )
+        .shadow(color: Color.black.opacity(0.5), radius: 6, x: 0, y: 3)
+    }
+    
+    private var tipText: String {
+        switch state.mode {
+        case .click(let b):
+            return "Click to set \(b == .left ? "left" : "right") click • Esc to cancel"
+        case .drag:
+            if state.dragStep == 1 {
+                return "Click start point (1) • Esc to cancel"
+            } else {
+                return "Click or Enter end point (2) • Esc to cancel"
+            }
+        }
+    }
+}
+
+class CaptureOverlayHostingView: NSView {
+    var mode: CaptureOverlayWindow.Mode
+    var onFinishClick: (CGPoint) -> Void
+    var onFinishDrag: (CGPoint, CGPoint) -> Void
+    var onCancel: () -> Void
+    
+    private var trackingArea: NSTrackingArea?
+    private var stateModel = CaptureOverlayState()
+    
+    init(mode: CaptureOverlayWindow.Mode,
+         onFinishClick: @escaping (CGPoint) -> Void,
+         onFinishDrag: @escaping (CGPoint, CGPoint) -> Void,
+         onCancel: @escaping () -> Void) {
+        self.mode = mode
+        self.onFinishClick = onFinishClick
+        self.onFinishDrag = onFinishDrag
+        self.onCancel = onCancel
+        super.init(frame: .zero)
+        
+        stateModel.mode = mode
+        let swiftUIView = CaptureOverlaySwiftUIView(state: stateModel)
+        let host = NSHostingView(rootView: swiftUIView)
+        host.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(host)
+        NSLayoutConstraint.activate([
+            host.topAnchor.constraint(equalTo: topAnchor),
+            host.leadingAnchor.constraint(equalTo: leadingAnchor),
+            host.trailingAnchor.constraint(equalTo: trailingAnchor),
+            host.bottomAnchor.constraint(equalTo: bottomAnchor)
+        ])
+    }
+    
+    required init?(coder: NSCoder) { fatalError() }
+    
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let t = trackingArea { removeTrackingArea(t) }
+        let ta = NSTrackingArea(rect: bounds, options: [.activeAlways, .mouseMoved, .mouseEnteredAndExited, .inVisibleRect], owner: self, userInfo: nil)
+        addTrackingArea(ta)
+        trackingArea = ta
+    }
+    
+    private func updateMouse(event: NSEvent) {
+        let winLoc = event.locationInWindow
+        let screenHeight = window?.screen?.frame.height ?? NSScreen.main?.frame.height ?? bounds.height
+        let quartzPt = CGPoint(x: winLoc.x, y: screenHeight - winLoc.y)
+        stateModel.currentLocation = winLoc
+        stateModel.quartzLocation = quartzPt
+    }
+    
+    override func mouseMoved(with event: NSEvent) {
+        updateMouse(event: event)
+    }
+    
+    override func mouseDragged(with event: NSEvent) {
+        updateMouse(event: event)
+    }
+    
+    override func mouseDown(with event: NSEvent) {
+        updateMouse(event: event)
+        switch mode {
+        case .click:
+            onFinishClick(stateModel.quartzLocation)
+        case .drag:
+            if stateModel.dragStep == 1 {
+                stateModel.dragStartLocation = stateModel.currentLocation
+                stateModel.dragStartQuartz = stateModel.quartzLocation
+                stateModel.dragStep = 2
+            } else {
+                if let startQ = stateModel.dragStartQuartz {
+                    onFinishDrag(startQ, stateModel.quartzLocation)
+                }
+            }
+        }
+    }
+    
+    override func rightMouseDown(with event: NSEvent) {
+        updateMouse(event: event)
+        switch mode {
+        case .click:
+            onFinishClick(stateModel.quartzLocation)
+        case .drag:
+            if stateModel.dragStep == 1 {
+                stateModel.dragStartLocation = stateModel.currentLocation
+                stateModel.dragStartQuartz = stateModel.quartzLocation
+                stateModel.dragStep = 2
+            } else {
+                if let startQ = stateModel.dragStartQuartz {
+                    onFinishDrag(startQ, stateModel.quartzLocation)
+                }
+            }
+        }
+    }
+    
+    override func keyDown(with event: NSEvent) {
+        if event.keyCode == 53 { // Esc
+            onCancel()
+        } else if event.keyCode == 36 { // Enter
+            if case .drag = mode, stateModel.dragStep == 2, let startQ = stateModel.dragStartQuartz {
+                onFinishDrag(startQ, stateModel.quartzLocation)
+            }
+        }
+    }
+    
+    override var acceptsFirstResponder: Bool { true }
+}
+
+class CaptureOverlayWindow: NSWindow {
+    static var shared: CaptureOverlayWindow?
+    
+    enum Mode {
+        case click(button: CGMouseButton = .left)
+        case drag
+    }
+    
+    private var mode: Mode
+    private var onClickCaptured: ((CGPoint) -> Void)?
+    private var onDragCaptured: ((CGPoint, CGPoint) -> Void)?
+    
+    init(mode: Mode = .click(button: .left), onClickCaptured: @escaping (CGPoint) -> Void) {
+        self.mode = mode
+        self.onClickCaptured = onClickCaptured
+        let screenRect = NSScreen.main?.frame ?? NSRect(x: 0, y: 0, width: 1920, height: 1080)
+        super.init(contentRect: screenRect,
+                   styleMask: [.borderless],
+                   backing: .buffered,
+                   defer: false)
+        setupWindow()
+    }
+    
+    init(mode: Mode = .drag, onDragCaptured: @escaping (CGPoint, CGPoint) -> Void) {
+        self.mode = mode
+        self.onDragCaptured = onDragCaptured
+        let screenRect = NSScreen.main?.frame ?? NSRect(x: 0, y: 0, width: 1920, height: 1080)
+        super.init(contentRect: screenRect,
+                   styleMask: [.borderless],
+                   backing: .buffered,
+                   defer: false)
+        setupWindow()
+    }
+    
+    private func setupWindow() {
+        self.isOpaque = false
+        self.backgroundColor = .clear
+        self.level = .screenSaver
+        self.ignoresMouseEvents = false
+        self.acceptsMouseMovedEvents = true
+        self.hasShadow = false
+        self.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        
+        let overlayView = CaptureOverlayHostingView(
+            mode: mode,
+            onFinishClick: { [weak self] pt in
+                self?.closeWindow()
+                self?.onClickCaptured?(pt)
+            },
+            onFinishDrag: { [weak self] start, end in
+                self?.closeWindow()
+                self?.onDragCaptured?(start, end)
+            },
+            onCancel: { [weak self] in
+                self?.closeWindow()
+            }
+        )
+        
+        self.contentView = overlayView
+        NSCursor.hide()
+        self.makeKeyAndOrderFront(nil)
+    }
+    
+    func closeWindow() {
+        NSCursor.unhide()
+        self.orderOut(nil)
+        CaptureOverlayWindow.shared = nil
     }
 }
 
 // ==========================================
 // MARK: - Action Card View (macOS System Settings Card Style)
 // ==========================================
-struct ActionCardView: View {
-    let index: Int
-    let item: MacroActionItem
-    var onDelete: () -> Void
+struct ClickEditView: View {
+    @Binding var action: MacroAction
+    var onSave: () -> Void
+
+    @State private var xStr = ""
+    @State private var yStr = ""
+    @State private var buttonType: CGMouseButton = .left
 
     var body: some View {
-        HStack(spacing: 12) {
-            // Drag handle
-            Image(systemName: "line.3.horizontal")
-                .foregroundColor(.secondary.opacity(0.6))
-                .font(.system(size: 13))
-                .frame(width: 14)
-
-            // Squircle Icon
-            ZStack {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(item.action.color)
-                    .frame(width: 32, height: 32)
-                Image(systemName: item.action.iconName)
-                    .foregroundColor(.white)
-                    .font(.system(size: 15, weight: .semibold))
-            }
-
-            // Title & Details
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 6) {
-                    Text("Step \(index + 1): \(item.action.title)")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(.white)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 10) {
+                Text("Button:").font(.system(size: 11)).foregroundColor(.secondary)
+                Picker("", selection: $buttonType) {
+                    Text("Left Click").tag(CGMouseButton.left)
+                    Text("Right Click").tag(CGMouseButton.right)
                 }
-                Text(item.action.details)
-                    .font(.system(size: 11))
-                    .foregroundColor(.secondary)
-                    .lineLimit(1)
+                .pickerStyle(.segmented)
+                .frame(width: 150)
+                
+                Spacer()
+                
+                Button("📍 Recapture") {
+                    CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .click(button: buttonType)) { newPoint in
+                        let xv = Int(newPoint.x)
+                        let yv = Int(newPoint.y)
+                        xStr = String(xv)
+                        yStr = String(yv)
+                        save()
+                    }
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
             }
-
-            Spacer()
-
-            // Delete button
-            Button(action: onDelete) {
-                Image(systemName: "xmark.circle.fill")
-                    .foregroundColor(Color.secondary.opacity(0.5))
-                    .font(.system(size: 15))
+            
+            HStack(spacing: 12) {
+                HStack(spacing: 4) {
+                    Text("X:").font(.system(size: 11)).foregroundColor(.secondary)
+                    TextField("", text: $xStr)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 60)
+                }
+                HStack(spacing: 4) {
+                    Text("Y:").font(.system(size: 11)).foregroundColor(.secondary)
+                    TextField("", text: $yStr)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 60)
+                }
             }
-            .buttonStyle(.plain)
+        }
+        .onAppear {
+            if case .click(let point, let button) = action {
+                let xv = Int(point.x)
+                let yv = Int(point.y)
+                xStr = String(xv)
+                yStr = String(yv)
+                buttonType = button
+            }
+        }
+        .onChange(of: xStr) { _, _ in save() }
+        .onChange(of: yStr) { _, _ in save() }
+        .onChange(of: buttonType) { _, _ in save() }
+    }
+
+    private func save() {
+        let x = Double(xStr) ?? 0
+        let y = Double(yStr) ?? 0
+        action = .click(point: CGPoint(x: x, y: y), button: buttonType)
+        onSave()
+    }
+}
+
+struct DragEditView: View {
+    @Binding var action: MacroAction
+    var onSave: () -> Void
+
+    @State private var xStr = ""
+    @State private var yStr = ""
+    @State private var x2Str = ""
+    @State private var y2Str = ""
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Coordinates").font(.system(size: 11, weight: .semibold)).foregroundColor(.secondary)
+                Spacer()
+                Button("📍 Recapture") {
+                    CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .drag) { ns, ne in
+                        let xs = Int(ns.x)
+                        let ys = Int(ns.y)
+                        let xe = Int(ne.x)
+                        let ye = Int(ne.y)
+                        xStr = String(xs)
+                        yStr = String(ys)
+                        x2Str = String(xe)
+                        y2Str = String(ye)
+                        save()
+                    }
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+            
+            HStack(spacing: 12) {
+                HStack(spacing: 4) {
+                    Text("Start X:").font(.system(size: 11)).foregroundColor(.secondary)
+                    TextField("", text: $xStr)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 60)
+                }
+                HStack(spacing: 4) {
+                    Text("Y:").font(.system(size: 11)).foregroundColor(.secondary)
+                    TextField("", text: $yStr)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 60)
+                }
+            }
+            
+            HStack(spacing: 12) {
+                HStack(spacing: 4) {
+                    Text("End X:").font(.system(size: 11)).foregroundColor(.secondary)
+                    TextField("", text: $x2Str)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 60)
+                }
+                HStack(spacing: 4) {
+                    Text("Y:").font(.system(size: 11)).foregroundColor(.secondary)
+                    TextField("", text: $y2Str)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 60)
+                }
+            }
+        }
+        .onAppear {
+            if case .drag(let start, let end) = action {
+                let sx = Int(start.x)
+                let sy = Int(start.y)
+                let ex = Int(end.x)
+                let ey = Int(end.y)
+                xStr = String(sx)
+                yStr = String(sy)
+                x2Str = String(ex)
+                y2Str = String(ey)
+            }
+        }
+        .onChange(of: xStr) { _, _ in save() }
+        .onChange(of: yStr) { _, _ in save() }
+        .onChange(of: x2Str) { _, _ in save() }
+        .onChange(of: y2Str) { _, _ in save() }
+    }
+
+    private func save() {
+        let x1 = Double(xStr) ?? 0
+        let y1 = Double(yStr) ?? 0
+        let x2 = Double(x2Str) ?? 0
+        let y2 = Double(y2Str) ?? 0
+        action = .drag(start: CGPoint(x: x1, y: y1), end: CGPoint(x: x2, y: y2))
+        onSave()
+    }
+}
+
+struct DelayEditView: View {
+    @Binding var action: MacroAction
+    var onSave: () -> Void
+
+    @State private var delayStr = ""
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Text("Duration (ms):").font(.system(size: 11)).foregroundColor(.secondary)
+            TextField("", text: $delayStr)
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 80)
+        }
+        .onAppear {
+            if case .delay(let ms) = action {
+                let mv = Int(ms)
+                delayStr = String(mv)
+            }
+        }
+        .onChange(of: delayStr) { _, _ in save() }
+    }
+
+    private func save() {
+        let ms = UInt32(delayStr) ?? 0
+        action = .delay(ms: ms)
+        onSave()
+    }
+}
+
+struct TextEditView: View {
+    @Binding var action: MacroAction
+    var onSave: () -> Void
+
+    @State private var textStr = ""
+    @State private var textMode = 0 // 0: type, 1: paste
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Picker("", selection: $textMode) {
+                Text("⌨️ Type").tag(0)
+                Text("📋 Paste").tag(1)
+            }
+            .pickerStyle(.segmented)
+            .frame(width: 150)
+            
+            HStack(spacing: 10) {
+                Text("Text:").font(.system(size: 11)).foregroundColor(.secondary)
+                TextField("", text: $textStr)
+                    .textFieldStyle(.roundedBorder)
+            }
+        }
+        .onAppear {
+            if case .typeText(let text) = action {
+                textStr = text
+                textMode = 0
+            } else if case .pasteText(let text) = action {
+                textStr = text
+                textMode = 1
+            }
+        }
+        .onChange(of: textStr) { _, _ in save() }
+        .onChange(of: textMode) { _, _ in save() }
+    }
+
+    private func save() {
+        action = (textMode == 0) ? .typeText(text: textStr) : .pasteText(text: textStr)
+        onSave()
+    }
+}
+
+struct KeyEditView: View {
+    @Binding var action: MacroAction
+    var onSave: () -> Void
+
+    @State private var keyStr = ""
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Text("Key name:").font(.system(size: 11)).foregroundColor(.secondary)
+            TextField("enter/space/a-z...", text: $keyStr)
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 150)
+        }
+        .onAppear {
+            if case .pressKey(let keyCode) = action {
+                keyStr = KeyMap.name(for: keyCode)
+            }
+        }
+        .onChange(of: keyStr) { _, _ in save() }
+    }
+
+    private func save() {
+        if let code = KeyMap.keyCode(for: keyStr) {
+            action = .pressKey(keyCode: code)
+            onSave()
+        }
+    }
+}
+
+struct ActionCardView: View {
+    let index: Int
+    @Binding var item: MacroActionItem
+    var onDelete: () -> Void
+    var onSave: () -> Void
+
+    @State private var isEditing = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 12) {
+                // Drag handle
+                Image(systemName: "line.3.horizontal")
+                    .foregroundColor(.secondary.opacity(0.6))
+                    .font(.system(size: 13))
+                    .frame(width: 14)
+
+                // Squircle Icon
+                ZStack {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(item.action.color)
+                        .frame(width: 32, height: 32)
+                    Image(systemName: item.action.iconName)
+                        .foregroundColor(.white)
+                        .font(.system(size: 15, weight: .semibold))
+                }
+
+                // Title & Details (Tapping here toggles edit mode)
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 6) {
+                        Text("Step \(index + 1): \(item.action.title)")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(.white)
+                    }
+                    if !isEditing {
+                        Text(item.action.details)
+                            .font(.system(size: 11))
+                            .foregroundColor(.secondary)
+                            .lineLimit(1)
+                    }
+                }
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    withAnimation(.easeInOut(duration: 0.15)) {
+                        isEditing.toggle()
+                    }
+                }
+
+                Spacer()
+
+                // Delete button
+                Button(action: onDelete) {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(Color.secondary.opacity(0.5))
+                        .font(.system(size: 15))
+                }
+                .buttonStyle(.plain)
+            }
+            
+            if isEditing {
+                Divider().background(Color.white.opacity(0.08))
+                
+                switch item.action {
+                case .click:
+                    ClickEditView(action: $item.action, onSave: onSave)
+                case .drag:
+                    DragEditView(action: $item.action, onSave: onSave)
+                case .delay:
+                    DelayEditView(action: $item.action, onSave: onSave)
+                case .typeText, .pasteText:
+                    TextEditView(action: $item.action, onSave: onSave)
+                case .pressKey:
+                    KeyEditView(action: $item.action, onSave: onSave)
+                case .pressShortcut:
+                    Text("Shortcut Trigger")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                }
+            }
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 11)
@@ -999,28 +1508,31 @@ struct DraggableActionList: View {
 
     var body: some View {
         LazyVStack(spacing: 8) {
-            ForEach(Array(actionItems.enumerated()), id: \.element.id) { idx, item in
-                ActionCardView(
-                    index: idx,
-                    item: item,
-                    onDelete: {
-                        actionItems.removeAll { $0.id == item.id }
-                        onSave()
+            ForEach($actionItems, id: \.id) { $item in
+                if let idx = actionItems.firstIndex(where: { $0.id == item.id }) {
+                    ActionCardView(
+                        index: idx,
+                        item: $item,
+                        onDelete: {
+                            actionItems.removeAll { $0.id == item.id }
+                            onSave()
+                        },
+                        onSave: onSave
+                    )
+                    // Drag source
+                    .onDrag {
+                        draggingID = item.id
+                        return NSItemProvider(object: item.id.uuidString as NSString)
                     }
-                )
-                // Drag source
-                .onDrag {
-                    draggingID = item.id
-                    return NSItemProvider(object: item.id.uuidString as NSString)
+                    // Drop target
+                    .onDrop(of: [.text], delegate: ActionDropDelegate(
+                        item: item,
+                        items: $actionItems,
+                        draggingID: $draggingID,
+                        onSave: onSave
+                    ))
+                    .opacity(draggingID == item.id ? 0.4 : 1.0)
                 }
-                // Drop target
-                .onDrop(of: [.text], delegate: ActionDropDelegate(
-                    item: item,
-                    items: $actionItems,
-                    draggingID: $draggingID,
-                    onSave: onSave
-                ))
-                .opacity(draggingID == item.id ? 0.4 : 1.0)
             }
         }
     }
@@ -1058,7 +1570,6 @@ struct MacroInspectorView: View {
     @ObservedObject var macro: MacroItem
     @ObservedObject var store = MacroStore.shared
 
-    @State private var showAddAction = false
     @State private var isDirty = false
     @State private var tempName: String = ""
 
@@ -1188,22 +1699,14 @@ struct MacroInspectorView: View {
                     }
                     .padding(.vertical, 2)
 
-                    // Section Title: Actions Pipeline
-                    VStack(alignment: .leading, spacing: 8) {
+                    // Section: Actions (No counter, clean design)
+                    VStack(alignment: .leading, spacing: 10) {
                         HStack {
-                            Text("Actions Pipeline (\(macro.actionItems.count) steps)")
+                            Text("Actions")
                                 .font(.system(size: 13, weight: .semibold))
                                 .foregroundColor(.secondary)
                                 .padding(.leading, 2)
                             Spacer()
-                            Button {
-                                showAddAction = true
-                            } label: {
-                                Label("Add Step", systemImage: "plus")
-                                    .font(.system(size: 11, weight: .medium))
-                            }
-                            .buttonStyle(.bordered)
-                            .controlSize(.small)
                         }
                         .padding(.top, 4)
 
@@ -1212,29 +1715,82 @@ struct MacroInspectorView: View {
                             store.saveMacro(macro)
                         }
 
-                        // Minimalist Add action button card
-                        Button {
-                            showAddAction = true
-                        } label: {
-                            HStack {
-                                Spacer()
-                                Image(systemName: "plus")
-                                    .font(.system(size: 12, weight: .semibold))
-                                    .foregroundColor(.secondary)
-                                Text("Add Action Step")
-                                    .font(.system(size: 12, weight: .medium))
-                                    .foregroundColor(.secondary)
-                                Spacer()
+                        // Add Action Section (5 Quick Action Buttons with Instant Coordinate Overlay)
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Add Action")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundColor(.secondary)
+                                .padding(.leading, 2)
+                                .padding(.top, 6)
+
+                            HStack(spacing: 8) {
+                                // 1. Left Click (Instant Screen Coordinate Capture)
+                                quickActionButton(
+                                    title: "Left Click",
+                                    icon: "cursorarrow.click",
+                                    color: Color(red: 0.08, green: 0.45, blue: 0.82)
+                                ) {
+                                    CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .click(button: .left)) { pt in
+                                        macro.actionItems.append(MacroActionItem(action: .click(point: pt, button: .left)))
+                                        store.saveMacro(macro)
+                                    }
+                                }
+
+                                // 2. Right Click (Instant Screen Coordinate Capture)
+                                quickActionButton(
+                                    title: "Right Click",
+                                    icon: "cursorarrow.click",
+                                    color: Color(red: 0.04, green: 0.52, blue: 0.54)
+                                ) {
+                                    CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .click(button: .right)) { pt in
+                                        macro.actionItems.append(MacroActionItem(action: .click(point: pt, button: .right)))
+                                        store.saveMacro(macro)
+                                    }
+                                }
+
+                                // 3. Drag (Two-step Start -> End Coordinate Capture with Trail)
+                                quickActionButton(
+                                    title: "Drag",
+                                    icon: "hand.draw",
+                                    color: Color(red: 0.52, green: 0.22, blue: 0.75)
+                                ) {
+                                    CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .drag) { start, end in
+                                        macro.actionItems.append(MacroActionItem(action: .drag(start: start, end: end)))
+                                        store.saveMacro(macro)
+                                    }
+                                }
+
+                                // 4. Delay
+                                quickActionButton(
+                                    title: "Delay",
+                                    icon: "timer",
+                                    color: Color(red: 0.88, green: 0.42, blue: 0.04)
+                                ) {
+                                    macro.actionItems.append(MacroActionItem(action: .delay(ms: 300)))
+                                    store.saveMacro(macro)
+                                }
+
+                                // 5. Text
+                                quickActionButton(
+                                    title: "Text",
+                                    icon: "text.cursor",
+                                    color: Color(red: 0.12, green: 0.58, blue: 0.24)
+                                ) {
+                                    macro.actionItems.append(MacroActionItem(action: .typeText(text: "Hello ShortKing")))
+                                    store.saveMacro(macro)
+                                }
+
+                                // 6. Key
+                                quickActionButton(
+                                    title: "Key",
+                                    icon: "keyboard",
+                                    color: Color(red: 0.32, green: 0.28, blue: 0.72)
+                                ) {
+                                    macro.actionItems.append(MacroActionItem(action: .pressKey(keyCode: 36)))
+                                    store.saveMacro(macro)
+                                }
                             }
-                            .padding(.vertical, 10)
-                            .background(Color(white: 0.16).opacity(0.4))
-                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                    .stroke(Color.white.opacity(0.04), lineWidth: 1)
-                            )
                         }
-                        .buttonStyle(.plain)
                         .padding(.top, 4)
                     }
                 }
@@ -1274,18 +1830,48 @@ struct MacroInspectorView: View {
             .padding(.bottom, 12)
         }
         .background(Color(white: 0.14))
-        .sheet(isPresented: $showAddAction) {
-            AddActionSheet(isPresented: $showAddAction) { newAction in
-                macro.actionItems.append(MacroActionItem(action: newAction))
-                store.saveMacro(macro)
-            }
-        }
         .onAppear {
             tempName = macro.fileName.replacingOccurrences(of: ".shortking", with: "")
         }
         .onChange(of: macro.id) { _, _ in
             tempName = macro.fileName.replacingOccurrences(of: ".shortking", with: "")
         }
+    }
+
+    @ViewBuilder
+    private func quickActionButton(
+        title: String,
+        icon: String,
+        color: Color,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            VStack(spacing: 6) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .fill(color.opacity(0.18))
+                        .frame(width: 30, height: 30)
+                    Image(systemName: icon)
+                        .foregroundColor(color)
+                        .font(.system(size: 13, weight: .semibold))
+                }
+
+                Text(title)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(.white)
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 10)
+            .padding(.horizontal, 2)
+            .background(Color(white: 0.18))
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(Color.white.opacity(0.06), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
     }
 }
 
