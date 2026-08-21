@@ -106,11 +106,11 @@ enum MacroAction: Equatable {
     var title: String {
         switch self {
         case .click(_, let b):      return "\(b == .left ? "Left" : "Right") Click"
-        case .drag:                 return "Drag Cursor"
-        case .delay(let ms):        return "Pause Delay (\(ms) ms)"
-        case .typeText:             return "Type Keystrokes"
-        case .pasteText:            return "Paste via Clipboard"
-        case .pressKey(let k):      return "Key Press [\(KeyMap.name(for: k))]"
+        case .drag:                 return "Drag"
+        case .delay:                return "Delay"
+        case .typeText:             return "Type"
+        case .pasteText:            return "Paste"
+        case .pressKey:             return "Key Press"
         case .pressShortcut:        return "Press Shortcut"
         }
     }
