@@ -2362,8 +2362,16 @@ struct InlineTextEditView: View {
             .textFieldStyle(.plain)
             .font(.system(size: 12, weight: .medium, design: .monospaced))
             .foregroundColor(.white)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(Color(white: 0.12))
+            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .stroke(Color.white.opacity(0.1), lineWidth: 1)
+            )
             .frame(width: detailWidth < 400 ? 90 : (detailWidth < 520 ? 120 : 160))
-            .multilineTextAlignment(.trailing)
+            .multilineTextAlignment(.leading)
             .onSubmit {
                 save()
             }
@@ -2403,13 +2411,21 @@ struct InlineDelayEditView: View {
     @State private var msValue: String = ""
     
     var body: some View {
-        HStack(spacing: 2) {
+        HStack(spacing: 4) {
             TextField("ms", text: $msValue)
                 .textFieldStyle(.plain)
                 .font(.system(size: 12, weight: .medium, design: .monospaced))
                 .foregroundColor(.white)
-                .frame(width: detailWidth < 400 ? 40 : 60)
-                .multilineTextAlignment(.trailing)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color(white: 0.12))
+                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                )
+                .frame(width: detailWidth < 400 ? 50 : 70)
+                .multilineTextAlignment(.center)
                 .onSubmit {
                     save()
                 }
@@ -2471,13 +2487,13 @@ struct InlineKeyRecorder: View {
                     }
                 }
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(isRecording ? Color.red.opacity(0.12) : Color(white: 0.22))
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(isRecording ? Color.red.opacity(0.12) : Color(white: 0.12))
             .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .stroke(isRecording ? Color.red : Color.white.opacity(0.08), lineWidth: 1)
+                    .stroke(isRecording ? Color.red : Color.white.opacity(0.1), lineWidth: 1)
             )
         }
         .buttonStyle(.plain)
@@ -2573,10 +2589,14 @@ struct InlineDoAgainPicker: View {
                         .font(.system(size: 8))
                         .foregroundColor(.cyan)
                 }
-                .padding(.horizontal, 6)
-                .padding(.vertical, 3)
-                .background(Color.cyan.opacity(0.12))
-                .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color(white: 0.12))
+                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                )
             }
             .menuStyle(.borderlessButton)
             .fixedSize()
@@ -2607,6 +2627,8 @@ struct ActionCardView: View {
     let detailWidth: CGFloat
     @ObservedObject var store = MacroStore.shared
 
+    @State private var isCollapsed = false
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: detailWidth < 520 ? 8 : 12) {
@@ -2616,6 +2638,20 @@ struct ActionCardView: View {
                         .foregroundColor(.secondary.opacity(0.6))
                         .font(.system(size: 13))
                         .frame(width: 14)
+                }
+                
+                if case .group = item.action {
+                    Button(action: {
+                        withAnimation(.easeInOut(duration: 0.15)) {
+                            isCollapsed.toggle()
+                        }
+                    }) {
+                        Image(systemName: isCollapsed ? "chevron.right" : "chevron.down")
+                            .foregroundColor(.secondary)
+                            .font(.system(size: 10, weight: .bold))
+                            .frame(width: 12, height: 32)
+                    }
+                    .buttonStyle(.plain)
                 }
 
                 // Squircle Icon with step ID inside
@@ -2663,6 +2699,15 @@ struct ActionCardView: View {
                                 .textFieldStyle(.plain)
                                 .font(.system(size: detailWidth < 520 ? 11 : 13, weight: .bold))
                                 .foregroundColor(.white)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Color(white: 0.12))
+                                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                        .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                                )
+                                .frame(width: 140)
                             } else {
                                 Text(item.action.title)
                                     .font(.system(size: detailWidth < 520 ? 11 : 13, weight: .semibold))
@@ -2742,7 +2787,7 @@ struct ActionCardView: View {
             }
             
             // Nested Group Preview
-            if case .group(_, let subActions) = item.action {
+            if case .group(_, let subActions) = item.action, !isCollapsed {
                 VStack(alignment: .leading, spacing: 6) {
                     ForEach(subActions) { subItem in
                         HStack(spacing: 8) {
