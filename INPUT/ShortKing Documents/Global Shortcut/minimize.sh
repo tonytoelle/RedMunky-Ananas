@@ -1,13 +1,10 @@
 #!/bin/zsh
-# Minimize the frontmost window of the active application
+# Minimize the frontmost window of the active application without System Events
 
 osascript -e '
-tell application "System Events"
-    set frontmostProcess to first process whose frontmost is true
-    tell frontmostProcess
-        if (count of windows) > 0 then
-            set miniaturized of window 1 to true
-        end if
+try
+    tell application (path to frontmost application as text)
+        set miniaturized of window 1 to true
     end tell
-end tell
+end try
 '
