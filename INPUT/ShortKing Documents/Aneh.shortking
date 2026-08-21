@@ -3,7 +3,6 @@ TRIGGER: cmd+shift+k
 
 # Actions:
 ACTION: press return
-ACTION: type "Helasdasdo SsdsfhortKing"
 ACTION: click 1082 482
 ACTION: press return
 ACTION: click 552 230

@@ -813,7 +813,7 @@ struct HotKeyRecorder: View {
                         .font(.system(size: 13))
 
                     Text("Press shortcut... (Esc to cancel)")
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(.system(size: 10, weight: .medium))
                         .foregroundColor(.red)
                 } else {
                     ShortcutBadgeView(trigger: trigger)
