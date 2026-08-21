@@ -1,0 +1,5 @@
+# ShortKing Macro Script
+TRIGGER: cmd+up
+
+# Actions:
+ACTION: custom_action "~/fill_screen.sh"
