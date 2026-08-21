@@ -607,14 +607,29 @@ func generateFinderFolderIcon(config: FolderConfig) -> NSImage {
     let size = NSSize(width: 512, height: 512)
     let finalImage = NSImage(size: size)
     
-    // 1. Get base macOS folder
-    guard let baseFolder = NSImage(named: NSImage.folderName) else {
-        return finalImage
-    }
+    // 1. Get base macOS folder and guarantee solid 512x512 CGImage
+    let baseFolder = NSImage(named: NSImage.folderName) ?? NSWorkspace.shared.icon(forFile: "/System/Library/CoreServices/Finder.app")
     
     var folderCG: CGImage?
-    var r = NSRect(origin: .zero, size: size)
-    folderCG = baseFolder.cgImage(forProposedRect: &r, context: nil, hints: nil)
+    let baseBitmap = NSBitmapImageRep(
+        bitmapDataPlanes: nil,
+        pixelsWide: 512,
+        pixelsHigh: 512,
+        bitsPerSample: 8,
+        samplesPerPixel: 4,
+        hasAlpha: true,
+        isPlanar: false,
+        colorSpaceName: .deviceRGB,
+        bytesPerRow: 0,
+        bitsPerPixel: 0
+    )
+    if let rep = baseBitmap {
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
+        baseFolder.draw(in: NSRect(origin: .zero, size: size))
+        NSGraphicsContext.restoreGraphicsState()
+        folderCG = rep.cgImage
+    }
     
     finalImage.lockFocus()
     guard let context = NSGraphicsContext.current?.cgContext else {
@@ -808,8 +823,28 @@ class MacroStore: ObservableObject {
         if let data = try? JSONEncoder().encode(config) {
             try? data.write(to: configFile, options: .atomic)
         }
+        
+        self.treeNodes = updateTreeNodeConfig(nodes: self.treeNodes, folderURL: folderURL, newConfig: config)
+        self.objectWillChange.send()
+        
         updateFinderFolderIcon(for: folderURL, config: config)
         loadMacros()
+    }
+
+    private func updateTreeNodeConfig(nodes: [FileSystemNode], folderURL: URL, newConfig: FolderConfig) -> [FileSystemNode] {
+        return nodes.map { node in
+            switch node {
+            case .folder(let name, let url, let config, let children):
+                let isMatch = url.standardizedFileURL.path == folderURL.standardizedFileURL.path
+                let updatedChildren = updateTreeNodeConfig(nodes: children, folderURL: folderURL, newConfig: newConfig)
+                return .folder(name: name, url: url, config: isMatch ? newConfig : config, children: updatedChildren)
+            case .macro(let item):
+                if item.fileURL.deletingLastPathComponent().standardizedFileURL.path == folderURL.standardizedFileURL.path {
+                    item.parentFolderConfig = newConfig
+                }
+                return .macro(item: item)
+            }
+        }
     }
 
     private var dirFD: CInt = -1
