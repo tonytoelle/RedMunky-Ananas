@@ -1,5 +1,5 @@
 #!/bin/zsh
-# Quit all foreground applications except essential ones
+# Quit foreground applications, minimize excluded ones (except Finder & ShortKing itself)
 
 EXCLUDED=(
   "com.apple.finder"
@@ -11,12 +11,25 @@ EXCLUDED=(
 
 while IFS= read -r bid; do
   [[ -z "$bid" ]] && continue
+  
   skip=false
   for ex in "${EXCLUDED[@]}"; do
-    [[ "$bid" == "$ex" ]] && skip=true && break
+    if [[ "$bid" == "$ex" ]]; then
+      skip=true
+      break
+    fi
   done
-  $skip && continue
-  osascript -e "tell application id \"$bid\" to quit" &
+  
+  if $skip; then
+    # Jangan me-minimize Finder atau ShortKing (karena ShortKing berjalan di menu bar / background)
+    if [[ "$bid" != "com.apple.finder" && "$bid" != "com.redmunky.shortking" ]]; then
+      # Minimize all windows of the excluded app
+      osascript -e "tell application id \"$bid\" to set miniaturized of every window to true" 2>/dev/null &
+    fi
+  else
+    # Quit ordinary apps
+    osascript -e "tell application id \"$bid\" to quit" &
+  fi
 done < <(lsappinfo list | grep -B 4 'type="Foreground"' | grep 'bundleID=' | sed -E 's/.*bundleID="([^"]*)".*/\1/')
 
 wait
