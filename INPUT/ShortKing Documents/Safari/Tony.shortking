@@ -3,3 +3,5 @@ TRIGGER: k
 
 # Actions:
 ACTION: type "Hello ShortKing"
+ACTION: delay 300
+ACTION: press enter

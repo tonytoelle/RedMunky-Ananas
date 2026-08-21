@@ -1042,6 +1042,17 @@ class MacroStore: ObservableObject {
 
         loadMacros()
         startWatching()
+        
+        NSWorkspace.shared.notificationCenter.addObserver(
+            self,
+            selector: #selector(handleAppChange),
+            name: NSWorkspace.didActivateApplicationNotification,
+            object: nil
+        )
+    }
+    
+    @objc private func handleAppChange() {
+        registerAllCarbonHotKeys()
     }
 
     private func scanDirectory(at url: URL, loadedMacros: inout [MacroItem], parentConfig: FolderConfig? = nil) -> [FileSystemNode] {
@@ -1112,24 +1123,27 @@ class MacroStore: ObservableObject {
             return
         }
         CarbonHotKeyManager.shared.unregisterAll()
+        
+        let frontApp = NSWorkspace.shared.frontmostApplication
+        let activeBundle = frontApp?.bundleIdentifier ?? ""
+        let activeName = frontApp?.localizedName ?? ""
+        
         for macro in macros {
             let items = macro.actionItems
             let folderConfig = macro.parentFolderConfig
-            CarbonHotKeyManager.shared.register(trigger: macro.trigger) {
-                // App targeting restriction check
-                if let cfg = folderConfig, cfg.isRestrictedToApps && !cfg.targetApps.isEmpty {
-                    if let frontApp = NSWorkspace.shared.frontmostApplication {
-                        let activeBundle = frontApp.bundleIdentifier ?? ""
-                        let activeName = frontApp.localizedName ?? ""
-                        let matches = cfg.targetApps.contains { target in
-                            target.bundleId == activeBundle || target.name.localizedCaseInsensitiveCompare(activeName) == .orderedSame
-                        }
-                        if !matches {
-                            print("⏭️ Skipping macro '\(macro.fileName)' because frontmost app '\(activeName)' is not in folder target list.")
-                            return
-                        }
-                    }
+            
+            // App targeting restriction check
+            if let cfg = folderConfig, cfg.isRestrictedToApps && !cfg.targetApps.isEmpty {
+                let matches = cfg.targetApps.contains { target in
+                    target.bundleId == activeBundle || target.name.localizedCaseInsensitiveCompare(activeName) == .orderedSame
                 }
+                // Skip registering hotkey globally if active app doesn't match targeting list
+                if !matches {
+                    continue
+                }
+            }
+            
+            CarbonHotKeyManager.shared.register(trigger: macro.trigger) {
                 print("🚀 Executing: \(macro.fileName)")
                 InputSimulator.execute(items: items)
             }
