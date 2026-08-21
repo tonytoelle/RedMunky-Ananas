@@ -1974,10 +1974,10 @@ struct MacroInspectorView: View {
             VStack(spacing: 6) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 7, style: .continuous)
-                        .fill(color.opacity(0.18))
+                        .fill(color)
                         .frame(width: 30, height: 30)
                     Image(systemName: icon)
-                        .foregroundColor(color)
+                        .foregroundColor(.white)
                         .font(.system(size: 13, weight: .semibold))
                 }
 
