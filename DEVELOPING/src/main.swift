@@ -2356,12 +2356,14 @@ struct InlineTextEditView: View {
     let detailWidth: CGFloat
     
     @State private var textValue: String = ""
+    @FocusState private var isFocused: Bool
     
     var body: some View {
         TextField("Text", text: $textValue)
             .textFieldStyle(.plain)
             .font(.system(size: 12, weight: .medium, design: .monospaced))
             .foregroundColor(.white)
+            .focused($isFocused)
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
             .background(Color(white: 0.12))
@@ -2374,6 +2376,7 @@ struct InlineTextEditView: View {
             .multilineTextAlignment(.leading)
             .onSubmit {
                 save()
+                isFocused = false
             }
             .onAppear {
                 if case .typeText(let text) = action {
@@ -2409,6 +2412,7 @@ struct InlineDelayEditView: View {
     let detailWidth: CGFloat
     
     @State private var msValue: String = ""
+    @FocusState private var isFocused: Bool
     
     var body: some View {
         HStack(spacing: 4) {
@@ -2416,6 +2420,7 @@ struct InlineDelayEditView: View {
                 .textFieldStyle(.plain)
                 .font(.system(size: 12, weight: .medium, design: .monospaced))
                 .foregroundColor(.white)
+                .focused($isFocused)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
                 .background(Color(white: 0.12))
@@ -2428,6 +2433,7 @@ struct InlineDelayEditView: View {
                 .multilineTextAlignment(.center)
                 .onSubmit {
                     save()
+                    isFocused = false
                 }
                 .onAppear {
                     if case .delay(let ms) = action {
