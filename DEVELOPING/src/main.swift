@@ -1473,11 +1473,7 @@ struct InlineTextEditView: View {
             .textFieldStyle(.plain)
             .font(.system(size: 12, weight: .medium, design: .monospaced))
             .foregroundColor(.white)
-            .frame(width: 140)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 3)
-            .background(Color(white: 0.24))
-            .cornerRadius(4)
+            .frame(width: 160)
             .multilineTextAlignment(.trailing)
             .onSubmit {
                 save()
@@ -1489,8 +1485,12 @@ struct InlineTextEditView: View {
                     textValue = text
                 }
             }
-            .onChange(of: textValue) { _, _ in
-                save()
+            .onChange(of: action) { _, newValue in
+                if case .typeText(let text) = newValue {
+                    textValue = text
+                } else if case .pasteText(let text) = newValue {
+                    textValue = text
+                }
             }
     }
     
@@ -1516,11 +1516,7 @@ struct InlineDelayEditView: View {
                 .textFieldStyle(.plain)
                 .font(.system(size: 12, weight: .medium, design: .monospaced))
                 .foregroundColor(.white)
-                .frame(width: 50)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 3)
-                .background(Color(white: 0.24))
-                .cornerRadius(4)
+                .frame(width: 60)
                 .multilineTextAlignment(.trailing)
                 .onSubmit {
                     save()
@@ -1530,8 +1526,10 @@ struct InlineDelayEditView: View {
                         msValue = String(ms)
                     }
                 }
-                .onChange(of: msValue) { _, _ in
-                    save()
+                .onChange(of: action) { _, newValue in
+                    if case .delay(let ms) = newValue {
+                        msValue = String(ms)
+                    }
                 }
             Text("ms")
                 .font(.system(size: 11))
@@ -1558,10 +1556,6 @@ struct InlineKeyEditView: View {
             .font(.system(size: 12, weight: .medium, design: .monospaced))
             .foregroundColor(.white)
             .frame(width: 80)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 3)
-            .background(Color(white: 0.24))
-            .cornerRadius(4)
             .multilineTextAlignment(.trailing)
             .onSubmit {
                 save()
@@ -1571,8 +1565,10 @@ struct InlineKeyEditView: View {
                     keyValue = KeyMap.name(for: k)
                 }
             }
-            .onChange(of: keyValue) { _, _ in
-                save()
+            .onChange(of: action) { _, newValue in
+                if case .pressKey(let k) = newValue {
+                    keyValue = KeyMap.name(for: k)
+                }
             }
     }
     

@@ -3,8 +3,8 @@ TRIGGER: cmd+shift+k
 
 # Actions:
 ACTION: type "Hello ShortKing"
-ACTION: press enter
+ACTION: press return
 ACTION: click 338 311
 ACTION: click 552 230
-ACTION: press enter
+ACTION: press return
 ACTION: drag 572 232 to 970 122
