@@ -2867,11 +2867,11 @@ struct ActionCardView: View {
                                 .foregroundColor(.secondary)
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 4)
-                                .background(Color(white: 0.12))
+                                .background(isItemEditing ? Color(white: 0.12) : Color.clear)
                                 .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                        .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                                        .stroke(isItemEditing ? Color.white.opacity(0.1) : Color.clear, lineWidth: 1)
                                 )
                         }
                     case .group(_, let subActions):
@@ -2880,11 +2880,11 @@ struct ActionCardView: View {
                             .foregroundColor(.secondary)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
-                            .background(Color(white: 0.12))
+                            .background(isItemEditing ? Color(white: 0.12) : Color.clear)
                             .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                             .overlay(
                                 RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                    .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                                    .stroke(isItemEditing ? Color.white.opacity(0.1) : Color.clear, lineWidth: 1)
                             )
                     default:
                         Text(item.action.parameterString)
@@ -2892,11 +2892,11 @@ struct ActionCardView: View {
                             .foregroundColor(.secondary)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
-                            .background(Color(white: 0.12))
+                            .background(isItemEditing ? Color(white: 0.12) : Color.clear)
                             .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                             .overlay(
                                 RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                    .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                                    .stroke(isItemEditing ? Color.white.opacity(0.1) : Color.clear, lineWidth: 1)
                             )
                     }
                 }
@@ -5148,10 +5148,10 @@ struct SidebarNodeView: View {
                         : (isSelected ? Color(red: 0.05, green: 0.45, blue: 0.95).opacity(0.7) : Color.clear)
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    Capsule()
                         .stroke(isDropTarget ? Color.accentColor : Color.clear, lineWidth: 1.5)
                 )
-                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .clipShape(Capsule())
                 .onDrag {
                     let pathsToDrag = selectedPaths.contains(url.path) ? Array(selectedPaths) : [url.path]
                     return NSItemProvider(object: pathsToDrag.joined(separator: "\n") as NSString)
@@ -5272,7 +5272,7 @@ struct SidebarNodeView: View {
                         ? Color(red: 0.05, green: 0.45, blue: 0.95)
                         : Color.clear
                 )
-                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .clipShape(Capsule())
             }
             .buttonStyle(.plain)
             .onDrag {
@@ -5457,7 +5457,7 @@ struct MainEditorView: View {
                     VStack(alignment: .leading, spacing: 0) {
                         // Titlebar clearance (toggle button is in fixed overlay)
                         Spacer()
-                            .frame(height: 38)
+                            .frame(height: 24)
 
                         // Search Capsule Pill
                         HStack(spacing: 6) {

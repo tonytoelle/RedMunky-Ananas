@@ -3,9 +3,8 @@ TRIGGER: cmd+shift+k
 
 # Actions:
 ACTION: delay 0
+ACTION: click 879 676
 ACTION: group "Kenapa"
 ACTION: type "Hello ShortKing Mantao"
-ACTION: move 1261 323
-ACTION: move 1054 332
 ACTION: end_group
-ACTION: click 879 676
+ACTION: type "Hello ShortKing"
