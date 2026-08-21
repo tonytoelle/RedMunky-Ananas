@@ -717,19 +717,25 @@ func generateFinderFolderIcon(config: FolderConfig) -> NSImage {
 }
 
 func updateFinderFolderIcon(for folderURL: URL, config: FolderConfig) {
-    DispatchQueue.global(qos: .userInitiated).async {
-        let iconImage = generateFinderFolderIcon(config: config)
-        DispatchQueue.main.async {
-            NSWorkspace.shared.setIcon(iconImage, forFile: folderURL.path, options: [])
-            NSWorkspace.shared.noteFileSystemChanged(folderURL.path)
-            
-            // Tell macOS Finder to instantly refresh the folder item
-            let script = "tell application \"Finder\" to update item (POSIX file \"\(folderURL.path)\" as alias)"
-            if let appleScript = NSAppleScript(source: script) {
-                var error: NSDictionary?
-                appleScript.executeAndReturnError(&error)
-            }
+    let iconImage = generateFinderFolderIcon(config: config)
+    DispatchQueue.main.async {
+        NSWorkspace.shared.setIcon(iconImage, forFile: folderURL.path, options: [])
+        NSWorkspace.shared.noteFileSystemChanged(folderURL.path)
+        
+        // Tell macOS Finder to instantly refresh the folder item
+        let script = "tell application \"Finder\" to update item (POSIX file \"\(folderURL.path)\" as alias)"
+        if let appleScript = NSAppleScript(source: script) {
+            var error: NSDictionary?
+            appleScript.executeAndReturnError(&error)
         }
+    }
+}
+
+func updateMacroFinderIcon(for fileURL: URL, trigger: Trigger) {
+    let iconImage = generateShortcutIcon(for: trigger)
+    DispatchQueue.main.async {
+        NSWorkspace.shared.setIcon(iconImage, forFile: fileURL.path, options: [])
+        NSWorkspace.shared.noteFileSystemChanged(fileURL.path)
     }
 }
 
@@ -903,14 +909,11 @@ class MacroStore: ObservableObject {
             let isDir = (try? item.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false
             if isDir {
                 let config = loadFolderConfig(at: item)
-                updateFinderFolderIcon(for: item, config: config)
                 let children = scanDirectory(at: item, loadedMacros: &loadedMacros, parentConfig: config)
                 nodes.append(.folder(name: item.lastPathComponent, url: item, config: config, children: children))
             } else if item.pathExtension.lowercased() == "shortking" {
                 if let macro = ShortKingParser.parseFile(at: item) {
                     macro.parentFolderConfig = parentConfig
-                    let iconImage = generateShortcutIcon(for: macro.trigger)
-                    NSWorkspace.shared.setIcon(iconImage, forFile: macro.fileURL.path, options: [])
                     loadedMacros.append(macro)
                     nodes.append(.macro(item: macro))
                 }
@@ -988,14 +991,20 @@ class MacroStore: ObservableObject {
         }
     }
 
+    private var isReloading = false
+
     func startWatching() {
         stopWatching()
         dirFD = open(watchDirectoryURL.path, O_EVTONLY)
         guard dirFD >= 0 else { return }
-        let src = DispatchSource.makeFileSystemObjectSource(fileDescriptor: dirFD, eventMask: [.write, .delete, .rename], queue: .global())
+        let src = DispatchSource.makeFileSystemObjectSource(fileDescriptor: dirFD, eventMask: [.write, .delete, .rename], queue: .main)
         src.setEventHandler { [weak self] in
-            usleep(150000)
-            self?.loadMacros()
+            guard let self = self, !self.isReloading else { return }
+            self.isReloading = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                self.loadMacros()
+                self.isReloading = false
+            }
         }
         watchSource = src
         src.resume()
@@ -1006,9 +1015,8 @@ class MacroStore: ObservableObject {
         try? content.write(to: macro.fileURL, atomically: true, encoding: .utf8)
         registerAllCarbonHotKeys()
         
-        // Update Finder custom icon based on shortcut trigger
-        let iconImage = generateShortcutIcon(for: macro.trigger)
-        NSWorkspace.shared.setIcon(iconImage, forFile: macro.fileURL.path, options: [])
+        // Update Finder custom icon based on shortcut trigger safely
+        updateMacroFinderIcon(for: macro.fileURL, trigger: macro.trigger)
     }
 
     func renameMacro(_ macro: MacroItem, newBaseName: String) {
@@ -1034,9 +1042,8 @@ class MacroStore: ObservableObject {
             macro.fileName = newFileName
             self.selectedFilePath = newURL.path
             
-            // Update Finder icon on new file
-            let iconImage = generateShortcutIcon(for: macro.trigger)
-            NSWorkspace.shared.setIcon(iconImage, forFile: newURL.path, options: [])
+            // Update Finder icon on new file safely
+            updateMacroFinderIcon(for: newURL, trigger: macro.trigger)
             
             loadMacros()
         } catch {
