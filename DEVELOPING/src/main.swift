@@ -88,8 +88,7 @@ enum MacroAction: Equatable {
         case .delay:        return "timer"
         case .typeText:     return "text.cursor"
         case .pasteText:    return "doc.on.clipboard"
-        case .pressKey:     return "keyboard"
-        case .pressShortcut: return "command"
+        case .pressKey, .pressShortcut: return "keyboard"
         }
     }
     var color: Color {
@@ -99,8 +98,7 @@ enum MacroAction: Equatable {
         case .delay:        return Color(red: 0.88, green: 0.42, blue: 0.04)
         case .typeText:     return Color(red: 0.12, green: 0.58, blue: 0.24)
         case .pasteText:    return Color(red: 0.04, green: 0.52, blue: 0.54)
-        case .pressKey:     return Color(red: 0.32, green: 0.28, blue: 0.72)
-        case .pressShortcut: return Color(red: 0.82, green: 0.16, blue: 0.44)
+        case .pressKey, .pressShortcut: return Color(red: 0.32, green: 0.28, blue: 0.72)
         }
     }
     var title: String {
@@ -110,8 +108,7 @@ enum MacroAction: Equatable {
         case .delay:                return "Delay"
         case .typeText:             return "Type"
         case .pasteText:            return "Paste"
-        case .pressKey:             return "Key Press"
-        case .pressShortcut:        return "Press Shortcut"
+        case .pressKey, .pressShortcut: return "Key Press"
         }
     }
     var details: String {
@@ -1682,13 +1679,6 @@ struct InlineKeyRecorder: View {
     @State private var isRecording = false
     @State private var monitor: Any?
     
-    var currentKeyName: String {
-        if case .pressKey(let k) = action {
-            return KeyMap.name(for: k).uppercased()
-        }
-        return "KEY"
-    }
-    
     var body: some View {
         Button {
             isRecording ? stopRecording() : startRecording()
@@ -1698,21 +1688,28 @@ struct InlineKeyRecorder: View {
                     Image(systemName: "record.circle.fill")
                         .foregroundColor(.red)
                         .font(.system(size: 11))
-                    Text("Press key... (Esc)")
+                    Text("Press key/shortcut... (Esc)")
                         .font(.system(size: 10, weight: .medium, design: .monospaced))
                         .foregroundColor(.red)
                 } else {
-                    Text(currentKeyName)
-                        .font(.system(size: 12, weight: .bold, design: .monospaced))
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color(white: 0.22))
-                        .cornerRadius(4)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 4)
-                                .stroke(Color.white.opacity(0.12), lineWidth: 0.5)
-                        )
+                    switch action {
+                    case .pressShortcut(let trig):
+                        ShortcutBadgeView(trigger: trig, isDimmedMini: true)
+                    case .pressKey(let k):
+                        Text(KeyMap.name(for: k).uppercased())
+                            .font(.system(size: 11, weight: .bold, design: .monospaced))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2.5)
+                            .background(Color(white: 0.22))
+                            .cornerRadius(4)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 4)
+                                    .stroke(Color.white.opacity(0.15), lineWidth: 0.5)
+                            )
+                    default:
+                        EmptyView()
+                    }
                 }
             }
             .padding(.trailing, 4)
@@ -1723,15 +1720,23 @@ struct InlineKeyRecorder: View {
     func startRecording() {
         isRecording = true
         monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            let f = event.modifierFlags
             let kc = event.keyCode
+            let isCmd = f.contains(.command), isShift = f.contains(.shift), isOpt = f.contains(.option), isCtrl = f.contains(.control)
+            
             // Esc alone = cancel
-            if kc == 53 && event.modifierFlags.intersection([.command, .shift, .option, .control]).isEmpty {
+            if kc == 53 && !isCmd && !isShift && !isOpt && !isCtrl {
                 stopRecording()
                 return nil
             }
             
             onPreSave()
-            action = .pressKey(keyCode: kc)
+            if isCmd || isShift || isOpt || isCtrl {
+                let trigger = Trigger(keyCode: kc, requireCmd: isCmd, requireShift: isShift, requireOption: isOpt, requireControl: isCtrl)
+                action = .pressShortcut(trigger: trigger)
+            } else {
+                action = .pressKey(keyCode: kc)
+            }
             stopRecording()
             onSave()
             return nil
@@ -1789,7 +1794,7 @@ struct ActionCardView: View {
                         InlineTextEditView(action: $item.action, onPreSave: onPreSave, onSave: onSave)
                     case .delay:
                         InlineDelayEditView(action: $item.action, onPreSave: onPreSave, onSave: onSave)
-                    case .pressKey:
+                    case .pressKey, .pressShortcut:
                         InlineKeyRecorder(action: $item.action, onPreSave: onPreSave, onSave: onSave)
                     default:
                         Text(item.action.parameterString)

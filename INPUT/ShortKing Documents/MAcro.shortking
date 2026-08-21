@@ -4,5 +4,5 @@ TRIGGER: cmd+shift+k
 # Actions:
 ACTION: press enter
 ACTION: click 890 244
-ACTION: press enter
+ACTION: press s
 ACTION: click 552 230
