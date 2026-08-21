@@ -1312,6 +1312,7 @@ class MacroStore: ObservableObject {
     }
 
     private var watchStream: FSEventStreamRef?
+    private var eventTap: CFMachPort?
 
     init() {
         let defaultPath = "/Users/tonytoelle/Documents/PROJECTS/RedMunky - ShortKing/INPUT/ShortKing Documents"
@@ -1320,6 +1321,7 @@ class MacroStore: ObservableObject {
 
         loadMacros()
         startWatching()
+        setupEventTap()
         
         NSWorkspace.shared.notificationCenter.addObserver(
             self,
@@ -1331,6 +1333,68 @@ class MacroStore: ObservableObject {
     
     @objc private func handleAppChange() {
         registerAllCarbonHotKeys()
+    }
+
+    func triggerMacroBySpecialKey(name: String) {
+        for macro in macros {
+            let items = macro.actionItems
+            for trigger in macro.triggers {
+                let targetCode: CGKeyCode = (name == "brightness_down") ? 145 : 144
+                if trigger.keyCode == targetCode {
+                    print("🚀 Executing special hardware key macro: \(macro.fileName)")
+                    InputSimulator.execute(items: items)
+                }
+            }
+        }
+    }
+
+    private func setupEventTap() {
+        let eventMask = (1 << 14) // NX_SYSDEFINED is 14
+        
+        eventTap = CGEvent.tapCreate(
+            tap: .cghidEventTap,
+            place: .headInsertEventTap,
+            options: .defaultTap,
+            eventsOfInterest: CGEventMask(eventMask),
+            callback: { (proxy, type, event, refcon) -> Unmanaged<CGEvent>? in
+                if type.rawValue == 14 {
+                    if let nsEvent = NSEvent(cgEvent: event), nsEvent.subtype.rawValue == 8 {
+                        let data1 = nsEvent.data1
+                        let keyType = (data1 & 0xFFFF0000) >> 16
+                        let keyState = (data1 & 0xFF00) >> 8
+                        let isKeyDown = (keyState == 0xa)
+                        
+                        if isKeyDown {
+                            if keyType == 3 { // NX_KEYTYPE_BRIGHTNESS_DOWN
+                                print("🔆 Brightness Down hardware key detected!")
+                                DispatchQueue.main.async {
+                                    MacroStore.shared.triggerMacroBySpecialKey(name: "brightness_down")
+                                }
+                                return nil // Swallow keypress so macOS doesn't lower screen brightness
+                            } else if keyType == 2 { // NX_KEYTYPE_BRIGHTNESS_UP
+                                print("🔆 Brightness Up hardware key detected!")
+                                DispatchQueue.main.async {
+                                    MacroStore.shared.triggerMacroBySpecialKey(name: "brightness_up")
+                                }
+                                return nil // Swallow keypress so macOS doesn't raise screen brightness
+                            }
+                        }
+                    }
+                }
+                return Unmanaged.passUnretained(event)
+            },
+            userInfo: nil
+        )
+        
+        guard let tap = eventTap else {
+            print("⚠️ Failed to create event tap for media/special hardware keys")
+            return
+        }
+        
+        let runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
+        CFRunLoopAddSource(CFRunLoopGetCurrent(), runLoopSource, .commonModes)
+        CGEvent.tapEnable(tap: tap, enable: true)
+        print("👑 Event tap initialized successfully for hardware brightness keys")
     }
 
     private func scanDirectory(at url: URL, loadedMacros: inout [MacroItem], parentConfig: FolderConfig? = nil) -> [FileSystemNode] {
@@ -1422,6 +1486,10 @@ class MacroStore: ObservableObject {
             }
             
             for trig in macro.triggers {
+                // Skip registering brightness keys (144, 145) with Carbon, since they are handled via Event Tap
+                if trig.keyCode == 144 || trig.keyCode == 145 {
+                    continue
+                }
                 CarbonHotKeyManager.shared.register(trigger: trig) {
                     print("🚀 Executing: \(macro.fileName)")
                     InputSimulator.execute(items: items)
