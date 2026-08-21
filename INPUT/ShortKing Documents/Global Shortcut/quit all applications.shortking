@@ -1,5 +1,5 @@
 # ShortKing Macro Script
-TRIGGER: ctrl+opt+q
+TRIGGER: ctrl+q
 
 # Actions:
 ACTION: custom_action "~/quit_all.sh"
