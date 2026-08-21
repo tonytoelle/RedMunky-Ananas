@@ -2635,7 +2635,9 @@ struct DraggableActionList: View {
         .onDrop(of: [.text], isTargeted: $isListTargeted) { providers in
             if draggingID != nil {
                 draggingID = nil
-                onSave()
+                DispatchQueue.main.async {
+                    onSave()
+                }
                 return true
             }
             if let provider = providers.first {
@@ -2711,7 +2713,9 @@ struct ActionDropDelegate: DropDelegate {
     func performDrop(info: DropInfo) -> Bool {
         if draggingID != nil {
             draggingID = nil
-            onSave()
+            DispatchQueue.main.async {
+                onSave()
+            }
             return true
         }
         
