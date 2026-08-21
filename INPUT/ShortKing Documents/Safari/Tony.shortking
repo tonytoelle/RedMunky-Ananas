@@ -1,5 +1,5 @@
 # ShortKing Macro Script
-TRIGGER: k
+TRIGGER: shift+opt+k
 
 # Actions:
 ACTION: group "New Group"
@@ -8,8 +8,9 @@ ACTION: drag 990 344 to 1052 292
 ACTION: click 1047 365
 ACTION: end_group
 ACTION: type "Hello ShortKing asdad"
-ACTION: do_again
 ACTION: press 3
+ACTION: do_again
 ACTION: delay 50
 ACTION: group "New aasdsad"
 ACTION: end_group
+ACTION: delay 300

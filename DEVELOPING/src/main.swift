@@ -30,7 +30,8 @@ struct KeyMap {
 // ==========================================
 // MARK: - Models (with stable IDs for drag-drop)
 // ==========================================
-struct Trigger: Hashable, Equatable, Codable {
+struct Trigger: Hashable, Equatable, Codable, Identifiable {
+    var id = UUID()
     var keyCode: CGKeyCode
     var requireCmd: Bool
     var requireShift: Bool
@@ -3338,7 +3339,7 @@ struct MacroInspectorView: View {
 
                         if !isTriggerCollapsed {
                             VStack(spacing: 12) {
-                                ForEach(0..<macro.triggers.count, id: \.self) { idx in
+                                ForEach(Array(macro.triggers.enumerated()), id: \.element.id) { idx, trig in
                                     HStack(spacing: 12) {
                                         ZStack {
                                             RoundedRectangle(cornerRadius: 8, style: .continuous)
@@ -3370,7 +3371,7 @@ struct MacroInspectorView: View {
                                         if macro.triggers.count > 1 {
                                             Button(action: {
                                                 store.registerUndoState(for: macro)
-                                                macro.triggers.remove(at: idx)
+                                                macro.triggers.removeAll(where: { $0.id == trig.id })
                                                 store.saveMacro(macro)
                                             }) {
                                                 Image(systemName: "xmark")
