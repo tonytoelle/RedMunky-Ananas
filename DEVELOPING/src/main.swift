@@ -1181,11 +1181,17 @@ class MacroStore: ObservableObject {
 
     func saveMacro(_ macro: MacroItem) {
         let content = ShortKingParser.generateScript(trigger: macro.trigger, actions: macro.actions)
-        try? content.write(to: macro.fileURL, atomically: true, encoding: .utf8)
-        registerAllCarbonHotKeys()
+        let fileURL = macro.fileURL
+        let trigger = macro.trigger
         
-        // Update Finder custom icon based on shortcut trigger safely
-        updateMacroFinderIcon(for: macro.fileURL, trigger: macro.trigger)
+        DispatchQueue.global(qos: .userInitiated).async {
+            try? content.write(to: fileURL, atomically: true, encoding: .utf8)
+            updateMacroFinderIcon(for: fileURL, trigger: trigger)
+            
+            DispatchQueue.main.async {
+                self.registerAllCarbonHotKeys()
+            }
+        }
     }
 
     func renameMacro(_ macro: MacroItem, newBaseName: String) {
