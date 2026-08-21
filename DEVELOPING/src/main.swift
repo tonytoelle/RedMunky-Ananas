@@ -5457,11 +5457,15 @@ struct SidebarNodeView: View {
                 }
             } label: {
                 HStack(spacing: 8) {
+                    let mainAction = macro.actionItems.first?.action
+                    let iconName = mainAction?.iconName ?? "bolt.fill"
+                    let iconColor = mainAction?.color ?? squircleColor(for: macro.fileName.hashValue)
+                    
                     ZStack {
                         RoundedRectangle(cornerRadius: 4, style: .continuous)
-                            .fill(squircleColor(for: macro.fileName.hashValue))
+                            .fill(iconColor)
                             .frame(width: 18, height: 18)
-                        Image(systemName: "bolt.fill")
+                        Image(systemName: iconName)
                             .foregroundColor(.white)
                             .font(.system(size: 9, weight: .bold))
                     }

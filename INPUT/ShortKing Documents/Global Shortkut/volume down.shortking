@@ -1,5 +1,6 @@
 # ShortKing Macro Script
-TRIGGER: cmd+<
+TRIGGER: cmd+.
 
 # Actions:
 ACTION: volume_down
+ACTION: volume_up
