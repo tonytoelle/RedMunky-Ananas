@@ -2,10 +2,6 @@
 TRIGGER: cmd+shift+f
 
 # Actions:
-ACTION: press enter
-ACTION: delay 300
-ACTION: press k
-ACTION: press a
-ACTION: press /
 ACTION: click 625 378
-ACTION: drag 0 0 to 0 0
+ACTION: delay 300
+ACTION: type "Hello ShortKing"

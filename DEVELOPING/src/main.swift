@@ -2297,25 +2297,21 @@ struct DraggableActionList: View {
 
     var body: some View {
         LazyVStack(spacing: 8) {
-            ForEach(0...actionItems.count, id: \.self) { index in
-                Group {
-                    if index == placeholderIndex, let templateName = draggingTemplate {
-                        PlaceholderSlotView(title: templateName)
-                    }
-                    
-                    if index < actionItems.count {
-                        let item = actionItems[index]
+            ForEach($actionItems, id: \.id) { $item in
+                if let index = actionItems.firstIndex(where: { $0.id == item.id }) {
+                    Group {
+                        if index == placeholderIndex, let templateName = draggingTemplate {
+                            PlaceholderSlotView(title: templateName)
+                        }
+                        
                         ActionCardView(
                             index: index,
-                            item: Binding(
-                                get: { actionItems[index] },
-                                set: { actionItems[index] = $0 }
-                            ),
+                            item: $item,
                             onDelete: {
                                 if let selected = MacroStore.shared.selectedMacro {
                                     MacroStore.shared.registerUndoState(for: selected)
                                 }
-                                actionItems.remove(at: index)
+                                actionItems.removeAll { $0.id == item.id }
                                 onSave()
                             },
                             onPreSave: {
@@ -2345,6 +2341,10 @@ struct DraggableActionList: View {
                         .opacity(draggingID == item.id ? 0.3 : 1.0)
                     }
                 }
+            }
+            
+            if placeholderIndex == actionItems.count, let templateName = draggingTemplate {
+                PlaceholderSlotView(title: templateName)
             }
         }
         .onDrop(of: [.text], isTargeted: $isListTargeted) { providers in
