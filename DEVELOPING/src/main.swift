@@ -583,6 +583,93 @@ func generateShortcutIcon(for trigger: Trigger) -> NSImage {
 }
 
 // ==========================================
+// MARK: - Folder Finder Icon Generator
+// ==========================================
+func nsColor(for colorName: String) -> NSColor {
+    switch colorName.lowercased() {
+    case "blue":   return NSColor(red: 0.25, green: 0.65, blue: 0.95, alpha: 1.0)
+    case "purple": return NSColor(red: 0.68, green: 0.45, blue: 0.95, alpha: 1.0)
+    case "orange": return NSColor(red: 0.98, green: 0.58, blue: 0.20, alpha: 1.0)
+    case "green":  return NSColor(red: 0.30, green: 0.80, blue: 0.45, alpha: 1.0)
+    case "pink":   return NSColor(red: 0.98, green: 0.45, blue: 0.65, alpha: 1.0)
+    case "indigo": return NSColor(red: 0.42, green: 0.38, blue: 0.88, alpha: 1.0)
+    case "red":    return NSColor(red: 0.95, green: 0.30, blue: 0.30, alpha: 1.0)
+    case "yellow": return NSColor(red: 0.98, green: 0.80, blue: 0.20, alpha: 1.0)
+    case "teal":   return NSColor(red: 0.20, green: 0.75, blue: 0.80, alpha: 1.0)
+    case "gray":   return NSColor(white: 0.60, alpha: 1.0)
+    default:       return NSColor(red: 0.25, green: 0.65, blue: 0.95, alpha: 1.0)
+    }
+}
+
+func generateFinderFolderIcon(config: FolderConfig) -> NSImage {
+    let size = NSSize(width: 512, height: 512)
+    let image = NSImage(size: size)
+    image.lockFocus()
+    
+    guard let context = NSGraphicsContext.current?.cgContext else {
+        image.unlockFocus()
+        return image
+    }
+    
+    let folderRect = NSRect(origin: .zero, size: size)
+    
+    // 1. Draw base macOS folder
+    if let baseFolder = NSImage(named: NSImage.folderName) {
+        baseFolder.draw(in: folderRect)
+    }
+    
+    // 2. Tint folder with custom color
+    if config.colorName.lowercased() != "blue" {
+        context.saveGState()
+        context.setBlendMode(.color)
+        nsColor(for: config.colorName).withAlphaComponent(0.85).setFill()
+        context.fill(folderRect)
+        context.restoreGState()
+    }
+    
+    // 3. Draw embossed SF Symbol icon badge on the front of the folder
+    let symbolConfig = NSImage.SymbolConfiguration(pointSize: 110, weight: .semibold)
+    if let symbolImage = NSImage(systemSymbolName: config.iconName, accessibilityDescription: nil)?.withSymbolConfiguration(symbolConfig) {
+        let symbolSize = symbolImage.size
+        let flapCenterY: CGFloat = 205
+        let flapCenterX: CGFloat = 256
+        let symRect = NSRect(
+            x: flapCenterX - symbolSize.width / 2,
+            y: flapCenterY - symbolSize.height / 2,
+            width: symbolSize.width,
+            height: symbolSize.height
+        )
+        
+        context.saveGState()
+        context.setShadow(offset: CGSize(width: 0, height: -2), blur: 5, color: NSColor.black.withAlphaComponent(0.5).cgColor)
+        
+        // Tint symbol white
+        if let tintedSym = symbolImage.copy() as? NSImage {
+            tintedSym.lockFocus()
+            NSColor.white.withAlphaComponent(0.95).set()
+            NSRect(origin: .zero, size: tintedSym.size).fill(using: .sourceAtop)
+            tintedSym.unlockFocus()
+            tintedSym.draw(in: symRect)
+        }
+        
+        context.restoreGState()
+    }
+    
+    image.unlockFocus()
+    return image
+}
+
+func updateFinderFolderIcon(for folderURL: URL, config: FolderConfig) {
+    DispatchQueue.global(qos: .userInitiated).async {
+        let iconImage = generateFinderFolderIcon(config: config)
+        DispatchQueue.main.async {
+            NSWorkspace.shared.setIcon(iconImage, forFile: folderURL.path, options: [])
+            NSWorkspace.shared.noteFileSystemChanged(folderURL.path)
+        }
+    }
+}
+
+// ==========================================
 // MARK: - File System Hierarchy Tree
 // ==========================================
 enum FileSystemNode: Identifiable {
@@ -697,6 +784,7 @@ class MacroStore: ObservableObject {
         if let data = try? JSONEncoder().encode(config) {
             try? data.write(to: configFile, options: .atomic)
         }
+        updateFinderFolderIcon(for: folderURL, config: config)
         loadMacros()
     }
 
@@ -731,6 +819,7 @@ class MacroStore: ObservableObject {
             let isDir = (try? item.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false
             if isDir {
                 let config = loadFolderConfig(at: item)
+                updateFinderFolderIcon(for: item, config: config)
                 let children = scanDirectory(at: item, loadedMacros: &loadedMacros, parentConfig: config)
                 nodes.append(.folder(name: item.lastPathComponent, url: item, config: config, children: children))
             } else if item.pathExtension.lowercased() == "shortking" {
