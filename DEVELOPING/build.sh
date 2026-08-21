@@ -91,6 +91,7 @@ codesign --force --deep --sign - "$APP_BUNDLE"
 
 echo "🔄 Menghentikan aplikasi yang sedang berjalan (jika ada)..."
 killall "$APP_NAME" 2>/dev/null || true
+sleep 0.5
 
 echo "🚀 Menjalankan ulang aplikasi $APP_NAME.app..."
 open "$APP_BUNDLE"

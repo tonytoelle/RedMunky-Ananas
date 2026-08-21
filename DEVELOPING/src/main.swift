@@ -575,13 +575,25 @@ class MacroStore: ObservableObject {
     }
 
     @Published var macros: [MacroItem] = []
-    @Published var selectedMacroID: UUID?
+    @Published var selectedFileName: String?
     @Published var watchDirectoryURL: URL
 
-    private var pendingSelectionName: String?
+    var selectedMacroID: UUID? {
+        get { selectedMacro?.id }
+        set {
+            if let id = newValue {
+                selectedFileName = macros.first(where: { $0.id == id })?.fileName
+            } else {
+                selectedFileName = nil
+            }
+        }
+    }
 
     var selectedMacro: MacroItem? {
-        get { macros.first(where: { $0.id == selectedMacroID }) }
+        get {
+            guard let name = selectedFileName else { return macros.first }
+            return macros.first(where: { $0.fileName == name }) ?? macros.first
+        }
     }
 
     private var dirFD: CInt = -1
@@ -603,15 +615,11 @@ class MacroStore: ObservableObject {
                           .compactMap { ShortKingParser.parseFile(at: $0) }
                           .sorted { $0.fileName < $1.fileName }
         DispatchQueue.main.async {
-            let targetName = self.pendingSelectionName ?? self.macros.first(where: { $0.id == self.selectedMacroID })?.fileName
-            self.pendingSelectionName = nil
             self.macros = loaded
-            if let target = targetName, let matched = loaded.first(where: { $0.fileName == target }) {
-                self.selectedMacroID = matched.id
-            } else if let prevID = self.selectedMacroID, let matched = loaded.first(where: { $0.id == prevID }) {
-                self.selectedMacroID = matched.id
+            if let current = self.selectedFileName, loaded.contains(where: { $0.fileName == current }) {
+                // Keep the current selection!
             } else {
-                self.selectedMacroID = loaded.first?.id
+                self.selectedFileName = loaded.first?.fileName
             }
             self.registerAllCarbonHotKeys()
         }
@@ -676,8 +684,8 @@ class MacroStore: ObservableObject {
         
         guard oldURL != newURL else { return }
         
-        // Track the target selection immediately
-        self.pendingSelectionName = newFileName
+        // Directly set the selected file name to newFileName
+        self.selectedFileName = newFileName
         
         do {
             // First save any current changes to the old file path
@@ -706,7 +714,7 @@ class MacroStore: ObservableObject {
         let count = macros.count + 1
         let fileName = "macro_\(count).shortking"
         let url = watchDirectoryURL.appendingPathComponent(fileName)
-        self.pendingSelectionName = fileName
+        self.selectedFileName = fileName
         let t = Trigger(keyCode: 40, requireCmd: true, requireShift: true, requireOption: false, requireControl: false)
         let a: [MacroAction] = [.delay(ms: 500), .typeText(text: "Hello ShortKing!")]
         try? ShortKingParser.generateScript(trigger: t, actions: a).write(to: url, atomically: true, encoding: .utf8)
@@ -725,7 +733,7 @@ class MacroStore: ObservableObject {
         }
         
         let newFileName = "\(newName).shortking"
-        self.pendingSelectionName = newFileName
+        self.selectedFileName = newFileName
         
         // Save current changes first
         saveMacro(macro)
