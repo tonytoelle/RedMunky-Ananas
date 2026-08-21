@@ -2732,6 +2732,63 @@ struct ActionCardView: View {
                     
                     // Render appropriate parameter editor/display
                     switch item.action {
+                    case .click(_, let button):
+                        Text(item.action.parameterString)
+                            .font(.system(size: 12, weight: .medium, design: .monospaced))
+                            .foregroundColor(.secondary)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color(white: 0.12))
+                            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                    .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                            )
+                            .onTapGesture {
+                                CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .click(button: button)) { newPoint in
+                                    onPreSave()
+                                    item.action = .click(point: newPoint, button: button)
+                                    onSave()
+                                }
+                            }
+                    case .drag(_, _):
+                        Text(item.action.parameterString)
+                            .font(.system(size: 12, weight: .medium, design: .monospaced))
+                            .foregroundColor(.secondary)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color(white: 0.12))
+                            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                    .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                            )
+                            .onTapGesture {
+                                CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .drag) { start, end in
+                                    onPreSave()
+                                    item.action = .drag(start: start, end: end)
+                                    onSave()
+                                }
+                            }
+                    case .moveCursor(_):
+                        Text(item.action.parameterString)
+                            .font(.system(size: 12, weight: .medium, design: .monospaced))
+                            .foregroundColor(.secondary)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color(white: 0.12))
+                            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                    .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                            )
+                            .onTapGesture {
+                                CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .click(button: .left)) { newPoint in
+                                    onPreSave()
+                                    item.action = .moveCursor(point: newPoint)
+                                    onSave()
+                                }
+                            }
                     case .typeText, .pasteText:
                         InlineTextEditView(action: $item.action, onPreSave: onPreSave, onSave: onSave, detailWidth: detailWidth)
                     case .delay:
@@ -2780,31 +2837,6 @@ struct ActionCardView: View {
                             )
                     }
                 }
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    switch item.action {
-                    case .click(_, let button):
-                        CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .click(button: button)) { newPoint in
-                            onPreSave()
-                            item.action = .click(point: newPoint, button: button)
-                            onSave()
-                        }
-                    case .drag:
-                        CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .drag) { start, end in
-                            onPreSave()
-                            item.action = .drag(start: start, end: end)
-                            onSave()
-                        }
-                    case .moveCursor:
-                        CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .click(button: .left)) { newPoint in
-                            onPreSave()
-                            item.action = .moveCursor(point: newPoint)
-                            onSave()
-                        }
-                    default:
-                        break
-                    }
-                }
             }
             
             // Nested Group Preview
@@ -2835,7 +2867,7 @@ struct ActionCardView: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 11)
-        .background(store.selectedActionIDs.contains(item.id) ? Color(white: 0.23) : Color(white: 0.18))
+        .background(Color(white: 0.18))
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 10, style: .continuous)

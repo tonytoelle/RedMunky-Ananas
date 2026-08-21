@@ -2,11 +2,12 @@
 TRIGGER: k
 
 # Actions:
-ACTION: click 1041 660
-ACTION: group "tambah"
-ACTION: right_click 895 401
-ACTION: click 1159 428
-ACTION: click 796 530
-ACTION: drag 994 335 to 1018 304
+ACTION: right_click 1071 341
+ACTION: click 1180 445
+ACTION: drag 1075 279 to 1221 278
+ACTION: press return
+ACTION: delay 300
+ACTION: group "New Group"
 ACTION: end_group
 ACTION: do_again
+ACTION: type "Hello ShortKing"
