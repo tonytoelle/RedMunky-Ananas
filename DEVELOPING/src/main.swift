@@ -549,7 +549,43 @@ func generateShortcutIcon(for trigger: Trigger) -> NSImage {
 }
 
 // ==========================================
-// MARK: - Macro Store
+// MARK: - File System Hierarchy Tree
+// ==========================================
+enum FileSystemNode: Identifiable {
+    case folder(name: String, url: URL, children: [FileSystemNode])
+    case macro(item: MacroItem)
+
+    var id: String {
+        switch self {
+        case .folder(_, let url, _): return "folder:" + url.path
+        case .macro(let item): return "macro:" + item.fileURL.path
+        }
+    }
+
+    var name: String {
+        switch self {
+        case .folder(let name, _, _): return name
+        case .macro(let item): return item.fileName.replacingOccurrences(of: ".shortking", with: "")
+        }
+    }
+
+    var isFolder: Bool {
+        switch self {
+        case .folder: return true
+        case .macro: return false
+        }
+    }
+
+    var folderURL: URL? {
+        switch self {
+        case .folder(_, let url, _): return url
+        case .macro: return nil
+        }
+    }
+}
+
+// ==========================================
+// MARK: - Macro Store with Hierarchical Folder Tree
 // ==========================================
 class MacroStore: ObservableObject {
     static let shared = MacroStore()
@@ -571,25 +607,35 @@ class MacroStore: ObservableObject {
         }
     }
 
+    @Published var treeNodes: [FileSystemNode] = []
     @Published var macros: [MacroItem] = []
-    @Published var selectedFileName: String?
+    @Published var selectedFilePath: String?
     @Published var watchDirectoryURL: URL
 
     var selectedMacroID: UUID? {
         get { selectedMacro?.id }
         set {
             if let id = newValue {
-                selectedFileName = macros.first(where: { $0.id == id })?.fileName
+                selectedFilePath = macros.first(where: { $0.id == id })?.fileURL.path
             } else {
-                selectedFileName = nil
+                selectedFilePath = nil
+            }
+        }
+    }
+
+    var selectedFileName: String? {
+        get { selectedMacro?.fileName }
+        set {
+            if let name = newValue {
+                selectedFilePath = macros.first(where: { $0.fileName == name })?.fileURL.path
             }
         }
     }
 
     var selectedMacro: MacroItem? {
         get {
-            guard let name = selectedFileName else { return macros.first }
-            return macros.first(where: { $0.fileName == name }) ?? macros.first
+            guard let path = selectedFilePath else { return macros.first }
+            return macros.first(where: { $0.fileURL.path == path }) ?? macros.first
         }
     }
 
@@ -605,18 +651,50 @@ class MacroStore: ObservableObject {
         startWatching()
     }
 
+    private func scanDirectory(at url: URL, loadedMacros: inout [MacroItem]) -> [FileSystemNode] {
+        guard let items = try? FileManager.default.contentsOfDirectory(at: url, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles]) else {
+            return []
+        }
+        
+        var nodes: [FileSystemNode] = []
+        let sorted = items.sorted {
+            let isDir0 = (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false
+            let isDir1 = (try? $1.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false
+            if isDir0 != isDir1 {
+                return isDir0 // Folders on top like Finder / Obsidian
+            }
+            return $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending
+        }
+        
+        for item in sorted {
+            let isDir = (try? item.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false
+            if isDir {
+                let children = scanDirectory(at: item, loadedMacros: &loadedMacros)
+                nodes.append(.folder(name: item.lastPathComponent, url: item, children: children))
+            } else if item.pathExtension.lowercased() == "shortking" {
+                if let macro = ShortKingParser.parseFile(at: item) {
+                    loadedMacros.append(macro)
+                    nodes.append(.macro(item: macro))
+                }
+            }
+        }
+        return nodes
+    }
+
     func loadMacros() {
         try? FileManager.default.createDirectory(at: watchDirectoryURL, withIntermediateDirectories: true)
-        guard let files = try? FileManager.default.contentsOfDirectory(at: watchDirectoryURL, includingPropertiesForKeys: nil) else { return }
-        let loaded = files.filter { $0.pathExtension.lowercased() == "shortking" }
-                          .compactMap { ShortKingParser.parseFile(at: $0) }
-                          .sorted { $0.fileName < $1.fileName }
+        var loaded: [MacroItem] = []
+        let tree = scanDirectory(at: watchDirectoryURL, loadedMacros: &loaded)
+        
         DispatchQueue.main.async {
+            self.treeNodes = tree
             self.macros = loaded
-            if let current = self.selectedFileName, loaded.contains(where: { $0.fileName == current }) {
-                // Keep the current selection!
+            if let current = self.selectedFilePath, loaded.contains(where: { $0.fileURL.path == current }) {
+                // Keep current selection
+            } else if let firstMacro = loaded.first {
+                self.selectedFilePath = firstMacro.fileURL.path
             } else {
-                self.selectedFileName = loaded.first?.fileName
+                self.selectedFilePath = nil
             }
             self.registerAllCarbonHotKeys()
         }
@@ -677,41 +755,59 @@ class MacroStore: ObservableObject {
         
         let newFileName = cleanName + ".shortking"
         let oldURL = macro.fileURL
-        let newURL = watchDirectoryURL.appendingPathComponent(newFileName)
+        let parentDir = oldURL.deletingLastPathComponent()
+        let newURL = parentDir.appendingPathComponent(newFileName)
         
         guard oldURL != newURL else { return }
         
-        // Directly set the selected file name to newFileName
-        self.selectedFileName = newFileName
+        self.selectedFilePath = newURL.path
         
         do {
-            // First save any current changes to the old file path
             saveMacro(macro)
-            
-            // Move/Rename the file in Finder
             if FileManager.default.fileExists(atPath: oldURL.path) {
                 try FileManager.default.moveItem(at: oldURL, to: newURL)
             } else {
-                // If old file didn't exist for some reason, write directly to new path
                 let content = ShortKingParser.generateScript(trigger: macro.trigger, actions: macro.actions)
                 try content.write(to: newURL, atomically: true, encoding: .utf8)
             }
-            
             macro.fileURL = newURL
             macro.fileName = newFileName
-            
-            // Force reload to update the sidebar instantly
             loadMacros()
         } catch {
             print("❌ Failed to rename file: \(error)")
         }
     }
 
-    func createNewMacro() {
+    func createFolder(name: String, parentURL: URL? = nil) {
+        let clean = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !clean.isEmpty else { return }
+        let targetDir = parentURL ?? watchDirectoryURL
+        let folderURL = targetDir.appendingPathComponent(clean)
+        try? FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
+        loadMacros()
+    }
+
+    func deleteFolder(at url: URL) {
+        try? FileManager.default.removeItem(at: url)
+        loadMacros()
+    }
+
+    func renameFolder(at url: URL, newName: String) {
+        let clean = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !clean.isEmpty else { return }
+        let parent = url.deletingLastPathComponent()
+        let dest = parent.appendingPathComponent(clean)
+        guard dest != url else { return }
+        try? FileManager.default.moveItem(at: url, to: dest)
+        loadMacros()
+    }
+
+    func createNewMacro(inFolder parentURL: URL? = nil) {
+        let targetDir = parentURL ?? watchDirectoryURL
         let count = macros.count + 1
         let fileName = "macro_\(count).shortking"
-        let url = watchDirectoryURL.appendingPathComponent(fileName)
-        self.selectedFileName = fileName
+        let url = targetDir.appendingPathComponent(fileName)
+        self.selectedFilePath = url.path
         let t = Trigger(keyCode: 40, requireCmd: true, requireShift: true, requireOption: false, requireControl: false)
         let a: [MacroAction] = [.delay(ms: 500), .typeText(text: "Hello ShortKing!")]
         try? ShortKingParser.generateScript(trigger: t, actions: a).write(to: url, atomically: true, encoding: .utf8)
@@ -720,19 +816,18 @@ class MacroStore: ObservableObject {
 
     func duplicateMacro(_ macro: MacroItem) {
         let baseName = macro.fileName.replacingOccurrences(of: ".shortking", with: "")
+        let parentDir = macro.fileURL.deletingLastPathComponent()
         var newName = "\(baseName) copy"
-        var newURL = watchDirectoryURL.appendingPathComponent("\(newName).shortking")
+        var newURL = parentDir.appendingPathComponent("\(newName).shortking")
         var copyIndex = 2
         while FileManager.default.fileExists(atPath: newURL.path) {
             newName = "\(baseName) copy \(copyIndex)"
-            newURL = watchDirectoryURL.appendingPathComponent("\(newName).shortking")
+            newURL = parentDir.appendingPathComponent("\(newName).shortking")
             copyIndex += 1
         }
         
-        let newFileName = "\(newName).shortking"
-        self.selectedFileName = newFileName
+        self.selectedFilePath = newURL.path
         
-        // Save current changes first
         saveMacro(macro)
         
         do {
@@ -756,6 +851,10 @@ class MacroStore: ObservableObject {
 
     func revealInFinder(_ macro: MacroItem) {
         NSWorkspace.shared.activateFileViewerSelecting([macro.fileURL])
+    }
+
+    func revealFolderInFinder(_ url: URL) {
+        NSWorkspace.shared.activateFileViewerSelecting([url])
     }
 
     func runMacro(_ macro: MacroItem) {
@@ -2870,24 +2969,242 @@ struct SettingsView: View {
 }
 
 // ==========================================
-// MARK: - Main Editor View (macOS System Settings Style)
+// MARK: - Sidebar Tree Node View (Obsidian / Finder Style)
+// ==========================================
+struct FolderPromptState: Identifiable {
+    let id = UUID()
+    let isNewFolder: Bool
+    let targetURL: URL?
+    var initialName: String
+}
+
+struct SidebarNodeView: View {
+    let node: FileSystemNode
+    let depth: Int
+    @Binding var expandedFolders: Set<String>
+    @ObservedObject var store = MacroStore.shared
+    var onPromptFolder: (Bool, URL?, String) -> Void
+
+    var body: some View {
+        switch node {
+        case .folder(let name, let url, let children):
+            let isExpanded = expandedFolders.contains(url.path)
+            
+            VStack(alignment: .leading, spacing: 2) {
+                // Folder Row
+                Button {
+                    withAnimation(.easeInOut(duration: 0.15)) {
+                        if isExpanded {
+                            expandedFolders.remove(url.path)
+                        } else {
+                            expandedFolders.insert(url.path)
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundColor(Color(white: 0.55))
+                            .frame(width: 12)
+
+                        Image(systemName: "folder.fill")
+                            .foregroundColor(Color(red: 0.35, green: 0.65, blue: 0.95))
+                            .font(.system(size: 13))
+
+                        Text(name)
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(Color(white: 0.92))
+                            .lineLimit(1)
+
+                        Spacer()
+
+                        Text("\(children.count)")
+                            .font(.system(size: 10, weight: .medium, design: .monospaced))
+                            .foregroundColor(Color(white: 0.45))
+                    }
+                    .padding(.leading, CGFloat(depth * 14 + 4))
+                    .padding(.trailing, 8)
+                    .padding(.vertical, 5)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .contextMenu {
+                    Button {
+                        store.createNewMacro(inFolder: url)
+                    } label: {
+                        Label("New Macro in Folder", systemImage: "plus.circle")
+                    }
+
+                    Button {
+                        onPromptFolder(true, url, "")
+                    } label: {
+                        Label("New Subfolder…", systemImage: "folder.badge.plus")
+                    }
+
+                    Divider()
+
+                    Button {
+                        onPromptFolder(false, url, name)
+                    } label: {
+                        Label("Rename Folder…", systemImage: "pencil")
+                    }
+
+                    Button {
+                        store.revealFolderInFinder(url)
+                    } label: {
+                        Label("Reveal in Finder", systemImage: "folder")
+                    }
+
+                    Divider()
+
+                    Button(role: .destructive) {
+                        store.deleteFolder(at: url)
+                    } label: {
+                        Label("Delete Folder", systemImage: "trash")
+                    }
+                }
+
+                // Children (Indented)
+                if isExpanded {
+                    ForEach(children) { child in
+                        SidebarNodeView(
+                            node: child,
+                            depth: depth + 1,
+                            expandedFolders: $expandedFolders,
+                            onPromptFolder: onPromptFolder
+                        )
+                    }
+                }
+            }
+
+        case .macro(let macro):
+            let isSelected = store.selectedFilePath == macro.fileURL.path
+
+            Button {
+                store.selectedFilePath = macro.fileURL.path
+            } label: {
+                HStack(spacing: 8) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 4, style: .continuous)
+                            .fill(squircleColor(for: macro.fileName.hashValue))
+                            .frame(width: 18, height: 18)
+                        Image(systemName: "bolt.fill")
+                            .foregroundColor(.white)
+                            .font(.system(size: 9, weight: .bold))
+                    }
+
+                    Text(macro.fileName.replacingOccurrences(of: ".shortking", with: ""))
+                        .font(.system(size: 13, weight: isSelected ? .semibold : .medium))
+                        .foregroundColor(isSelected ? .white : Color(white: 0.90))
+                        .lineLimit(1)
+
+                    Spacer()
+
+                    ShortcutBadgeView(trigger: macro.trigger, isDimmedMini: true)
+                }
+                .padding(.leading, CGFloat(depth * 14 + 18))
+                .padding(.trailing, 8)
+                .padding(.vertical, 6)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+                .background(
+                    isSelected
+                        ? Color(red: 0.05, green: 0.45, blue: 0.95)
+                        : Color.clear
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .contextMenu {
+                Button {
+                    store.runMacro(macro)
+                } label: {
+                    Label("Run Macro", systemImage: "play.fill")
+                }
+
+                Divider()
+
+                Button {
+                    store.duplicateMacro(macro)
+                } label: {
+                    Label("Duplicate", systemImage: "plus.square.on.square")
+                }
+
+                Button {
+                    store.revealInFinder(macro)
+                } label: {
+                    Label("Reveal in Finder", systemImage: "folder")
+                }
+
+                Divider()
+
+                Button(role: .destructive) {
+                    store.deleteMacro(macro)
+                } label: {
+                    Label("Delete Macro", systemImage: "trash")
+                }
+            }
+        }
+    }
+
+    private func squircleColor(for hash: Int) -> Color {
+        let colors: [Color] = [
+            Color(red: 0.05, green: 0.5, blue: 0.95), // Blue
+            Color.purple,
+            Color.orange,
+            Color.green,
+            Color(red: 0.95, green: 0.45, blue: 0.5), // Pink
+            Color.indigo,
+            Color.teal
+        ]
+        let idx = abs(hash) % colors.count
+        return colors[idx]
+    }
+}
+
+// ==========================================
+// MARK: - Main Editor View (Obsidian / Finder Style)
 // ==========================================
 struct MainEditorView: View {
     @ObservedObject var store = MacroStore.shared
     @State private var searchText = ""
+    @State private var expandedFolders: Set<String> = []
+    
+    // Folder modal/alert states
+    @State private var folderPrompt: FolderPromptState?
+    @State private var folderInputText = ""
+    @State private var showingFolderAlert = false
 
-    var filteredMacros: [MacroItem] {
-        guard !searchText.isEmpty else { return store.macros }
-        return store.macros.filter {
-            $0.fileName.localizedCaseInsensitiveContains(searchText) ||
-            $0.trigger.displayString.localizedCaseInsensitiveContains(searchText)
+    var displayNodes: [FileSystemNode] {
+        if searchText.isEmpty {
+            return store.treeNodes
+        } else {
+            return filterTree(nodes: store.treeNodes, query: searchText)
         }
+    }
+
+    func filterTree(nodes: [FileSystemNode], query: String) -> [FileSystemNode] {
+        var result: [FileSystemNode] = []
+        for node in nodes {
+            switch node {
+            case .folder(let name, let url, let children):
+                let matching = filterTree(nodes: children, query: query)
+                if !matching.isEmpty || name.localizedCaseInsensitiveContains(query) {
+                    result.append(.folder(name: name, url: url, children: matching))
+                }
+            case .macro(let item):
+                if item.fileName.localizedCaseInsensitiveContains(query) || item.trigger.displayString.localizedCaseInsensitiveContains(query) {
+                    result.append(.macro(item: item))
+                }
+            }
+        }
+        return result
     }
 
     var body: some View {
         HSplitView {
             // ═══════════════════════════════════════════════════
-            // LEFT SIDEBAR (Exact macOS System Settings Sidebar)
+            // LEFT SIDEBAR (Obsidian / Finder Style Explorer)
             // ═══════════════════════════════════════════════════
             VStack(alignment: .leading, spacing: 0) {
                 // Search Capsule Pill
@@ -2910,95 +3227,63 @@ struct MainEditorView: View {
                 .padding(.vertical, 6)
                 .background(Color(white: 0.20))
                 .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                .padding(.horizontal, 14)
-                .padding(.top, 14)
-                .padding(.bottom, 10)
+                .padding(.horizontal, 12)
+                .padding(.top, 12)
+                .padding(.bottom, 8)
 
-                // Macro List Items with Squircles & Blue Pill Highlights
+                // Hierarchical Folder Tree
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 4) {
-                        ForEach(Array(filteredMacros.enumerated()), id: \.element.id) { index, macro in
-                            Button {
-                                store.selectedMacroID = macro.id
-                            } label: {
-                                HStack(spacing: 10) {
-                                    ZStack {
-                                        RoundedRectangle(cornerRadius: 5, style: .continuous)
-                                            .fill(squircleColor(for: index))
-                                            .frame(width: 20, height: 20)
-                                        Image(systemName: "bolt.fill")
-                                            .foregroundColor(.white)
-                                            .font(.system(size: 10, weight: .semibold))
-                                    }
-
-                                    Text(macro.fileName.replacingOccurrences(of: ".shortking", with: ""))
-                                        .font(.system(size: 13, weight: store.selectedMacroID == macro.id ? .semibold : .medium))
-                                        .foregroundColor(store.selectedMacroID == macro.id ? .white : Color(white: 0.92))
-                                        .lineLimit(1)
-
-                                    Spacer()
-
-                                    ShortcutBadgeView(trigger: macro.trigger, isDimmedMini: true)
-                                }
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 7)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .contentShape(Rectangle())
-                                .background(
-                                    store.selectedMacroID == macro.id
-                                        ? Color(red: 0.05, green: 0.45, blue: 0.95)
-                                        : Color.clear
-                                )
-                                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    VStack(alignment: .leading, spacing: 2) {
+                        if displayNodes.isEmpty {
+                            VStack(spacing: 8) {
+                                Text(searchText.isEmpty ? "No macros or folders yet" : "No matching macros")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.secondary)
                             }
-                            .buttonStyle(.plain)
-                            .contentShape(Rectangle())
-                            .contextMenu {
-                                Button {
-                                    store.runMacro(macro)
-                                } label: {
-                                    Label("Run Macro", systemImage: "play.fill")
-                                }
-
-                                Divider()
-
-                                Button {
-                                    store.duplicateMacro(macro)
-                                } label: {
-                                    Label("Duplicate", systemImage: "plus.square.on.square")
-                                }
-
-                                Button {
-                                    store.revealInFinder(macro)
-                                } label: {
-                                    Label("Reveal in Finder", systemImage: "folder")
-                                }
-
-                                Divider()
-
-                                Button(role: .destructive) {
-                                    store.deleteMacro(macro)
-                                } label: {
-                                    Label("Delete Macro", systemImage: "trash")
-                                }
+                            .frame(maxWidth: .infinity, alignment: .center)
+                            .padding(.top, 24)
+                        } else {
+                            ForEach(displayNodes) { node in
+                                SidebarNodeView(
+                                    node: node,
+                                    depth: 0,
+                                    expandedFolders: $expandedFolders,
+                                    onPromptFolder: { isNew, url, name in
+                                        folderPrompt = FolderPromptState(isNewFolder: isNew, targetURL: url, initialName: name)
+                                        folderInputText = name
+                                        showingFolderAlert = true
+                                    }
+                                )
                             }
                         }
                     }
-                    .padding(.horizontal, 10)
+                    .padding(.horizontal, 8)
                     .padding(.bottom, 12)
                 }
 
                 Divider()
 
-                // Bottom Toolbar (+ and Delete)
-                HStack {
+                // Bottom Toolbar (+ Macro, + Folder, Delete, Count)
+                HStack(spacing: 12) {
                     Button {
                         store.createNewMacro()
                     } label: {
-                        Image(systemName: "plus").font(.system(size: 13))
+                        Image(systemName: "plus")
+                            .font(.system(size: 13, weight: .semibold))
                     }
                     .buttonStyle(.borderless)
                     .help("New Macro")
+
+                    Button {
+                        folderPrompt = FolderPromptState(isNewFolder: true, targetURL: nil, initialName: "")
+                        folderInputText = ""
+                        showingFolderAlert = true
+                    } label: {
+                        Image(systemName: "folder.badge.plus")
+                            .font(.system(size: 13))
+                    }
+                    .buttonStyle(.borderless)
+                    .help("New Folder")
 
                     if let m = store.selectedMacro {
                         Button {
@@ -3007,7 +3292,7 @@ struct MainEditorView: View {
                             Image(systemName: "trash").font(.system(size: 13))
                         }
                         .buttonStyle(.borderless)
-                        .help("Delete Macro")
+                        .help("Delete Selected Macro")
                         .foregroundColor(.red)
                     }
 
@@ -3021,52 +3306,60 @@ struct MainEditorView: View {
             }
             .frame(minWidth: 240, idealWidth: 290, maxWidth: 450)
             .background(Color(white: 0.12))
-
-                // ═══════════════════════════════════════════════════
-                // RIGHT DETAIL CANVAS (Macro Inspector Canvas)
-                // ═══════════════════════════════════════════════════
-                if let macro = store.selectedMacro {
-                    MacroInspectorView(macro: macro)
-                        .id(macro.id)
-                } else {
-                    VStack(spacing: 16) {
-                        ZStack {
-                            Circle()
-                                .fill(Color(white: 0.18))
-                                .frame(width: 72, height: 72)
-                            Image(systemName: "bolt.circle.fill")
-                                .font(.system(size: 40))
-                                .foregroundColor(.accentColor)
+            .alert(folderPrompt?.isNewFolder == true ? "New Folder" : "Rename Folder", isPresented: $showingFolderAlert) {
+                TextField("Folder Name", text: $folderInputText)
+                Button("Cancel", role: .cancel) { folderPrompt = nil }
+                Button(folderPrompt?.isNewFolder == true ? "Create" : "Save") {
+                    if let prompt = folderPrompt {
+                        if prompt.isNewFolder {
+                            store.createFolder(name: folderInputText, parentURL: prompt.targetURL)
+                        } else if let target = prompt.targetURL {
+                            store.renameFolder(at: target, newName: folderInputText)
                         }
-                        Text("No Macro Selected")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(.white)
-                        Text("Choose a macro from the sidebar or create a new one.")
-                            .font(.system(size: 12))
-                            .foregroundColor(.secondary)
-                        Button("Create New Macro") {
-                            store.createNewMacro()
-                        }
-                        .buttonStyle(.borderedProminent)
                     }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(Color(white: 0.14))
+                    folderPrompt = nil
                 }
             }
-            .frame(minWidth: 780, minHeight: 520)
-        }
+            .onAppear {
+                for node in store.treeNodes {
+                    if case .folder(_, let url, _) = node {
+                        expandedFolders.insert(url.path)
+                    }
+                }
+            }
 
-    private func squircleColor(for index: Int) -> Color {
-        let colors: [Color] = [
-            Color(red: 0.05, green: 0.5, blue: 0.95), // Blue
-            Color.purple,
-            Color.orange,
-            Color.green,
-            Color(red: 0.95, green: 0.45, blue: 0.5), // Pink
-            Color.indigo,
-            Color.teal
-        ]
-        return colors[index % colors.count]
+            // ═══════════════════════════════════════════════════
+            // RIGHT DETAIL CANVAS (Macro Inspector Canvas)
+            // ═══════════════════════════════════════════════════
+            if let macro = store.selectedMacro {
+                MacroInspectorView(macro: macro)
+                    .id(macro.id)
+            } else {
+                VStack(spacing: 16) {
+                    ZStack {
+                        Circle()
+                            .fill(Color(white: 0.18))
+                            .frame(width: 72, height: 72)
+                        Image(systemName: "bolt.circle.fill")
+                            .font(.system(size: 40))
+                            .foregroundColor(.accentColor)
+                    }
+                    Text("No Macro Selected")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.white)
+                    Text("Choose a macro from the sidebar or create a new one.")
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondary)
+                    Button("Create New Macro") {
+                        store.createNewMacro()
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color(white: 0.14))
+            }
+        }
+        .frame(minWidth: 780, minHeight: 520)
     }
 }
 

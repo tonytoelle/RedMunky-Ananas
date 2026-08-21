@@ -1,4 +1,4 @@
 # ShortKing Macro Script
-TRIGGER: cmd+shift+k
+TRIGGER: cmd+shift+ctrl+g
 
 # Actions:
