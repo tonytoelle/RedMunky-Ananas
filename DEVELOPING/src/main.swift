@@ -99,6 +99,7 @@ enum MacroAction: Equatable {
     case pressShortcut(trigger: Trigger)
     case doAgain(target: DoAgainTarget)
     case moveCursor(point: CGPoint)
+    case customAction(script: String)
     indirect case group(name: String, actions: [MacroActionItem])
 
     var iconName: String {
@@ -111,6 +112,7 @@ enum MacroAction: Equatable {
         case .pressKey, .pressShortcut: return "keyboard"
         case .doAgain:      return "arrow.counterclockwise"
         case .moveCursor:   return "cursorarrow.motionlines"
+        case .customAction: return "terminal"
         case .group:        return "folder"
         }
     }
@@ -124,6 +126,7 @@ enum MacroAction: Equatable {
         case .pressKey, .pressShortcut: return Color(red: 0.32, green: 0.28, blue: 0.72)
         case .doAgain:      return Color(red: 0.12, green: 0.58, blue: 0.65)
         case .moveCursor:   return Color(red: 0.28, green: 0.52, blue: 0.92)
+        case .customAction: return Color.pink
         case .group:        return Color.orange
         }
     }
@@ -137,6 +140,7 @@ enum MacroAction: Equatable {
         case .pressKey, .pressShortcut: return "Key Press"
         case .doAgain:              return "Do Again"
         case .moveCursor:           return "Move Cursor"
+        case .customAction:         return "Custom Action"
         case .group:                return "Group"
         }
     }
@@ -160,6 +164,8 @@ enum MacroAction: Equatable {
             }
         case .moveCursor(let p):
             return "Move cursor to coordinates (\(Int(p.x)), \(Int(p.y)))"
+        case .customAction(let script):
+            return "Run command: \(script)"
         case .group(let name, let actions):
             return "Group: \"\(name)\" (\(actions.count) actions)"
         }
@@ -189,6 +195,8 @@ enum MacroAction: Equatable {
             }
         case .moveCursor(let point):
             return "\(Int(point.x)), \(Int(point.y))"
+        case .customAction(let script):
+            return script
         case .group(_, let actions):
             return "\(actions.count) actions"
         }
@@ -213,6 +221,8 @@ enum MacroAction: Equatable {
             }
         case .moveCursor(let p):
             return "ACTION: move \(Int(p.x)) \(Int(p.y))"
+        case .customAction(let script):
+            return "ACTION: custom_action \"\(script)\""
         case .group(let name, _):
             return "ACTION: group \"\(name)\""
         }
@@ -553,6 +563,10 @@ class ShortKingParser {
                 }
             }
             return .doAgain(target: .origin)
+        case "custom_action":
+            var t = s.dropFirst(cmd.count).trimmingCharacters(in: .whitespaces)
+            if t.hasPrefix("\"") && t.hasSuffix("\"") && t.count >= 2 { t = String(t.dropFirst().dropLast()) }
+            return .customAction(script: t)
         default: break
         }
         return nil
@@ -816,6 +830,14 @@ class InputSimulator {
                     moveEvent?.flags = []
                     moveEvent?.post(tap: .cghidEventTap)
                     usleep(30000)
+                    
+                case .customAction(let script):
+                    guard !isEmergencyStopped else { return }
+                    let process = Process()
+                    process.executableURL = URL(fileURLWithPath: "/bin/zsh")
+                    process.arguments = ["-c", script]
+                    try? process.run()
+                    process.waitUntilExit()
                 }
             }
         }
@@ -2449,6 +2471,59 @@ struct InlineTextEditView: View {
     }
 }
 
+struct InlineCustomActionEditView: View {
+    @Binding var action: MacroAction
+    var onPreSave: () -> Void
+    var onSave: () -> Void
+    let detailWidth: CGFloat
+    
+    @State private var scriptValue: String = ""
+    @FocusState private var isFocused: Bool
+    
+    var body: some View {
+        TextField("Shell command/script", text: $scriptValue)
+            .textFieldStyle(.plain)
+            .font(.system(size: 12, weight: .medium, design: .monospaced))
+            .foregroundColor(.white)
+            .focused($isFocused)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(isFocused ? Color(white: 0.12) : Color.clear)
+            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .stroke(isFocused ? Color.white.opacity(0.1) : Color.clear, lineWidth: 1)
+            )
+            .frame(width: detailWidth < 400 ? 120 : (detailWidth < 520 ? 180 : 260))
+            .multilineTextAlignment(.leading)
+            .onSubmit {
+                save()
+                isFocused = false
+            }
+            .onAppear {
+                if case .customAction(let script) = action {
+                    scriptValue = script
+                }
+            }
+            .onChange(of: action) { _, newValue in
+                if case .customAction(let script) = newValue {
+                    scriptValue = script
+                }
+            }
+            .onChange(of: isFocused) { _, focused in
+                if !focused {
+                    save()
+                }
+            }
+    }
+    
+    private func save() {
+        onPreSave()
+        action = .customAction(script: scriptValue)
+        onSave()
+    }
+}
+
 struct InlineDelayEditView: View {
     @Binding var action: MacroAction
     var onPreSave: () -> Void
@@ -2854,6 +2929,8 @@ struct ActionCardView: View {
                             }
                     case .typeText, .pasteText:
                         InlineTextEditView(action: $item.action, onPreSave: onPreSave, onSave: onSave, detailWidth: detailWidth)
+                    case .customAction:
+                        InlineCustomActionEditView(action: $item.action, onPreSave: onPreSave, onSave: onSave, detailWidth: detailWidth)
                     case .delay:
                         InlineDelayEditView(action: $item.action, onPreSave: onPreSave, onSave: onSave, detailWidth: detailWidth)
                     case .pressKey, .pressShortcut:
@@ -3788,6 +3865,17 @@ struct MacroInspectorView: View {
                                 ) {
                                     store.registerUndoState(for: macro)
                                     macro.actionItems.append(MacroActionItem(action: .group(name: "New Group", actions: [])))
+                                    store.saveMacro(macro)
+                                }
+
+                                // 10. Custom Action (Command/Script Execution)
+                                quickActionButton(
+                                    title: "Custom",
+                                    icon: "terminal",
+                                    color: Color.pink
+                                ) {
+                                    store.registerUndoState(for: macro)
+                                    macro.actionItems.append(MacroActionItem(action: .customAction(script: "osascript -e 'set volume output volume (output volume of (get volume settings) + 6)'")))
                                     store.saveMacro(macro)
                                 }
                             }
