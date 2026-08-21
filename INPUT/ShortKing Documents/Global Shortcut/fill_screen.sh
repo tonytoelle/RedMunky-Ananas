@@ -1,18 +1,18 @@
 #!/bin/zsh
-# Maximize/Zoom the frontmost window to fill the screen
+# Trigger the native macOS Window -> Fill tiling action
 
 osascript -e '
 tell application "System Events"
-    set frontApp to first application process whose frontmost is true
-    if (count of windows of frontApp) > 0 then
-        set frontWindow to front window of frontApp
+    set frontmostProcess to first process whose frontmost is true
+    tell frontmostProcess
         try
-            click (first button of frontWindow whose subrole is "AXZoomButton")
+            click menu item "Fill" of menu 1 of menu bar item "Window" of menu bar 1
         on error
             try
-                set value of attribute "AXZoomButton" of frontWindow to true
+                # Fallback to submenu if needed
+                click menu item "Fill" of menu 1 of menu item "Move & Resize" of menu 1 of menu bar item "Window" of menu bar 1
             end try
         end try
-    end if
+    end tell
 end tell
 '
