@@ -5077,7 +5077,7 @@ struct SidebarNodeView: View {
                     }
                     .buttonStyle(.plain)
                 }
-                .padding(.leading, CGFloat(depth * 14 + 4))
+                .padding(.leading, CGFloat(depth * 18 + 4))
                 .padding(.trailing, 8)
                 .padding(.vertical, 4)
                 .background(
@@ -5200,7 +5200,7 @@ struct SidebarNodeView: View {
                     ShortcutBadgeView(trigger: macro.trigger, isDimmedMini: true, isSelected: isSelected)
                         .opacity(isSelected ? 0.3 : 1.0)
                 }
-                .padding(.leading, CGFloat(depth * 14 + 4))
+                .padding(.leading, CGFloat(depth * 18 + 4))
                 .padding(.trailing, 8)
                 .padding(.vertical, 6)
                 .frame(maxWidth: .infinity, alignment: .leading)
