@@ -2,4 +2,4 @@
 TRIGGER: ctrl+opt+q
 
 # Actions:
-ACTION: custom_action "/Users/tonytoelle/Documents/PROJECTS/RedMunky - ShortKing/INPUT/ShortKing Documents/Global Shortcut/quit_all.sh"
+ACTION: custom_action "~/quit_all.sh"
