@@ -1819,9 +1819,9 @@ struct MacroInspectorView: View {
                                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                                     .fill(Color(red: 0.45, green: 0.2, blue: 0.8))
                                     .frame(width: 32, height: 32)
-                                Image(systemName: "command")
+                                Image(systemName: "keyboard")
                                     .foregroundColor(.white)
-                                    .font(.system(size: 16, weight: .semibold))
+                                    .font(.system(size: 15, weight: .semibold))
                             }
 
                             Text("Key Press")
