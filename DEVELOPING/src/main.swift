@@ -3339,7 +3339,7 @@ struct MacroInspectorView: View {
 
                         if !isTriggerCollapsed {
                             VStack(spacing: 12) {
-                                ForEach(Array(macro.triggers.enumerated()), id: \.element.id) { idx, trig in
+                                ForEach(macro.triggers) { trig in
                                     HStack(spacing: 12) {
                                         ZStack {
                                             RoundedRectangle(cornerRadius: 8, style: .continuous)
@@ -3357,11 +3357,13 @@ struct MacroInspectorView: View {
                                         Spacer()
 
                                         HotKeyRecorder(trigger: Binding(
-                                            get: { macro.triggers[idx] },
+                                            get: { macro.triggers.first(where: { $0.id == trig.id }) ?? trig },
                                             set: { newValue in
-                                                store.registerUndoState(for: macro)
-                                                macro.triggers[idx] = newValue
-                                                store.saveMacro(macro)
+                                                if let index = macro.triggers.firstIndex(where: { $0.id == trig.id }) {
+                                                    store.registerUndoState(for: macro)
+                                                    macro.triggers[index] = newValue
+                                                    store.saveMacro(macro)
+                                                }
                                             }
                                         )) {
                                             store.saveMacro(macro)
@@ -3384,7 +3386,7 @@ struct MacroInspectorView: View {
                                         }
                                     }
                                     
-                                    if idx < macro.triggers.count - 1 {
+                                    if let last = macro.triggers.last, last.id != trig.id {
                                         Divider()
                                             .background(Color.white.opacity(0.06))
                                     }
