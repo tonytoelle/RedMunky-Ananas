@@ -5745,10 +5745,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc func showEditorWindow() {
         if window == nil {
             let win = EditorWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 900, height: 560),
+                contentRect: NSRect(x: 0, y: 0, width: 1000, height: 710),
                 styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
                 backing: .buffered, defer: false)
-            win.center()
+            if !win.setFrameAutosaveName("ShortKingMainWindow") {
+                win.center()
+            }
             win.title = "👑 ShortKing — Macro Editor"
             win.titlebarAppearsTransparent = true
             win.titleVisibility = .hidden
