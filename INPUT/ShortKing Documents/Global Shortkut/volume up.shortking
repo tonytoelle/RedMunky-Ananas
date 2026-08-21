@@ -1,5 +1,5 @@
 # ShortKing Macro Script
-TRIGGER: cmd+shift+.
+TRIGGER: cmd+.
 
 # Actions:
 ACTION: custom_action "osascript -e 'set volume output volume (output volume of (get volume settings) + 6)'"
