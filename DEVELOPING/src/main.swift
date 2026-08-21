@@ -62,15 +62,18 @@ struct Trigger: Hashable, Equatable, Codable {
 struct MacroActionItem: Identifiable, Equatable {
     let id: UUID   // stable — created once, never regenerated
     var action: MacroAction
+    var repeatCount: Int = 1
 
-    init(action: MacroAction) {
+    init(action: MacroAction, repeatCount: Int = 1) {
         self.id = UUID()
         self.action = action
+        self.repeatCount = repeatCount
     }
 
-    init(id: UUID, action: MacroAction) {
+    init(id: UUID, action: MacroAction, repeatCount: Int = 1) {
         self.id = id
         self.action = action
+        self.repeatCount = repeatCount
     }
 }
 
@@ -403,8 +406,17 @@ class ShortKingParser {
             if line.uppercased().hasPrefix("TRIGGER:") {
                 trigger = parseTrigger(String(line.dropFirst(8)).trimmingCharacters(in: .whitespaces))
             } else if line.uppercased().hasPrefix("ACTION:") {
-                if let a = parseAction(String(line.dropFirst(7)).trimmingCharacters(in: .whitespaces)) {
-                    items.append(MacroActionItem(action: a))
+                let actionStr = String(line.dropFirst(7)).trimmingCharacters(in: .whitespaces)
+                var cleanActionStr = actionStr
+                var repeats = 1
+                let parts = actionStr.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
+                if let lastPart = parts.last, lastPart.hasPrefix("x"), lastPart.count > 1,
+                   let val = Int(lastPart.dropFirst()) {
+                    repeats = val
+                    cleanActionStr = String(actionStr.prefix(actionStr.count - lastPart.count)).trimmingCharacters(in: .whitespaces)
+                }
+                if let a = parseAction(cleanActionStr) {
+                    items.append(MacroActionItem(action: a, repeatCount: repeats))
                 }
             }
         }
@@ -472,23 +484,29 @@ class ShortKingParser {
     static func generateScript(trigger: Trigger, actionItems: [MacroActionItem]) -> String {
         var lines = ["# ShortKing Macro Script", "TRIGGER: \(trigger.scriptString)", "", "# Actions:"]
         for item in actionItems {
+            var line = ""
             switch item.action {
             case .doAgain(let target):
                 switch target {
                 case .origin:
-                    lines.append("ACTION: do_again")
+                    line = "ACTION: do_again"
                 case .step(let idx):
-                    lines.append("ACTION: do_again step_\(idx)")
+                    line = "ACTION: do_again step_\(idx)"
                 case .action(let tid):
                     if let idx = actionItems.firstIndex(where: { $0.id == tid }) {
-                        lines.append("ACTION: do_again step_\(idx + 1)")
+                        line = "ACTION: do_again step_\(idx + 1)"
                     } else {
-                        lines.append("ACTION: do_again")
+                        line = "ACTION: do_again"
                     }
                 }
             default:
-                lines.append(item.action.scriptLine)
+                line = item.action.scriptLine
             }
+            
+            if item.repeatCount > 1 {
+                line += " x\(item.repeatCount)"
+            }
+            lines.append(line)
         }
         return lines.joined(separator: "\n") + "\n"
     }
@@ -528,152 +546,153 @@ class InputSimulator {
         let originQuartzPos = CGEvent(source: nil)?.location ?? .zero
 
         for item in items {
-            guard !isEmergencyStopped else { return }
-            switch item.action {
-            case .click(let point, let button):
-                let dT: CGEventType = button == .left ? .leftMouseDown : .rightMouseDown
-                let uT: CGEventType = button == .left ? .leftMouseUp   : .rightMouseUp
-                let d = CGEvent(mouseEventSource: source, mouseType: dT, mouseCursorPosition: point, mouseButton: button)
-                let u = CGEvent(mouseEventSource: source, mouseType: uT, mouseCursorPosition: point, mouseButton: button)
-                d?.flags = []
-                u?.flags = []
-                d?.post(tap: .cghidEventTap)
-                usleep(25000)
-                u?.post(tap: .cghidEventTap)
-                usleep(30000)
-
-            case .drag(let start, let end):
-                let d = CGEvent(mouseEventSource: source, mouseType: .leftMouseDown, mouseCursorPosition: start, mouseButton: .left)
-                d?.flags = []
-                d?.post(tap: .cghidEventTap)
-                usleep(40000)
-                for i in 1...15 {
-                    guard !isEmergencyStopped else { return }
-                    let p = CGFloat(i)/15
-                    let pt = CGPoint(x: start.x + (end.x-start.x)*p, y: start.y + (end.y-start.y)*p)
-                    let m = CGEvent(mouseEventSource: source, mouseType: .leftMouseDragged, mouseCursorPosition: pt, mouseButton: .left)
-                    m?.flags = []
-                    m?.post(tap: .cghidEventTap)
-                    usleep(12000)
-                }
-                let u = CGEvent(mouseEventSource: source, mouseType: .leftMouseUp, mouseCursorPosition: end, mouseButton: .left)
-                u?.flags = []
-                u?.post(tap: .cghidEventTap)
-                usleep(30000)
-
-            case .delay(let ms):
-                var rem = ms
-                while rem > 0 { guard !isEmergencyStopped else { return }; let c=min(rem,50); usleep(c*1000); rem -= c }
-
-            case .typeText(let text):
-                releaseModifiers()
-                for character in text.utf16 {
-                    guard !isEmergencyStopped else { return }
-                    var ch = character
-                    let d = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: true)
-                    let u = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: false)
+            let repeats = max(1, item.repeatCount)
+            for _ in 0..<repeats {
+                guard !isEmergencyStopped else { return }
+                switch item.action {
+                case .click(let point, let button):
+                    let dT: CGEventType = button == .left ? .leftMouseDown : .rightMouseDown
+                    let uT: CGEventType = button == .left ? .leftMouseUp   : .rightMouseUp
+                    let d = CGEvent(mouseEventSource: source, mouseType: dT, mouseCursorPosition: point, mouseButton: button)
+                    let u = CGEvent(mouseEventSource: source, mouseType: uT, mouseCursorPosition: point, mouseButton: button)
                     d?.flags = []
                     u?.flags = []
-                    d?.keyboardSetUnicodeString(stringLength: 1, unicodeString: &ch)
-                    u?.keyboardSetUnicodeString(stringLength: 1, unicodeString: &ch)
                     d?.post(tap: .cghidEventTap)
-                    usleep(15000) // 15ms key down
+                    usleep(25000)
                     u?.post(tap: .cghidEventTap)
-                    usleep(15000) // 15ms key up before next char
-                }
+                    usleep(30000)
 
-            case .pasteText(let text):
-                releaseModifiers()
-                let pasteboard = NSPasteboard.general
-                let oldText = pasteboard.string(forType: .string)
-                pasteboard.clearContents()
-                pasteboard.setString(text, forType: .string)
-
-                usleep(20000)
-                // Cmd + V
-                let vKeyCode: CGKeyCode = 9 // 'v'
-                let d = CGEvent(keyboardEventSource: source, virtualKey: vKeyCode, keyDown: true)
-                let u = CGEvent(keyboardEventSource: source, virtualKey: vKeyCode, keyDown: false)
-                d?.flags = .maskCommand
-                u?.flags = .maskCommand
-                d?.post(tap: .cghidEventTap)
-                usleep(25000)
-                u?.post(tap: .cghidEventTap)
-                usleep(60000)
-
-                // Restore previous clipboard content
-                if let old = oldText {
-                    DispatchQueue.global().asyncAfter(deadline: .now() + 0.5) {
-                        let pb = NSPasteboard.general
-                        pb.clearContents()
-                        pb.setString(old, forType: .string)
+                case .drag(let start, let end):
+                    let d = CGEvent(mouseEventSource: source, mouseType: .leftMouseDown, mouseCursorPosition: start, mouseButton: .left)
+                    d?.flags = []
+                    d?.post(tap: .cghidEventTap)
+                    usleep(40000)
+                    for i in 1...15 {
+                        guard !isEmergencyStopped else { return }
+                        let p = CGFloat(i)/15
+                        let pt = CGPoint(x: start.x + (end.x-start.x)*p, y: start.y + (end.y-start.y)*p)
+                        let m = CGEvent(mouseEventSource: source, mouseType: .leftMouseDragged, mouseCursorPosition: pt, mouseButton: .left)
+                        m?.flags = []
+                        m?.post(tap: .cghidEventTap)
+                        usleep(12000)
                     }
-                }
+                    let u = CGEvent(mouseEventSource: source, mouseType: .leftMouseUp, mouseCursorPosition: end, mouseButton: .left)
+                    u?.flags = []
+                    u?.post(tap: .cghidEventTap)
+                    usleep(30000)
 
-            case .pressKey(let keyCode):
-                guard !isEmergencyStopped else { return }
-                let d = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: true)
-                let u = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: false)
-                d?.flags = []
-                u?.flags = []
-                d?.post(tap: .cghidEventTap)
-                usleep(15000)
-                u?.post(tap: .cghidEventTap)
-                usleep(15000)
+                case .delay(let ms):
+                    var rem = ms
+                    while rem > 0 { guard !isEmergencyStopped else { return }; let c=min(rem,50); usleep(c*1000); rem -= c }
 
-            case .pressShortcut(let trig):
-                guard !isEmergencyStopped else { return }
-                var flags = CGEventFlags()
-                if trig.requireCmd     { flags.insert(.maskCommand) }
-                if trig.requireShift   { flags.insert(.maskShift) }
-                if trig.requireOption  { flags.insert(.maskAlternate) }
-                if trig.requireControl { flags.insert(.maskControl) }
-                let d = CGEvent(keyboardEventSource: source, virtualKey: trig.keyCode, keyDown: true)
-                let u = CGEvent(keyboardEventSource: source, virtualKey: trig.keyCode, keyDown: false)
-                d?.flags = flags; u?.flags = flags
-                d?.post(tap: .cghidEventTap); usleep(20000)
-                u?.post(tap: .cghidEventTap); usleep(20000)
+                case .typeText(let text):
+                    releaseModifiers()
+                    for character in text.utf16 {
+                        guard !isEmergencyStopped else { return }
+                        var ch = character
+                        let d = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: true)
+                        let u = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: false)
+                        d?.flags = []
+                        u?.flags = []
+                        d?.keyboardSetUnicodeString(stringLength: 1, unicodeString: &ch)
+                        u?.keyboardSetUnicodeString(stringLength: 1, unicodeString: &ch)
+                        d?.post(tap: .cghidEventTap)
+                        usleep(15000)
+                        u?.post(tap: .cghidEventTap)
+                        usleep(15000)
+                    }
 
-            case .doAgain(let target):
-                guard !isEmergencyStopped else { return }
-                var targetPos = originQuartzPos
-                switch target {
-                case .origin:
-                    targetPos = originQuartzPos
-                case .step(let idx):
-                    let targetIdx = idx - 1
-                    if targetIdx >= 0 && targetIdx < items.count {
-                        let targetItem = items[targetIdx]
-                        if case .click(let point, _) = targetItem.action {
-                            targetPos = point
-                        } else if case .drag(let start, _) = targetItem.action {
-                            targetPos = start
-                        } else if case .moveCursor(let point) = targetItem.action {
-                            targetPos = point
+                case .pasteText(let text):
+                    releaseModifiers()
+                    let pasteboard = NSPasteboard.general
+                    let oldText = pasteboard.string(forType: .string)
+                    pasteboard.clearContents()
+                    pasteboard.setString(text, forType: .string)
+
+                    usleep(20000)
+                    let vKeyCode: CGKeyCode = 9
+                    let d = CGEvent(keyboardEventSource: source, virtualKey: vKeyCode, keyDown: true)
+                    let u = CGEvent(keyboardEventSource: source, virtualKey: vKeyCode, keyDown: false)
+                    d?.flags = .maskCommand
+                    u?.flags = .maskCommand
+                    d?.post(tap: .cghidEventTap)
+                    usleep(25000)
+                    u?.post(tap: .cghidEventTap)
+                    usleep(60000)
+
+                    if let old = oldText {
+                        DispatchQueue.global().asyncAfter(deadline: .now() + 0.5) {
+                            let pb = NSPasteboard.general
+                            pb.clearContents()
+                            pb.setString(old, forType: .string)
                         }
                     }
-                case .action(let tid):
-                    if let targetItem = items.first(where: { $0.id == tid }) {
-                        if case .click(let point, _) = targetItem.action {
-                            targetPos = point
-                        } else if case .drag(let start, _) = targetItem.action {
-                            targetPos = start
-                        } else if case .moveCursor(let point) = targetItem.action {
-                            targetPos = point
+
+                case .pressKey(let keyCode):
+                    guard !isEmergencyStopped else { return }
+                    let d = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: true)
+                    let u = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: false)
+                    d?.flags = []
+                    u?.flags = []
+                    d?.post(tap: .cghidEventTap)
+                    usleep(15000)
+                    u?.post(tap: .cghidEventTap)
+                    usleep(15000)
+
+                case .pressShortcut(let trig):
+                    guard !isEmergencyStopped else { return }
+                    var flags = CGEventFlags()
+                    if trig.requireCmd     { flags.insert(.maskCommand) }
+                    if trig.requireShift   { flags.insert(.maskShift) }
+                    if trig.requireOption  { flags.insert(.maskAlternate) }
+                    if trig.requireControl { flags.insert(.maskControl) }
+                    let d = CGEvent(keyboardEventSource: source, virtualKey: trig.keyCode, keyDown: true)
+                    let u = CGEvent(keyboardEventSource: source, virtualKey: trig.keyCode, keyDown: false)
+                    d?.flags = flags; u?.flags = flags
+                    d?.post(tap: .cghidEventTap); usleep(20000)
+                    u?.post(tap: .cghidEventTap); usleep(20000)
+
+                case .doAgain(let target):
+                    guard !isEmergencyStopped else { return }
+                    var targetPos = originQuartzPos
+                    switch target {
+                    case .origin:
+                        targetPos = originQuartzPos
+                    case .step(let idx):
+                        let targetIdx = idx - 1
+                        if targetIdx >= 0 && targetIdx < items.count {
+                            let targetItem = items[targetIdx]
+                            if case .click(let point, _) = targetItem.action {
+                                targetPos = point
+                            } else if case .drag(let start, _) = targetItem.action {
+                                targetPos = start
+                            } else if case .moveCursor(let point) = targetItem.action {
+                                targetPos = point
+                            }
+                        }
+                    case .action(let tid):
+                        if let targetItem = items.first(where: { $0.id == tid }) {
+                            if case .click(let point, _) = targetItem.action {
+                                targetPos = point
+                            } else if case .drag(let start, _) = targetItem.action {
+                                targetPos = start
+                            } else if case .moveCursor(let point) = targetItem.action {
+                                targetPos = point
+                            }
                         }
                     }
-                }
-                let moveEvent = CGEvent(mouseEventSource: source, mouseType: .mouseMoved, mouseCursorPosition: targetPos, mouseButton: .left)
-                moveEvent?.flags = []
-                moveEvent?.post(tap: .cghidEventTap)
-                usleep(30000)
+                    let moveEvent = CGEvent(mouseEventSource: source, mouseType: .mouseMoved, mouseCursorPosition: targetPos, mouseButton: .left)
+                    moveEvent?.flags = []
+                    moveEvent?.post(tap: .cghidEventTap)
+                    usleep(30000)
 
-            case .moveCursor(let point):
-                guard !isEmergencyStopped else { return }
-                let moveEvent = CGEvent(mouseEventSource: source, mouseType: .mouseMoved, mouseCursorPosition: point, mouseButton: .left)
-                moveEvent?.flags = []
-                moveEvent?.post(tap: .cghidEventTap)
-                usleep(30000)
+                case .moveCursor(let point):
+                    guard !isEmergencyStopped else { return }
+                    let moveEvent = CGEvent(mouseEventSource: source, mouseType: .mouseMoved, mouseCursorPosition: point, mouseButton: .left)
+                    moveEvent?.flags = []
+                    moveEvent?.post(tap: .cghidEventTap)
+                    usleep(30000)
+                }
             }
         }
     }
@@ -965,6 +984,7 @@ class MacroStore: ObservableObject {
     @Published var selectedFolderPath: String?
     @Published var watchDirectoryURL: URL
     @Published var isSidebarVisible = true
+    @Published var selectedActionID: UUID? = nil
 
     var selectedMacroID: UUID? {
         get { selectedMacro?.id }
@@ -2461,6 +2481,7 @@ struct ActionCardView: View {
     var onPreSave: () -> Void
     var onSave: () -> Void
     let detailWidth: CGFloat
+    @ObservedObject var store = MacroStore.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -2482,7 +2503,7 @@ struct ActionCardView: View {
                     Image(systemName: item.action.iconName)
                         .foregroundColor(.white)
                         .font(.system(size: 13, weight: .semibold))
-                        .offset(x: -2, y: 2)
+                        .offset(x: item.repeatCount > 1 ? -2 : 0, y: item.repeatCount > 1 ? 2 : 0)
                     
                     Text("\(index + 1)")
                         .font(.system(size: 8, weight: .bold))
@@ -2490,17 +2511,46 @@ struct ActionCardView: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
                         .padding(.top, 2)
                         .padding(.trailing, 4)
+                    
+                    if item.repeatCount > 1 {
+                        Text("\(item.repeatCount)x")
+                            .font(.system(size: 7, weight: .bold))
+                            .foregroundColor(.white.opacity(0.95))
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+                            .padding(.bottom, 2)
+                            .padding(.leading, 4)
+                    }
                 }
                 .frame(width: 32, height: 32)
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    store.selectedActionID = item.id
+                }
 
                 // Title & Parameters
                 HStack(spacing: 8) {
                     if detailWidth >= 400 {
-                        Text(item.action.title)
-                            .font(.system(size: detailWidth < 520 ? 11 : 13, weight: .semibold))
-                            .foregroundColor(.white)
-                            .lineLimit(1)
-                            .fixedSize(horizontal: true, vertical: false)
+                        HStack(spacing: 4) {
+                            Text(item.action.title)
+                                .font(.system(size: detailWidth < 520 ? 11 : 13, weight: .semibold))
+                                .foregroundColor(.white)
+                                .lineLimit(1)
+                                .fixedSize(horizontal: true, vertical: false)
+                            
+                            if item.repeatCount > 1 {
+                                Text("\(item.repeatCount)x")
+                                    .font(.system(size: 9, weight: .bold))
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 4)
+                                    .padding(.vertical, 1)
+                                    .background(Color.white.opacity(0.15))
+                                    .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+                            }
+                        }
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            store.selectedActionID = item.id
+                        }
                     }
                     
                     Spacer()
@@ -2554,26 +2604,74 @@ struct ActionCardView: View {
                         break
                     }
                 }
-
-                Spacer()
-
-                // Delete button
-                Button(action: onDelete) {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(Color.secondary.opacity(0.5))
-                        .font(.system(size: 15))
-                }
-                .buttonStyle(.plain)
             }
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 11)
-        .background(Color(white: 0.18))
+        .background(store.selectedActionID == item.id ? Color(white: 0.23) : Color(white: 0.18))
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                .stroke(store.selectedActionID == item.id ? Color.accentColor : Color.white.opacity(0.06),
+                        lineWidth: store.selectedActionID == item.id ? 1.5 : 1)
         )
+        .contextMenu {
+            Button("Duplicate") {
+                if let selected = MacroStore.shared.selectedMacro,
+                   let idx = selected.actionItems.firstIndex(where: { $0.id == item.id }) {
+                    store.registerUndoState(for: selected)
+                    let clone = MacroActionItem(action: item.action, repeatCount: item.repeatCount)
+                    selected.actionItems.insert(clone, at: idx + 1)
+                    store.saveMacro(selected)
+                }
+            }
+            
+            Button("Delete") {
+                if let selected = MacroStore.shared.selectedMacro {
+                    store.registerUndoState(for: selected)
+                    selected.actionItems.removeAll { $0.id == item.id }
+                    if store.selectedActionID == item.id {
+                        store.selectedActionID = nil
+                    }
+                    store.saveMacro(selected)
+                }
+            }
+            
+            Divider()
+            
+            Menu("Repeat Action") {
+                ForEach([1, 2, 3, 4, 5, 10, 20, 50], id: \.self) { count in
+                    Button("\(count)x") {
+                        if let selected = MacroStore.shared.selectedMacro,
+                           let idx = selected.actionItems.firstIndex(where: { $0.id == item.id }) {
+                            store.registerUndoState(for: selected)
+                            selected.actionItems[idx].repeatCount = count
+                            store.saveMacro(selected)
+                        }
+                    }
+                }
+                
+                Button("Custom...") {
+                    let alert = NSAlert()
+                    alert.messageText = "Repeat Action"
+                    alert.informativeText = "Enter custom repeat count:"
+                    let input = NSTextField(frame: NSRect(x: 0, y: 0, width: 80, height: 24))
+                    input.stringValue = "\(item.repeatCount)"
+                    alert.accessoryView = input
+                    alert.addButton(withTitle: "OK")
+                    alert.addButton(withTitle: "Cancel")
+                    if alert.runModal() == .alertFirstButtonReturn {
+                        if let val = Int(input.stringValue), val > 0,
+                           let selected = MacroStore.shared.selectedMacro,
+                           let idx = selected.actionItems.firstIndex(where: { $0.id == item.id }) {
+                            store.registerUndoState(for: selected)
+                            selected.actionItems[idx].repeatCount = val
+                            store.saveMacro(selected)
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -2787,6 +2885,7 @@ struct MacroInspectorView: View {
 
     @State private var isDirty = false
     @State private var tempName: String = ""
+    @State private var keyMonitor: Any? = nil
 
     var body: some View {
         VStack(spacing: 0) {
@@ -3126,9 +3225,33 @@ struct MacroInspectorView: View {
             .background(Color(white: 0.14))
             .onAppear {
                 tempName = macro.fileName.replacingOccurrences(of: ".shortking", with: "")
+                keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+                    if event.keyCode == 51 || event.keyCode == 117 {
+                        if let window = NSApp.keyWindow,
+                           let firstResponder = window.firstResponder,
+                           firstResponder.isKind(of: NSClassFromString("NSText")!) || firstResponder.isKind(of: NSClassFromString("NSTextView")!) {
+                            return event
+                        }
+                        if let selectedID = store.selectedActionID {
+                            store.registerUndoState(for: macro)
+                            macro.actionItems.removeAll { $0.id == selectedID }
+                            store.selectedActionID = nil
+                            store.saveMacro(macro)
+                            return nil
+                        }
+                    }
+                    return event
+                }
+            }
+            .onDisappear {
+                if let monitor = keyMonitor {
+                    NSEvent.removeMonitor(monitor)
+                    keyMonitor = nil
+                }
             }
             .onChange(of: macro.id) { _, _ in
                 tempName = macro.fileName.replacingOccurrences(of: ".shortking", with: "")
+                store.selectedActionID = nil // Reset action selection on macro change
             }
             .onChange(of: macro.fileName) { _, newFileName in
                 tempName = newFileName.replacingOccurrences(of: ".shortking", with: "")

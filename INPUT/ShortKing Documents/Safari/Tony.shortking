@@ -4,6 +4,7 @@ TRIGGER: k
 # Actions:
 ACTION: right_click 717 446
 ACTION: click 750 426
+ACTION: click 801 493
 ACTION: drag 994 335 to 1018 304
+ACTION: do_again
 ACTION: click 926 431
-ACTION: click 891 384
