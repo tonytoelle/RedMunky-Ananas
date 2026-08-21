@@ -2793,6 +2793,7 @@ struct ActionCardView: View {
                     Spacer()
                     
                     // Render appropriate parameter editor/display
+                    let isItemEditing = store.selectedActionIDs.contains(item.id)
                     switch item.action {
                     case .click(_, let button):
                         Text(item.action.parameterString)
@@ -2800,11 +2801,11 @@ struct ActionCardView: View {
                             .foregroundColor(.secondary)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
-                            .background(Color(white: 0.12))
+                            .background(isItemEditing ? Color(white: 0.12) : Color.clear)
                             .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                             .overlay(
                                 RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                    .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                                    .stroke(isItemEditing ? Color.white.opacity(0.1) : Color.clear, lineWidth: 1)
                             )
                             .onTapGesture {
                                 CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .click(button: button)) { newPoint in
@@ -2819,11 +2820,11 @@ struct ActionCardView: View {
                             .foregroundColor(.secondary)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
-                            .background(Color(white: 0.12))
+                            .background(isItemEditing ? Color(white: 0.12) : Color.clear)
                             .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                             .overlay(
                                 RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                    .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                                    .stroke(isItemEditing ? Color.white.opacity(0.1) : Color.clear, lineWidth: 1)
                             )
                             .onTapGesture {
                                 CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .drag) { start, end in
@@ -2838,11 +2839,11 @@ struct ActionCardView: View {
                             .foregroundColor(.secondary)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
-                            .background(Color(white: 0.12))
+                            .background(isItemEditing ? Color(white: 0.12) : Color.clear)
                             .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                             .overlay(
                                 RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                    .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                                    .stroke(isItemEditing ? Color.white.opacity(0.1) : Color.clear, lineWidth: 1)
                             )
                             .onTapGesture {
                                 CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .click(button: .left)) { newPoint in
