@@ -3339,9 +3339,6 @@ struct MacroInspectorView: View {
                         }
 
                         if !isTriggerCollapsed {
-                            Divider()
-                                .background(Color.white.opacity(0.06))
-
                             ForEach(macro.triggers) { trig in
                                 HStack(spacing: 12) {
                                     ZStack {
@@ -3388,42 +3385,34 @@ struct MacroInspectorView: View {
                                         .buttonStyle(.plain)
                                     }
                                 }
-                                
-                                if let last = macro.triggers.last, last.id != trig.id {
-                                    Divider()
-                                        .background(Color.white.opacity(0.06))
-                                }
                             }
 
-                            if macro.triggers.count > 0 {
-                                Divider()
-                                    .background(Color.white.opacity(0.06))
-                            }
-
-                            Button(action: {
-                                store.registerUndoState(for: macro)
-                                macro.triggers.append(Trigger(keyCode: 17, requireCmd: true, requireShift: true, requireOption: false, requireControl: false))
-                                store.saveMacro(macro)
-                            }) {
-                                HStack {
-                                    Spacer()
-                                    Image(systemName: "plus")
-                                        .font(.system(size: 11, weight: .bold))
-                                        .foregroundColor(.secondary)
-                                    Text("Add Trigger")
-                                        .font(.system(size: 11, weight: .semibold))
-                                        .foregroundColor(.secondary)
-                                    Spacer()
+                            HStack {
+                                Spacer()
+                                Button(action: {
+                                    store.registerUndoState(for: macro)
+                                    macro.triggers.append(Trigger(keyCode: 17, requireCmd: true, requireShift: true, requireOption: false, requireControl: false))
+                                    store.saveMacro(macro)
+                                }) {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "plus")
+                                            .font(.system(size: 9, weight: .bold))
+                                        Text("Add Trigger")
+                                            .font(.system(size: 11, weight: .semibold))
+                                    }
+                                    .foregroundColor(.secondary)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(Color.white.opacity(0.05))
+                                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 6)
+                                            .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                                    )
                                 }
-                                .padding(.vertical, 8)
-                                .background(Color.white.opacity(0.05))
-                                .clipShape(RoundedRectangle(cornerRadius: 8))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .stroke(Color.white.opacity(0.06), lineWidth: 1)
-                                )
+                                .buttonStyle(.plain)
+                                .padding(.top, 4)
                             }
-                            .buttonStyle(.plain)
                         }
                     }
                     .padding(.horizontal, 14)
