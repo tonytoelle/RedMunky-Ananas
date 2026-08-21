@@ -232,8 +232,11 @@ class CarbonHotKeyManager {
     private var isHandlerInstalled = false
     private var currentID: UInt32 = 100
     private var emergencyRef: EventHotKeyRef?
+    private let lock = NSLock()
 
     func installHandlerIfNeeded() {
+        lock.lock()
+        defer { lock.unlock() }
         guard !isHandlerInstalled else { return }
         var eventType = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
         InstallEventHandler(GetApplicationEventTarget(), carbonHotKeyCallback, 1, &eventType, nil, nil)
@@ -248,12 +251,24 @@ class CarbonHotKeyManager {
     }
 
     func unregisterAll() {
-        registeredRefs.values.forEach { UnregisterEventHotKey($0) }
+        guard Thread.isMainThread else {
+            DispatchQueue.main.sync { self.unregisterAll() }
+            return
+        }
+        lock.lock()
+        let refs = Array(registeredRefs.values)
         registeredRefs.removeAll()
         actionClosures.removeAll()
+        lock.unlock()
+        
+        refs.forEach { UnregisterEventHotKey($0) }
     }
 
     func register(trigger: Trigger, action: @escaping () -> Void) {
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async { self.register(trigger: trigger, action: action) }
+            return
+        }
         installHandlerIfNeeded()
         var mods: UInt32 = 0
         if trigger.requireCmd     { mods |= UInt32(cmdKey) }
@@ -261,13 +276,19 @@ class CarbonHotKeyManager {
         if trigger.requireOption  { mods |= UInt32(optionKey) }
         if trigger.requireControl { mods |= UInt32(controlKey) }
 
-        let id = currentID; currentID += 1
+        lock.lock()
+        let id = currentID
+        currentID += 1
+        lock.unlock()
+
         let hkID = EventHotKeyID(signature: OSType(0x534B494E), id: id)
         var ref: EventHotKeyRef?
         let status = RegisterEventHotKey(UInt32(trigger.keyCode), mods, hkID, GetApplicationEventTarget(), 0, &ref)
         if status == noErr, let ref = ref {
+            lock.lock()
             registeredRefs[id] = ref
             actionClosures[id] = action
+            lock.unlock()
             print("👑 HotKey registered: \(trigger.displayString) [ID:\(id)]")
         } else {
             print("⚠️ HotKey FAILED: \(trigger.displayString) OSStatus=\(status)")
@@ -282,7 +303,10 @@ class CarbonHotKeyManager {
             DispatchQueue.main.async { NSApp.terminate(nil) }
             return
         }
-        if let closure = actionClosures[hotKeyID] {
+        lock.lock()
+        let closure = actionClosures[hotKeyID]
+        lock.unlock()
+        if let closure = closure {
             DispatchQueue.global(qos: .userInitiated).async { closure() }
         }
     }
@@ -926,6 +950,10 @@ class MacroStore: ObservableObject {
     }
 
     func registerAllCarbonHotKeys() {
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async { self.registerAllCarbonHotKeys() }
+            return
+        }
         CarbonHotKeyManager.shared.unregisterAll()
         for macro in macros {
             let actions = macro.actions
@@ -965,7 +993,10 @@ class MacroStore: ObservableObject {
         dirFD = open(watchDirectoryURL.path, O_EVTONLY)
         guard dirFD >= 0 else { return }
         let src = DispatchSource.makeFileSystemObjectSource(fileDescriptor: dirFD, eventMask: [.write, .delete, .rename], queue: .global())
-        src.setEventHandler { [weak self] in usleep(150000); self?.loadMacros() }
+        src.setEventHandler { [weak self] in
+            usleep(150000)
+            self?.loadMacros()
+        }
         watchSource = src
         src.resume()
     }
@@ -990,12 +1021,9 @@ class MacroStore: ObservableObject {
         let parentDir = oldURL.deletingLastPathComponent()
         let newURL = parentDir.appendingPathComponent(newFileName)
         
-        guard oldURL != newURL else { return }
-        
-        self.selectedFilePath = newURL.path
+        guard oldURL.path != newURL.path else { return }
         
         do {
-            saveMacro(macro)
             if FileManager.default.fileExists(atPath: oldURL.path) {
                 try FileManager.default.moveItem(at: oldURL, to: newURL)
             } else {
@@ -1004,6 +1032,12 @@ class MacroStore: ObservableObject {
             }
             macro.fileURL = newURL
             macro.fileName = newFileName
+            self.selectedFilePath = newURL.path
+            
+            // Update Finder icon on new file
+            let iconImage = generateShortcutIcon(for: macro.trigger)
+            NSWorkspace.shared.setIcon(iconImage, forFile: newURL.path, options: [])
+            
             loadMacros()
         } catch {
             print("❌ Failed to rename file: \(error)")
@@ -1331,17 +1365,24 @@ struct HotKeyRecorder: View {
         monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
             let f = event.modifierFlags
             let kc = event.keyCode
-            let isCmd=f.contains(.command), isShift=f.contains(.shift), isOpt=f.contains(.option), isCtrl=f.contains(.control)
+            let isCmd = f.contains(.command), isShift = f.contains(.shift), isOpt = f.contains(.option), isCtrl = f.contains(.control)
+            
             // Esc alone = cancel
-            if kc == 53 && !isCmd && !isShift && !isOpt && !isCtrl { stopRecording(); return nil }
+            if kc == 53 && !isCmd && !isShift && !isOpt && !isCtrl {
+                DispatchQueue.main.async { self.stopRecording() }
+                return nil
+            }
             // Any modifier combo = record
             if isCmd || isShift || isOpt || isCtrl {
-                if let selected = MacroStore.shared.selectedMacro {
-                    MacroStore.shared.registerUndoState(for: selected)
+                let newTrigger = Trigger(keyCode: kc, requireCmd: isCmd, requireShift: isShift, requireOption: isOpt, requireControl: isCtrl)
+                DispatchQueue.main.async {
+                    if let selected = MacroStore.shared.selectedMacro {
+                        MacroStore.shared.registerUndoState(for: selected)
+                    }
+                    self.trigger = newTrigger
+                    self.stopRecording()
+                    self.onChanged()
                 }
-                trigger = Trigger(keyCode: kc, requireCmd: isCmd, requireShift: isShift, requireOption: isOpt, requireControl: isCtrl)
-                stopRecording()
-                onChanged()
                 return nil
             }
             return event
@@ -1350,7 +1391,10 @@ struct HotKeyRecorder: View {
 
     func stopRecording() {
         isRecording = false
-        if let m = monitor { NSEvent.removeMonitor(m); monitor = nil }
+        if let m = monitor {
+            NSEvent.removeMonitor(m)
+            monitor = nil
+        }
     }
 }
 
@@ -2101,19 +2145,24 @@ struct InlineKeyRecorder: View {
             
             // Esc alone = cancel
             if kc == 53 && !isCmd && !isShift && !isOpt && !isCtrl {
-                stopRecording()
+                DispatchQueue.main.async { self.stopRecording() }
                 return nil
             }
             
-            onPreSave()
+            let newAction: MacroAction
             if isCmd || isShift || isOpt || isCtrl {
                 let trigger = Trigger(keyCode: kc, requireCmd: isCmd, requireShift: isShift, requireOption: isOpt, requireControl: isCtrl)
-                action = .pressShortcut(trigger: trigger)
+                newAction = .pressShortcut(trigger: trigger)
             } else {
-                action = .pressKey(keyCode: kc)
+                newAction = .pressKey(keyCode: kc)
             }
-            stopRecording()
-            onSave()
+            
+            DispatchQueue.main.async {
+                self.onPreSave()
+                self.action = newAction
+                self.stopRecording()
+                self.onSave()
+            }
             return nil
         }
     }

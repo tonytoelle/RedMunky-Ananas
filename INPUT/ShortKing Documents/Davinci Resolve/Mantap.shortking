@@ -1,7 +1,0 @@
-# ShortKing Macro Script
-TRIGGER: cmd+shift+k
-
-# Actions:
-ACTION: click 1011 386
-ACTION: delay 1000
-ACTION: click 1201 710
