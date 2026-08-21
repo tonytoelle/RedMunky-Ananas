@@ -3435,6 +3435,8 @@ struct MacroInspectorView: View {
             .padding(.horizontal, 22)
             .padding(.top, 14)
             .padding(.bottom, 12)
+            .background(Color(white: 0.14))
+            .background(WindowDragView())
 
             // Main Detail ScrollView
             ScrollView(showsIndicators: false) {
@@ -4561,7 +4563,10 @@ struct FolderInspectorView: View {
     @State private var config: FolderConfig = FolderConfig()
     @State private var isShowingRenameAlert: Bool = false
     @State private var renameText: String = ""
-    @State private var isAppearanceExpanded: Bool = true
+    @State private var isAppearanceExpanded: Bool = false
+    @State private var isEditingFolderName: Bool = false
+    @FocusState private var isFolderNameFocused: Bool
+    @State private var tempFolderName: String = ""
 
     let availableColors: [(name: String, label: String, color: Color)] = [
         ("blue", "Blue", Color(red: 0.25, green: 0.65, blue: 0.95)),
@@ -4596,11 +4601,15 @@ struct FolderInspectorView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Titlebar clearance (toggle button is in fixed overlay)
-            Spacer()
-                .frame(height: 12)
+            // Header bar (Window draggable area) - matches titlebar color and height
+            ZStack {
+                WindowDragView()
+                    .frame(height: 38)
+            }
+            .frame(height: 38)
+            .background(Color(white: 0.14))
 
-            ScrollView {
+            ScrollView(showsIndicators: false) {
                 VStack(spacing: 24) {
                 // ═══════════════════════════════════════════════════
                 // CENTERED HEADER
@@ -4644,25 +4653,64 @@ struct FolderInspectorView: View {
                     .buttonStyle(.plain)
                     .help("Click to change appearance")
 
-                    // Folder Name
-                    Text(folderName)
-                        .font(.system(size: 20, weight: .bold))
-                        .foregroundColor(.white)
-                        .lineLimit(1)
+                    // Folder Name (Double-click to inline edit)
+                    if isEditingFolderName {
+                        TextField("Folder Name", text: $tempFolderName)
+                            .font(.system(size: 20, weight: .bold))
+                            .textFieldStyle(.plain)
+                            .foregroundColor(.white)
+                            .multilineTextAlignment(.center)
+                            .focused($isFolderNameFocused)
+                            .onSubmit {
+                                if !tempFolderName.isEmpty && tempFolderName != folderName {
+                                    store.renameFolder(at: folderURL, newName: tempFolderName)
+                                    folderName = tempFolderName
+                                }
+                                isFolderNameFocused = false
+                                isEditingFolderName = false
+                            }
+                            .onChange(of: isFolderNameFocused) { _, focused in
+                                if !focused {
+                                    if !tempFolderName.isEmpty && tempFolderName != folderName {
+                                        store.renameFolder(at: folderURL, newName: tempFolderName)
+                                        folderName = tempFolderName
+                                    }
+                                    isEditingFolderName = false
+                                }
+                            }
+                            .onAppear {
+                                isFolderNameFocused = true
+                            }
+                    } else {
+                        Text(folderName)
+                            .font(.system(size: 20, weight: .bold))
+                            .foregroundColor(.white)
+                            .lineLimit(1)
+                            .onTapGesture(count: 2) {
+                                tempFolderName = folderName
+                                isEditingFolderName = true
+                            }
+                    }
 
                     // Macro Count
                     Text("\(itemCount) Macros")
                         .font(.system(size: 13, weight: .medium))
                         .foregroundColor(Color(white: 0.70))
 
-                    // Rename / Edit link
+                    // Edit Macros (Selects first macro inside this folder)
                     Button {
-                        renameText = folderName
-                        isShowingRenameAlert = true
+                        if let node = findFolderNode(path: folderURL.path, in: store.treeNodes) {
+                            if case .folder(_, _, _, let children) = node {
+                                if let firstMacro = findFirstMacro(in: children) {
+                                    store.selectedFilePath = firstMacro.fileURL.path
+                                    store.selectedFolderPath = nil
+                                }
+                            }
+                        }
                     } label: {
-                        Text("Edit Name")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(Color(white: 0.50))
+                        Text("Edit Macros")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(config.color)
                     }
                     .buttonStyle(.plain)
                 }
@@ -4848,16 +4896,15 @@ struct FolderInspectorView: View {
                                         saveConfig()
                                     } label: {
                                         ZStack {
-                                            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                                .fill(isSelected ? config.color.opacity(0.3) : Color(white: 0.22))
+                                            Image(systemName: icon)
+                                                .font(.system(size: 16))
+                                                .foregroundColor(isSelected ? config.color : Color(white: 0.85))
+                                                .frame(width: 38, height: 38)
+                                                .background(Color.clear)
                                                 .overlay(
                                                     RoundedRectangle(cornerRadius: 8, style: .continuous)
                                                         .stroke(isSelected ? config.color : Color.clear, lineWidth: 1.5)
                                                 )
-                                                .frame(height: 38)
-                                            Image(systemName: icon)
-                                                .font(.system(size: 16))
-                                                .foregroundColor(isSelected ? config.color : Color(white: 0.85))
                                         }
                                     }
                                     .buttonStyle(.plain)
@@ -4927,22 +4974,14 @@ struct FolderInspectorView: View {
         .background(Color(white: 0.14))
         .onAppear {
             folderName = folderURL.lastPathComponent
+            tempFolderName = folderName
             config = initialConfig
         }
         .onChange(of: folderURL) { _, newURL in
             folderName = newURL.lastPathComponent
+            tempFolderName = folderName
             config = store.loadFolderConfig(at: newURL)
         }
-        .alert("Rename Folder", isPresented: $isShowingRenameAlert) {
-            TextField("Folder Name", text: $renameText)
-            Button("Cancel", role: .cancel) {}
-            Button("Rename") {
-                if !renameText.isEmpty && renameText != folderName {
-                    store.renameFolder(at: folderURL, newName: renameText)
-                    folderName = renameText
-                }
-            }
-            }
         }
     }
 
@@ -4970,6 +5009,33 @@ struct FolderInspectorView: View {
                 saveConfig()
             }
         }
+    }
+
+    private func findFolderNode(path: String, in nodes: [FileSystemNode]) -> FileSystemNode? {
+        for node in nodes {
+            switch node {
+            case .folder(_, let url, _, let children):
+                if url.path == path { return node }
+                if let found = findFolderNode(path: path, in: children) { return found }
+            case .macro:
+                break
+            }
+        }
+        return nil
+    }
+
+    private func findFirstMacro(in nodes: [FileSystemNode]) -> MacroItem? {
+        for node in nodes {
+            switch node {
+            case .macro(let item):
+                return item
+            case .folder(_, _, _, let children):
+                if let found = findFirstMacro(in: children) {
+                    return found
+                }
+            }
+        }
+        return nil
     }
 }
 
@@ -5265,6 +5331,19 @@ struct SidebarNodeView: View {
     }
 }
 
+class DraggableNSView: NSView {
+    override var mouseDownCanMoveWindow: Bool {
+        return true
+    }
+}
+
+struct WindowDragView: NSViewRepresentable {
+    func makeNSView(context: Context) -> DraggableNSView {
+        return DraggableNSView()
+    }
+    func updateNSView(_ nsView: DraggableNSView, context: Context) {}
+}
+
 // ==========================================
 // MARK: - Main Editor View (Obsidian / Finder Style)
 // ==========================================
@@ -5403,7 +5482,7 @@ struct MainEditorView: View {
                         .padding(.horizontal, 9)
                         .padding(.vertical, 6)
                         .background(Color(white: 0.20))
-                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .clipShape(Capsule())
                         .padding(.horizontal, 12)
                         .padding(.top, 4)
                         .padding(.bottom, 8)
