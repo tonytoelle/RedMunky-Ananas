@@ -1,5 +1,5 @@
 # ShortKing Macro Script
-TRIGGER: cmd+down
+TRIGGER: f1
 
 # Actions:
 ACTION: custom_action "~/minimize.sh"
