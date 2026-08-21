@@ -19,7 +19,8 @@ struct KeyMap {
         "tab": 48, "space": 49, "`": 50, "delete": 51, "enter": 36, "return": 36, "esc": 53,
         "escape": 53, "f1": 122, "f2": 120, "f3": 99, "f4": 118, "f5": 96, "f6": 97,
         "f7": 98, "f8": 100, "f9": 101, "f10": 109, "f11": 103, "f12": 111,
-        "left": 123, "right": 124, "down": 125, "up": 126
+        "left": 123, "right": 124, "down": 125, "up": 126,
+        "brightness_down": 145, "brightness_up": 144
     ]
     static func keyCode(for key: String) -> CGKeyCode? { keyNames[key.lowercased()] }
     static func name(for keyCode: CGKeyCode) -> String {

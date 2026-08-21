@@ -1,5 +1,5 @@
 # ShortKing Macro Script
-TRIGGER: f1
+TRIGGER: brightness_down
 
 # Actions:
 ACTION: custom_action "~/minimize.sh"
