@@ -2429,6 +2429,11 @@ struct InlineTextEditView: View {
                     textValue = text
                 }
             }
+            .onChange(of: isFocused) { _, focused in
+                if !focused {
+                    save()
+                }
+            }
     }
     
     private func save() {
@@ -2480,6 +2485,11 @@ struct InlineDelayEditView: View {
                 .onChange(of: action) { _, newValue in
                     if case .delay(let ms) = newValue {
                         msValue = String(ms)
+                    }
+                }
+                .onChange(of: isFocused) { _, focused in
+                    if !focused {
+                        save()
                     }
                 }
             if detailWidth >= 400 {
@@ -2670,6 +2680,7 @@ struct ActionCardView: View {
     let detailWidth: CGFloat
     @ObservedObject var store = MacroStore.shared
 
+    @FocusState private var isGroupFocused: Bool
     @State private var isCollapsed = false
 
     var body: some View {
@@ -2737,6 +2748,10 @@ struct ActionCardView: View {
                                         .stroke(Color.white.opacity(0.1), lineWidth: 1)
                                 )
                                 .frame(width: 140)
+                                .focused($isGroupFocused)
+                                .onSubmit {
+                                    isGroupFocused = false
+                                }
                             } else {
                                 Text(item.action.title)
                                     .font(.system(size: detailWidth < 520 ? 11 : 13, weight: .semibold))
@@ -3246,6 +3261,8 @@ struct MacroInspectorView: View {
     @State private var isActionsCollapsed = false
     @State private var isAddActionCollapsed = false
 
+    @FocusState private var isNameFocused: Bool
+
     var body: some View {
         VStack(spacing: 0) {
             // Top Header Bar (Macro Title)
@@ -3269,8 +3286,15 @@ struct MacroInspectorView: View {
                         .foregroundColor(.white)
                         .lineLimit(1)
                         .frame(minWidth: 80, maxWidth: 180)
+                        .focused($isNameFocused)
                         .onSubmit {
                             store.renameMacro(macro, newBaseName: tempName)
+                            isNameFocused = false
+                        }
+                        .onChange(of: isNameFocused) { _, focused in
+                            if !focused {
+                                store.renameMacro(macro, newBaseName: tempName)
+                            }
                         }
                 }
                 .fixedSize(horizontal: true, vertical: false)
@@ -3883,6 +3907,7 @@ struct SettingsView: View {
     @State private var selectedCategory: SettingsCategory = .network
     @State private var searchText = ""
     @State private var navigationStack: [SettingsSubpage] = []
+    @FocusState private var isSearchFocused: Bool
 
     @AppStorage("soundOnEmergency") private var soundOnEmergency: Bool = true
     @AppStorage("defaultTextMode") private var defaultTextMode: Int = 0
@@ -3905,6 +3930,10 @@ struct SettingsView: View {
                     TextField("Search", text: $searchText)
                         .textFieldStyle(.plain)
                         .font(.system(size: 13))
+                        .focused($isSearchFocused)
+                        .onSubmit {
+                            isSearchFocused = false
+                        }
                     if !searchText.isEmpty {
                         Button { searchText = "" } label: {
                             Image(systemName: "xmark.circle.fill")
@@ -5074,6 +5103,7 @@ struct MainEditorView: View {
     @State private var folderPrompt: FolderPromptState?
     @State private var folderInputText = ""
     @State private var showingFolderAlert = false
+    @FocusState private var isSearchFocused: Bool
 
     var displayNodes: [FileSystemNode] {
         if searchText.isEmpty {
@@ -5176,6 +5206,10 @@ struct MainEditorView: View {
                     TextField("Search macros", text: $searchText)
                         .textFieldStyle(.plain)
                         .font(.system(size: 13))
+                        .focused($isSearchFocused)
+                        .onSubmit {
+                            isSearchFocused = false
+                        }
                     if !searchText.isEmpty {
                         Button { searchText = "" } label: {
                             Image(systemName: "xmark.circle.fill")
