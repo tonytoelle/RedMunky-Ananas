@@ -5783,6 +5783,18 @@ struct MainEditorView: View {
                         .help("Delete Selected Items")
                         .foregroundColor(.red)
                     }
+                    
+                    Button {
+                        if let appDelegate = NSApp.delegate as? AppDelegate {
+                            appDelegate.relaunchApp()
+                        }
+                    } label: {
+                        Image(systemName: "arrow.triangle.2.circlepath")
+                            .font(.system(size: 13))
+                    }
+                    .buttonStyle(.borderless)
+                    .help("Relaunch App")
+                    .foregroundColor(.secondary)
 
                     Spacer()
                     Text("\(store.macros.count) macros")
@@ -5964,6 +5976,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     var statusMenu: NSMenu!
     var window: NSWindow?
     var settingsWindow: NSWindow?
+    
+    private var lastModificationDate: Date? = nil
+    private var binaryWatchTimer: Timer? = nil
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         AppDelegate.shared = self
@@ -5972,6 +5987,42 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         setupMainMenu()
         setupMenuBar()
         showEditorWindow()
+        startBinaryWatcher()
+    }
+
+    @objc func relaunchApp() {
+        if let selected = MacroStore.shared.selectedMacro {
+            MacroStore.shared.saveMacro(selected)
+        }
+        
+        let url = Bundle.main.bundleURL
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.createsNewApplicationInstance = true
+        NSWorkspace.shared.openApplication(at: url, configuration: configuration) { _, _ in
+            DispatchQueue.main.async {
+                NSApp.terminate(nil)
+            }
+        }
+    }
+    
+    func startBinaryWatcher() {
+        let appURL = Bundle.main.bundleURL
+        if let attrs = try? FileManager.default.attributesOfItem(atPath: appURL.path),
+           let modDate = attrs[.modificationDate] as? Date {
+            lastModificationDate = modDate
+        }
+        
+        binaryWatchTimer = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: true) { [weak self] _ in
+            guard let self = self else { return }
+            let url = Bundle.main.bundleURL
+            if let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
+               let modDate = attrs[.modificationDate] as? Date {
+                if let last = self.lastModificationDate, modDate > last {
+                    self.binaryWatchTimer?.invalidate()
+                    self.relaunchApp()
+                }
+            }
+        }
     }
 
     func application(_ sender: NSApplication, openFiles filenames: [String]) {
@@ -6015,6 +6066,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let settingsItem = NSMenuItem(title: "Settings…", action: #selector(showSettingsWindow), keyEquivalent: ",")
         settingsItem.target = self
         appMenu.addItem(settingsItem)
+
+        appMenu.addItem(NSMenuItem.separator())
+
+        let relaunchItem = NSMenuItem(title: "Relaunch ShortKing", action: #selector(relaunchApp), keyEquivalent: "r")
+        relaunchItem.keyEquivalentModifierMask = [.command, .shift]
+        relaunchItem.target = self
+        appMenu.addItem(relaunchItem)
 
         appMenu.addItem(NSMenuItem.separator())
 
