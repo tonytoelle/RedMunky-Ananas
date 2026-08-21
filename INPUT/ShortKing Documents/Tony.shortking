@@ -1,7 +1,10 @@
 # ShortKing Macro Script
-TRIGGER: cmd+shift+t
+TRIGGER: cmd+shift+f
 
 # Actions:
-ACTION: press enter
+ACTION: press return
 ACTION: delay 300
-ACTION: press enter
+ACTION: press delete
+ACTION: press /
+ACTION: click 625 378
+ACTION: press k

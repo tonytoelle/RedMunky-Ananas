@@ -2109,36 +2109,33 @@ struct InlineKeyRecorder: View {
         Button {
             isRecording ? stopRecording() : startRecording()
         } label: {
-            HStack(spacing: 4) {
+            HStack(spacing: 8) {
                 if isRecording {
                     Image(systemName: "record.circle.fill")
                         .foregroundColor(.red)
-                        .font(.system(size: 11))
-                    Text("Press key/shortcut... (Esc)")
-                        .font(.system(size: 10, weight: .medium, design: .monospaced))
+                        .font(.system(size: 13))
+                    Text("Press key/shortcut... (Esc to cancel)")
+                        .font(.system(size: 10, weight: .medium))
                         .foregroundColor(.red)
                 } else {
                     switch action {
                     case .pressShortcut(let trig):
-                        ShortcutBadgeView(trigger: trig, isDimmedMini: true)
+                        ShortcutBadgeView(trigger: trig, isDimmedMini: false)
                     case .pressKey(let k):
-                        Text(KeyMap.name(for: k).uppercased())
-                            .font(.system(size: 11, weight: .bold, design: .monospaced))
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2.5)
-                            .background(Color(white: 0.22))
-                            .cornerRadius(4)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 4)
-                                    .stroke(Color.white.opacity(0.15), lineWidth: 0.5)
-                            )
+                        ShortcutBadgeView(trigger: Trigger(keyCode: k, requireCmd: false, requireShift: false, requireOption: false, requireControl: false), isDimmedMini: false)
                     default:
                         EmptyView()
                     }
                 }
             }
-            .padding(.trailing, 4)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(isRecording ? Color.red.opacity(0.12) : Color(white: 0.22))
+            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .stroke(isRecording ? Color.red : Color.white.opacity(0.08), lineWidth: 1)
+            )
         }
         .buttonStyle(.plain)
     }
