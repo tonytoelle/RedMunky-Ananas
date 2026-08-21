@@ -964,6 +964,7 @@ class MacroStore: ObservableObject {
     @Published var selectedFilePath: String?
     @Published var selectedFolderPath: String?
     @Published var watchDirectoryURL: URL
+    @Published var isSidebarVisible = true
 
     var selectedMacroID: UUID? {
         get { selectedMacro?.id }
@@ -2756,6 +2757,18 @@ struct MacroInspectorView: View {
         VStack(spacing: 0) {
             // Top Header Bar (Macro Title)
             HStack(spacing: 12) {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        store.isSidebarVisible.toggle()
+                    }
+                } label: {
+                    Image(systemName: store.isSidebarVisible ? "sidebar.left" : "sidebar.right")
+                        .font(.system(size: 14))
+                        .foregroundColor(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help("Toggle Sidebar")
+
                 HStack(spacing: 2) {
                     TextField("Macro Name", text: $tempName)
                         .font(.system(size: 15, weight: .bold))
@@ -3823,8 +3836,31 @@ struct FolderInspectorView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 24) {
+        VStack(spacing: 0) {
+            // Top Header Bar
+            HStack {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        store.isSidebarVisible.toggle()
+                    }
+                } label: {
+                    Image(systemName: store.isSidebarVisible ? "sidebar.left" : "sidebar.right")
+                        .font(.system(size: 14))
+                        .foregroundColor(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help("Toggle Sidebar")
+                
+                Spacer()
+            }
+            .padding(.horizontal, 22)
+            .padding(.top, 14)
+            .padding(.bottom, 12)
+            
+            Divider()
+            
+            ScrollView {
+                VStack(spacing: 24) {
                 // ═══════════════════════════════════════════════════
                 // CENTERED HEADER
                 // ═══════════════════════════════════════════════════
@@ -4093,6 +4129,7 @@ struct FolderInspectorView: View {
                     store.renameFolder(at: folderURL, newName: renameText)
                     folderName = renameText
                 }
+            }
             }
         }
     }
@@ -4499,10 +4536,8 @@ struct MainEditorView: View {
 
     var body: some View {
         HSplitView {
-            // ═══════════════════════════════════════════════════
-            // LEFT SIDEBAR (Obsidian / Finder Style Explorer)
-            // ═══════════════════════════════════════════════════
-            VStack(alignment: .leading, spacing: 0) {
+            if store.isSidebarVisible {
+                VStack(alignment: .leading, spacing: 0) {
                 // Search Capsule Pill
                 HStack(spacing: 6) {
                     Image(systemName: "magnifyingglass")
@@ -4642,6 +4677,7 @@ struct MainEditorView: View {
                     }
                 }
             }
+        }
 
             // ═══════════════════════════════════════════════════
             // RIGHT DETAIL CANVAS (Macro Inspector or Folder Inspector)
@@ -4658,27 +4694,51 @@ struct MainEditorView: View {
                 )
                 .id(folderPath)
             } else {
-                VStack(spacing: 16) {
-                    ZStack {
-                        Circle()
-                            .fill(Color(white: 0.18))
-                            .frame(width: 72, height: 72)
-                        Image(systemName: "bolt.circle.fill")
-                            .font(.system(size: 40))
-                            .foregroundColor(.accentColor)
+                VStack(spacing: 0) {
+                    // Top Header Bar
+                    HStack {
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                store.isSidebarVisible.toggle()
+                            }
+                        } label: {
+                            Image(systemName: store.isSidebarVisible ? "sidebar.left" : "sidebar.right")
+                                .font(.system(size: 14))
+                                .foregroundColor(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Toggle Sidebar")
+                        
+                        Spacer()
                     }
-                    Text("No Selection")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.white)
-                    Text("Choose a macro or folder from the sidebar.")
-                        .font(.system(size: 12))
-                        .foregroundColor(.secondary)
-                    Button("Create New Macro") {
-                        store.createNewMacro()
+                    .padding(.horizontal, 22)
+                    .padding(.top, 14)
+                    .padding(.bottom, 12)
+                    
+                    Divider()
+                    
+                    VStack(spacing: 16) {
+                        ZStack {
+                            Circle()
+                                .fill(Color(white: 0.18))
+                                .frame(width: 72, height: 72)
+                            Image(systemName: "bolt.circle.fill")
+                                .font(.system(size: 40))
+                                .foregroundColor(.accentColor)
+                        }
+                        Text("No Selection")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(.white)
+                        Text("Choose a macro or folder from the sidebar.")
+                            .font(.system(size: 12))
+                            .foregroundColor(.secondary)
+                        Button("Create New Macro") {
+                            store.createNewMacro()
+                        }
+                        .buttonStyle(.borderedProminent)
                     }
-                    .buttonStyle(.borderedProminent)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color(white: 0.14))
             }
         }
@@ -4819,6 +4879,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         windowMenu.addItem(withTitle: "Zoom", action: #selector(NSWindow.performZoom(_:)), keyEquivalent: "")
         windowMenu.addItem(NSMenuItem.separator())
         windowMenu.addItem(withTitle: "Macro Editor", action: #selector(showEditorWindow), keyEquivalent: "1").target = self
+        
+        let alwaysOnTopItem = NSMenuItem(title: "Always on Top", action: #selector(toggleAlwaysOnTop), keyEquivalent: "")
+        alwaysOnTopItem.target = self
+        alwaysOnTopItem.state = UserDefaults.standard.bool(forKey: "alwaysOnTop") ? .on : .off
+        windowMenu.addItem(alwaysOnTopItem)
+        
         windowMenu.addItem(withTitle: "Bring All to Front", action: #selector(NSApplication.arrangeInFront(_:)), keyEquivalent: "")
         windowMenuItem.submenu = windowMenu
         mainMenu.addItem(windowMenuItem)
@@ -4860,6 +4926,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let settingsItem = NSMenuItem(title: "Settings…", action: #selector(showSettingsWindow), keyEquivalent: ",")
         settingsItem.target = self
         statusMenu.addItem(settingsItem)
+
+        let alwaysOnTopItem = NSMenuItem(title: "Always on Top", action: #selector(toggleAlwaysOnTopFromMenu(_:)), keyEquivalent: "")
+        alwaysOnTopItem.target = self
+        alwaysOnTopItem.state = UserDefaults.standard.bool(forKey: "alwaysOnTop") ? .on : .off
+        statusMenu.addItem(alwaysOnTopItem)
 
         statusMenu.addItem(NSMenuItem.separator())
 
@@ -4922,9 +4993,39 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             win.contentViewController = NSHostingController(rootView: MainEditorView())
             win.isReleasedWhenClosed = false
             window = win
+            
+            let alwaysOnTop = UserDefaults.standard.bool(forKey: "alwaysOnTop")
+            win.level = alwaysOnTop ? .floating : .normal
         }
         NSApp.activate(ignoringOtherApps: true)
         window?.makeKeyAndOrderFront(nil)
+    }
+
+    func updateAlwaysOnTop() {
+        let alwaysOnTop = UserDefaults.standard.bool(forKey: "alwaysOnTop")
+        window?.level = alwaysOnTop ? .floating : .normal
+    }
+
+    @objc func toggleAlwaysOnTop(_ sender: NSMenuItem) {
+        let current = UserDefaults.standard.bool(forKey: "alwaysOnTop")
+        let newVal = !current
+        UserDefaults.standard.set(newVal, forKey: "alwaysOnTop")
+        sender.state = newVal ? .on : .off
+        updateAlwaysOnTop()
+    }
+
+    @objc func toggleAlwaysOnTopFromMenu(_ sender: NSMenuItem) {
+        let current = UserDefaults.standard.bool(forKey: "alwaysOnTop")
+        let newVal = !current
+        UserDefaults.standard.set(newVal, forKey: "alwaysOnTop")
+        sender.state = newVal ? .on : .off
+        updateAlwaysOnTop()
+        
+        if let winMenu = NSApp.mainMenu?.item(withTitle: "Window")?.submenu {
+            if let item = winMenu.items.first(where: { $0.action == #selector(toggleAlwaysOnTop) }) {
+                item.state = newVal ? .on : .off
+            }
+        }
     }
 
     @objc func showSettingsWindow() {
