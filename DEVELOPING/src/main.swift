@@ -1473,7 +1473,7 @@ struct ActionCardView: View {
                 // Title & Details (Tapping here toggles edit mode)
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 6) {
-                        Text("Step \(index + 1): \(item.action.title)")
+                        Text(item.action.title)
                             .font(.system(size: 13, weight: .semibold))
                             .foregroundColor(.white)
                     }
@@ -1612,22 +1612,8 @@ struct MacroInspectorView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Top Header Bar (< > Navigation + Macro Title)
+            // Top Header Bar (Macro Title)
             HStack(spacing: 12) {
-                HStack(spacing: 0) {
-                    Image(systemName: "chevron.left")
-                        .font(.system(size: 12, weight: .semibold))
-                        .frame(width: 28, height: 24)
-                        .foregroundColor(.secondary.opacity(0.3))
-                    Divider().frame(height: 14)
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 12, weight: .semibold))
-                        .frame(width: 28, height: 24)
-                        .foregroundColor(.secondary.opacity(0.3))
-                }
-                .background(Color(white: 0.22))
-                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-
                 HStack(spacing: 2) {
                     TextField("Macro Name", text: $tempName)
                         .font(.system(size: 15, weight: .bold))
@@ -1833,38 +1819,6 @@ struct MacroInspectorView: View {
                 }
                 .padding(22)
             }
-
-            // Footer with ••• and ?
-            HStack {
-                Spacer()
-                Button { } label: {
-                    HStack(spacing: 4) {
-                        Text("•••")
-                        Image(systemName: "chevron.down").font(.system(size: 8))
-                    }
-                    .font(.system(size: 11))
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 9).padding(.vertical, 5)
-                    .background(Color(white: 0.22))
-                    .cornerRadius(6)
-                }
-                .buttonStyle(.plain)
-
-                Button {
-                    let learnURL = URL(fileURLWithPath: "/Users/tonytoelle/Documents/PROJECTS/RedMunky - ShortKing/LEARN")
-                    NSWorkspace.shared.open(learnURL)
-                } label: {
-                    Image(systemName: "questionmark")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundColor(.white)
-                        .frame(width: 22, height: 22)
-                        .background(Color(white: 0.22))
-                        .clipShape(Circle())
-                }
-                .buttonStyle(.plain)
-            }
-            .padding(.horizontal, 18)
-            .padding(.bottom, 12)
         }
         .background(Color(white: 0.14))
         .onAppear {
