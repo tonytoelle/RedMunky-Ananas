@@ -4,7 +4,6 @@ TRIGGER: cmd+shift+k
 # Actions:
 ACTION: drag 793 169 to 1134 329
 ACTION: click 536 147
-ACTION: right_click 1040 153
-ACTION: drag 876 159 to 1053 277
 ACTION: type "Hello ShortKing"
-ACTION: press return
+ACTION: drag 876 159 to 1053 277
+ACTION: click 590 867
