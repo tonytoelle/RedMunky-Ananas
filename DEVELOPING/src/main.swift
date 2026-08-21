@@ -5490,7 +5490,7 @@ struct MainEditorView: View {
             .help("Toggle Sidebar")
             .padding(.leading, 78) // After traffic lights (72px) + gap
             .padding(.top, 7)      // Vertically centered in 38px titlebar
-            .offset(y: -20)        // Dinaikan paksa 20px
+            .offset(y: -37)        // Dinaikan paksa total 37px
         }
         .onChange(of: outerGeo.size.width) { oldWidth, newWidth in
             if newWidth < 580 && store.isSidebarVisible {
