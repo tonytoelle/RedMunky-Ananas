@@ -242,6 +242,7 @@ struct FolderConfig: Codable, Equatable {
     var colorName: String = "blue"
     var isRestrictedToApps: Bool = false
     var targetApps: [TargetApp] = []
+    var customAppIconBundleId: String? = nil
     
     var color: Color {
         switch colorName.lowercased() {
@@ -4616,9 +4617,27 @@ struct FolderInspectorView: View {
                                     RoundedRectangle(cornerRadius: 22, style: .continuous)
                                         .stroke(config.color.opacity(0.35), lineWidth: 1.5)
                                 )
-                            Image(systemName: config.iconName)
-                                .font(.system(size: 38, weight: .medium))
-                                .foregroundColor(config.color)
+                            let appBundleId: String? = {
+                                if let customId = config.customAppIconBundleId, !customId.isEmpty {
+                                    return customId
+                                }
+                                if config.isRestrictedToApps && config.targetApps.count == 1 {
+                                    return config.targetApps[0].bundleId
+                                }
+                                return nil
+                            }()
+                            
+                            if let bundleId = appBundleId,
+                               let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId),
+                               let nsImage = NSWorkspace.shared.icon(forFile: appURL.path) as NSImage? {
+                                Image(nsImage: nsImage)
+                                    .resizable()
+                                    .frame(width: 52, height: 52)
+                            } else {
+                                Image(systemName: config.iconName)
+                                    .font(.system(size: 38, weight: .medium))
+                                    .foregroundColor(config.color)
+                            }
                         }
                     }
                     .buttonStyle(.plain)
@@ -4821,8 +4840,9 @@ struct FolderInspectorView: View {
 
                             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 8), spacing: 8) {
                                 ForEach(availableIcons, id: \.self) { icon in
-                                    let isSelected = config.iconName == icon
+                                    let isSelected = config.iconName == icon && config.customAppIconBundleId == nil
                                     Button {
+                                        config.customAppIconBundleId = nil
                                         config.iconName = icon
                                         saveConfig()
                                     } label: {
@@ -4841,6 +4861,63 @@ struct FolderInspectorView: View {
                                     }
                                     .buttonStyle(.plain)
                                 }
+                            }
+                        }
+                        
+                        Divider().background(Color(white: 0.25))
+
+                        // Custom App Icon from Running Apps
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Text("APP ICON (RUNNING APPS)")
+                                    .font(.system(size: 10, weight: .bold))
+                                    .foregroundColor(Color(white: 0.5))
+                                Spacer()
+                                if config.customAppIconBundleId != nil {
+                                    Button("Reset to Folder Icon") {
+                                        config.customAppIconBundleId = nil
+                                        saveConfig()
+                                    }
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .buttonStyle(.plain)
+                                    .foregroundColor(.red)
+                                }
+                            }
+
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 10) {
+                                    ForEach(runningApps, id: \.processIdentifier) { app in
+                                        if let bId = app.bundleIdentifier, let name = app.localizedName, let icon = app.icon {
+                                            let isSelected = config.customAppIconBundleId == bId
+                                            Button {
+                                                config.customAppIconBundleId = bId
+                                                saveConfig()
+                                            } label: {
+                                                VStack(spacing: 4) {
+                                                    ZStack {
+                                                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                                            .fill(isSelected ? config.color.opacity(0.3) : Color(white: 0.22))
+                                                            .overlay(
+                                                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                                                    .stroke(isSelected ? config.color : Color.clear, lineWidth: 1.5)
+                                                            )
+                                                            .frame(width: 44, height: 44)
+                                                        Image(nsImage: icon)
+                                                            .resizable()
+                                                            .frame(width: 32, height: 32)
+                                                    }
+                                                    Text(name)
+                                                        .font(.system(size: 9))
+                                                        .foregroundColor(isSelected ? .white : Color(white: 0.7))
+                                                        .lineLimit(1)
+                                                        .frame(width: 54)
+                                                }
+                                            }
+                                            .buttonStyle(.plain)
+                                        }
+                                    }
+                                }
+                                .padding(.vertical, 4)
                             }
                         }
                     }
@@ -4943,9 +5020,27 @@ struct SidebarNodeView: View {
                     } label: {
                         HStack(spacing: 0) {
                             HStack(spacing: 6) {
-                                Image(systemName: config.iconName)
-                                    .foregroundColor(config.color)
-                                    .font(.system(size: 13))
+                                let appBundleId: String? = {
+                                    if let customId = config.customAppIconBundleId, !customId.isEmpty {
+                                        return customId
+                                    }
+                                    if config.isRestrictedToApps && config.targetApps.count == 1 {
+                                        return config.targetApps[0].bundleId
+                                    }
+                                    return nil
+                                }()
+                                
+                                if let bundleId = appBundleId,
+                                   let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId),
+                                   let nsImage = NSWorkspace.shared.icon(forFile: appURL.path) as NSImage? {
+                                    Image(nsImage: nsImage)
+                                        .resizable()
+                                        .frame(width: 14, height: 14)
+                                } else {
+                                    Image(systemName: config.iconName)
+                                        .foregroundColor(config.color)
+                                        .font(.system(size: 13))
+                                }
 
                                 Text(name)
                                     .font(.system(size: 13, weight: .bold))
