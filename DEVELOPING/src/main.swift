@@ -82,6 +82,7 @@ enum MacroAction: Equatable {
     case pasteText(text: String)
     case pressKey(keyCode: CGKeyCode)
     case pressShortcut(trigger: Trigger)
+    case restoreCursor
 
     var iconName: String {
         switch self {
@@ -91,6 +92,7 @@ enum MacroAction: Equatable {
         case .typeText:     return "text.cursor"
         case .pasteText:    return "doc.on.clipboard"
         case .pressKey, .pressShortcut: return "keyboard"
+        case .restoreCursor: return "arrow.counterclockwise"
         }
     }
     var color: Color {
@@ -101,6 +103,7 @@ enum MacroAction: Equatable {
         case .typeText:     return Color(red: 0.12, green: 0.58, blue: 0.24)
         case .pasteText:    return Color(red: 0.04, green: 0.52, blue: 0.54)
         case .pressKey, .pressShortcut: return Color(red: 0.32, green: 0.28, blue: 0.72)
+        case .restoreCursor: return Color(red: 0.12, green: 0.58, blue: 0.65)
         }
     }
     var title: String {
@@ -111,6 +114,7 @@ enum MacroAction: Equatable {
         case .typeText:             return "Type"
         case .pasteText:            return "Paste"
         case .pressKey, .pressShortcut: return "Key Press"
+        case .restoreCursor:        return "Origin"
         }
     }
     var details: String {
@@ -122,6 +126,7 @@ enum MacroAction: Equatable {
         case .pasteText(let t):     return "Paste: \"\(t)\""
         case .pressKey(let k):      return "Press key: \(KeyMap.name(for: k))"
         case .pressShortcut(let t): return "Hotkey combo: \(t.displayString)"
+        case .restoreCursor:        return "Move cursor back to position before macro started"
         }
     }
     var parameterString: String {
@@ -138,6 +143,8 @@ enum MacroAction: Equatable {
             return KeyMap.name(for: keyCode)
         case .pressShortcut(let trigger):
             return trigger.displayString
+        case .restoreCursor:
+            return "Origin"
         }
     }
     var scriptLine: String {
@@ -149,6 +156,7 @@ enum MacroAction: Equatable {
         case .pasteText(let t):     return "ACTION: paste \"\(t)\""
         case .pressKey(let k):      return "ACTION: press \(KeyMap.name(for: k).lowercased())"
         case .pressShortcut(let t): return "ACTION: press_shortcut \(t.scriptString)"
+        case .restoreCursor:        return "ACTION: restore_cursor"
         }
     }
 }
@@ -382,6 +390,8 @@ class ShortKingParser {
             if parts.count >= 2, let code = KeyMap.keyCode(for: parts[1]) { return .pressKey(keyCode: code) }
         case "press_shortcut":
             if parts.count >= 2, let trig = parseTrigger(parts[1]) { return .pressShortcut(trigger: trig) }
+        case "restore_cursor", "restore_origin", "move_to_origin":
+            return .restoreCursor
         default: break
         }
         return nil
@@ -418,6 +428,9 @@ class InputSimulator {
         // Initial delay allowing user to release physical hotkey combination
         usleep(60000) // 60ms
         releaseModifiers()
+
+        // Record cursor origin position in Quartz screen coordinates
+        let originQuartzPos = CGEvent(source: nil)?.location ?? .zero
 
         for action in actions {
             guard !isEmergencyStopped else { return }
@@ -525,6 +538,13 @@ class InputSimulator {
                 d?.flags = flags; u?.flags = flags
                 d?.post(tap: .cghidEventTap); usleep(20000)
                 u?.post(tap: .cghidEventTap); usleep(20000)
+
+            case .restoreCursor:
+                guard !isEmergencyStopped else { return }
+                let moveEvent = CGEvent(mouseEventSource: source, mouseType: .mouseMoved, mouseCursorPosition: originQuartzPos, mouseButton: .left)
+                moveEvent?.flags = []
+                moveEvent?.post(tap: .cghidEventTap)
+                usleep(30000)
             }
         }
     }
@@ -2630,6 +2650,8 @@ struct MacroInspectorView: View {
                                 newAction = .typeText(text: "Hello ShortKing")
                             case "Key":
                                 newAction = .pressKey(keyCode: 36)
+                            case "Origin":
+                                newAction = .restoreCursor
                             default:
                                 newAction = .delay(ms: 300)
                             }
@@ -2753,6 +2775,17 @@ struct MacroInspectorView: View {
                                 ) {
                                     store.registerUndoState(for: macro)
                                     macro.actionItems.append(MacroActionItem(action: .pressKey(keyCode: 36)))
+                                    store.saveMacro(macro)
+                                }
+
+                                // 7. Origin (Restore original cursor position)
+                                quickActionButton(
+                                    title: "Origin",
+                                    icon: "arrow.counterclockwise",
+                                    color: Color(red: 0.12, green: 0.58, blue: 0.65)
+                                ) {
+                                    store.registerUndoState(for: macro)
+                                    macro.actionItems.append(MacroActionItem(action: .restoreCursor))
                                     store.saveMacro(macro)
                                 }
                             }

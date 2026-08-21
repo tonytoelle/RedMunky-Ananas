@@ -2,9 +2,15 @@
 TRIGGER: cmd+shift+f
 
 # Actions:
-ACTION: click 691 297
+ACTION: click 875 292
 ACTION: type "Hello ShortKing"
 ACTION: delay 300
 ACTION: click 809 484
-ACTION: right_click 788 356
+ACTION: right_click 1044 322
 ACTION: drag 693 291 to 954 432
+ACTION: right_click 945 625
+ACTION: drag 1003 731 to 953 808
+ACTION: right_click 949 551
+ACTION: click 837 635
+ACTION: drag 599 426 to 805 195
+ACTION: drag 1073 396 to 1197 472
