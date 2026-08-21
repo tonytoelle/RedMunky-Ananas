@@ -1459,6 +1459,131 @@ struct KeyEditView: View {
     }
 }
 
+// ==========================================
+// MARK: - Inline Action Parameter Editors
+// ==========================================
+struct InlineTextEditView: View {
+    @Binding var action: MacroAction
+    var onSave: () -> Void
+    
+    @State private var textValue: String = ""
+    
+    var body: some View {
+        TextField("Text", text: $textValue)
+            .textFieldStyle(.plain)
+            .font(.system(size: 12, weight: .medium, design: .monospaced))
+            .foregroundColor(.white)
+            .frame(width: 140)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .background(Color(white: 0.24))
+            .cornerRadius(4)
+            .multilineTextAlignment(.trailing)
+            .onSubmit {
+                save()
+            }
+            .onAppear {
+                if case .typeText(let text) = action {
+                    textValue = text
+                } else if case .pasteText(let text) = action {
+                    textValue = text
+                }
+            }
+            .onChange(of: textValue) { _, _ in
+                save()
+            }
+    }
+    
+    private func save() {
+        if case .typeText = action {
+            action = .typeText(text: textValue)
+        } else if case .pasteText = action {
+            action = .pasteText(text: textValue)
+        }
+        onSave()
+    }
+}
+
+struct InlineDelayEditView: View {
+    @Binding var action: MacroAction
+    var onSave: () -> Void
+    
+    @State private var msValue: String = ""
+    
+    var body: some View {
+        HStack(spacing: 2) {
+            TextField("ms", text: $msValue)
+                .textFieldStyle(.plain)
+                .font(.system(size: 12, weight: .medium, design: .monospaced))
+                .foregroundColor(.white)
+                .frame(width: 50)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3)
+                .background(Color(white: 0.24))
+                .cornerRadius(4)
+                .multilineTextAlignment(.trailing)
+                .onSubmit {
+                    save()
+                }
+                .onAppear {
+                    if case .delay(let ms) = action {
+                        msValue = String(ms)
+                    }
+                }
+                .onChange(of: msValue) { _, _ in
+                    save()
+                }
+            Text("ms")
+                .font(.system(size: 11))
+                .foregroundColor(.secondary)
+        }
+    }
+    
+    private func save() {
+        let ms = UInt32(msValue) ?? 0
+        action = .delay(ms: ms)
+        onSave()
+    }
+}
+
+struct InlineKeyEditView: View {
+    @Binding var action: MacroAction
+    var onSave: () -> Void
+    
+    @State private var keyValue: String = ""
+    
+    var body: some View {
+        TextField("key", text: $keyValue)
+            .textFieldStyle(.plain)
+            .font(.system(size: 12, weight: .medium, design: .monospaced))
+            .foregroundColor(.white)
+            .frame(width: 80)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .background(Color(white: 0.24))
+            .cornerRadius(4)
+            .multilineTextAlignment(.trailing)
+            .onSubmit {
+                save()
+            }
+            .onAppear {
+                if case .pressKey(let k) = action {
+                    keyValue = KeyMap.name(for: k)
+                }
+            }
+            .onChange(of: keyValue) { _, _ in
+                save()
+            }
+    }
+    
+    private func save() {
+        if let code = KeyMap.keyCode(for: keyValue) {
+            action = .pressKey(keyCode: code)
+            onSave()
+        }
+    }
+}
+
 struct ActionCardView: View {
     let index: Int
     @Binding var item: MacroActionItem
@@ -1486,7 +1611,7 @@ struct ActionCardView: View {
                         .font(.system(size: 15, weight: .semibold))
                 }
 
-                // Title & Parameters (Tapping here triggers recapture for Click/Drag, or edits inline for others)
+                // Title & Parameters
                 HStack(spacing: 8) {
                     Text(item.action.title)
                         .font(.system(size: 13, weight: .semibold))
@@ -1494,10 +1619,20 @@ struct ActionCardView: View {
                     
                     Spacer()
                     
-                    Text(item.action.parameterString)
-                        .font(.system(size: 12, weight: .medium, design: .monospaced))
-                        .foregroundColor(.secondary)
-                        .padding(.trailing, 8)
+                    // Render appropriate parameter editor/display
+                    switch item.action {
+                    case .typeText, .pasteText:
+                        InlineTextEditView(action: $item.action, onSave: onSave)
+                    case .delay:
+                        InlineDelayEditView(action: $item.action, onSave: onSave)
+                    case .pressKey:
+                        InlineKeyEditView(action: $item.action, onSave: onSave)
+                    default:
+                        Text(item.action.parameterString)
+                            .font(.system(size: 12, weight: .medium, design: .monospaced))
+                            .foregroundColor(.secondary)
+                            .padding(.trailing, 8)
+                    }
                 }
                 .contentShape(Rectangle())
                 .onTapGesture {
@@ -1513,6 +1648,8 @@ struct ActionCardView: View {
                             onSave()
                         }
                     default:
+                        // For fields with inline editing, clicking outside text field can toggle settings editor if needed,
+                        // or we can just ignore since they edit inline.
                         withAnimation(.easeInOut(duration: 0.15)) {
                             isEditing.toggle()
                         }
