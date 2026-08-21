@@ -1778,6 +1778,18 @@ class CaptureOverlayHostingView: NSView {
     }
     
     required init?(coder: NSCoder) { fatalError() }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if let win = window {
+            let screenPt = NSEvent.mouseLocation
+            let winLoc = win.convertPoint(fromScreen: screenPt)
+            let screenHeight = win.screen?.frame.height ?? NSScreen.main?.frame.height ?? bounds.height
+            let quartzPt = CGPoint(x: winLoc.x, y: screenHeight - winLoc.y)
+            stateModel.currentLocation = winLoc
+            stateModel.quartzLocation = quartzPt
+        }
+    }
     
     override func updateTrackingAreas() {
         super.updateTrackingAreas()

@@ -5,3 +5,5 @@ TRIGGER: k
 ACTION: type "Hello ShortKing"
 ACTION: delay 300
 ACTION: press return
+ACTION: click 792 548
+ACTION: right_click 894 540
