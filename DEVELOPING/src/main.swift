@@ -4894,18 +4894,13 @@ struct FolderInspectorView: View {
                                                 saveConfig()
                                             } label: {
                                                 VStack(spacing: 4) {
-                                                    ZStack {
-                                                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                                            .fill(isSelected ? config.color.opacity(0.3) : Color(white: 0.22))
-                                                            .overlay(
-                                                                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                                                    .stroke(isSelected ? config.color : Color.clear, lineWidth: 1.5)
-                                                            )
-                                                            .frame(width: 44, height: 44)
-                                                        Image(nsImage: icon)
-                                                            .resizable()
-                                                            .frame(width: 32, height: 32)
-                                                    }
+                                                    Image(nsImage: icon)
+                                                        .resizable()
+                                                        .frame(width: 36, height: 36)
+                                                        .overlay(
+                                                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                                                .stroke(isSelected ? config.color : Color.clear, lineWidth: 2)
+                                                        )
                                                     Text(name)
                                                         .font(.system(size: 9))
                                                         .foregroundColor(isSelected ? .white : Color(white: 0.7))
