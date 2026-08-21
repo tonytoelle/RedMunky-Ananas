@@ -2,9 +2,9 @@
 TRIGGER: cmd+shift+k
 
 # Actions:
-ACTION: type "Hello ShortKing"
-ACTION: press return
-ACTION: click 338 311
+ACTION: type "Hello SsdsfhortKing"
+ACTION: press enter
+ACTION: click 1082 482
 ACTION: click 552 230
-ACTION: press return
+ACTION: press enter
 ACTION: drag 572 232 to 970 122

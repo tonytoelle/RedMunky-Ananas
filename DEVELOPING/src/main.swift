@@ -1586,8 +1586,6 @@ struct ActionCardView: View {
     var onDelete: () -> Void
     var onSave: () -> Void
 
-    @State private var isEditing = false
-
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 12) {
@@ -1644,11 +1642,7 @@ struct ActionCardView: View {
                             onSave()
                         }
                     default:
-                        // For fields with inline editing, clicking outside text field can toggle settings editor if needed,
-                        // or we can just ignore since they edit inline.
-                        withAnimation(.easeInOut(duration: 0.15)) {
-                            isEditing.toggle()
-                        }
+                        break
                     }
                 }
 
@@ -1661,27 +1655,6 @@ struct ActionCardView: View {
                         .font(.system(size: 15))
                 }
                 .buttonStyle(.plain)
-            }
-            
-            if isEditing {
-                Divider().background(Color.white.opacity(0.08))
-                
-                switch item.action {
-                case .click:
-                    ClickEditView(action: $item.action, onSave: onSave)
-                case .drag:
-                    DragEditView(action: $item.action, onSave: onSave)
-                case .delay:
-                    DelayEditView(action: $item.action, onSave: onSave)
-                case .typeText, .pasteText:
-                    TextEditView(action: $item.action, onSave: onSave)
-                case .pressKey:
-                    KeyEditView(action: $item.action, onSave: onSave)
-                case .pressShortcut:
-                    Text("Shortcut Trigger")
-                        .font(.system(size: 11))
-                        .foregroundColor(.secondary)
-                }
             }
         }
         .padding(.horizontal, 14)
