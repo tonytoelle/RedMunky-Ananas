@@ -2834,8 +2834,6 @@ struct MacroInspectorView: View {
             .padding(.top, 14)
             .padding(.bottom, 12)
 
-            Divider()
-
             // Main Detail ScrollView
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
@@ -2895,10 +2893,8 @@ struct MacroInspectorView: View {
                             Text("Actions")
                                 .font(.system(size: 13, weight: .semibold))
                                 .foregroundColor(.secondary)
-                                .padding(.leading, 2)
                             Spacer()
                         }
-                        .padding(.top, 4)
 
                         // Draggable Action Cards
                         DraggableActionList(actionItems: $macro.actionItems, onSave: {
@@ -2965,6 +2961,15 @@ struct MacroInspectorView: View {
                                 break
                             }
                         })
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 12)
+                    .background(Color(white: 0.18))
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                    )
 
                         // Minimalist + separator
                         HStack {
@@ -3082,23 +3087,30 @@ struct MacroInspectorView: View {
                                 }
                             }
                         }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 12)
+                        .background(Color(white: 0.18))
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                        )
                         .padding(.top, 4)
                     }
                 }
                 .padding(22)
             }
+            .background(Color(white: 0.14))
+            .onAppear {
+                tempName = macro.fileName.replacingOccurrences(of: ".shortking", with: "")
+            }
+            .onChange(of: macro.id) { _, _ in
+                tempName = macro.fileName.replacingOccurrences(of: ".shortking", with: "")
+            }
+            .onChange(of: macro.fileName) { _, newFileName in
+                tempName = newFileName.replacingOccurrences(of: ".shortking", with: "")
+            }
         }
-        .background(Color(white: 0.14))
-        .onAppear {
-            tempName = macro.fileName.replacingOccurrences(of: ".shortking", with: "")
-        }
-        .onChange(of: macro.id) { _, _ in
-            tempName = macro.fileName.replacingOccurrences(of: ".shortking", with: "")
-        }
-        .onChange(of: macro.fileName) { _, newFileName in
-            tempName = newFileName.replacingOccurrences(of: ".shortking", with: "")
-        }
-    }
 
     @ViewBuilder
     private func quickActionButton(
@@ -3126,7 +3138,7 @@ struct MacroInspectorView: View {
             .frame(maxWidth: .infinity)
             .padding(.vertical, 10)
             .padding(.horizontal, 2)
-            .background(Color(white: 0.18))
+            .background(Color(white: 0.13))
             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
@@ -3868,8 +3880,6 @@ struct FolderInspectorView: View {
             .padding(.horizontal, 22)
             .padding(.top, 14)
             .padding(.bottom, 12)
-            
-            Divider()
             
             ScrollView {
                 VStack(spacing: 24) {
@@ -4618,8 +4628,6 @@ struct MainEditorView: View {
                     return true
                 }
 
-                Divider()
-
                 // Bottom Toolbar (+ Macro, + Folder, Delete, Count)
                 HStack(spacing: 12) {
                     Button {
@@ -4726,8 +4734,6 @@ struct MainEditorView: View {
                     .padding(.horizontal, 22)
                     .padding(.top, 14)
                     .padding(.bottom, 12)
-                    
-                    Divider()
                     
                     VStack(spacing: 16) {
                         ZStack {
