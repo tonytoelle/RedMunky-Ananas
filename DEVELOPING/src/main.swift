@@ -264,17 +264,37 @@ class MacroItem: Identifiable, ObservableObject {
     let id: UUID
     @Published var fileName: String
     @Published var fileURL: URL
-    @Published var trigger: Trigger
+    @Published var triggers: [Trigger] = []
     @Published var actionItems: [MacroActionItem]  // items have stable IDs for drag-drop
     var parentFolderConfig: FolderConfig?
 
     var actions: [MacroAction] { actionItems.map(\.action) }
 
+    var trigger: Trigger {
+        get { triggers.first ?? Trigger(keyCode: 0, requireCmd: false, requireShift: false, requireOption: false, requireControl: false) }
+        set {
+            if triggers.isEmpty {
+                triggers = [newValue]
+            } else {
+                triggers[0] = newValue
+            }
+        }
+    }
+
     init(fileName: String, fileURL: URL, trigger: Trigger, actionItems: [MacroActionItem], parentFolderConfig: FolderConfig? = nil) {
         self.id = UUID()
         self.fileName = fileName
         self.fileURL = fileURL
-        self.trigger = trigger
+        self.triggers = [trigger]
+        self.actionItems = actionItems
+        self.parentFolderConfig = parentFolderConfig
+    }
+
+    init(fileName: String, fileURL: URL, triggers: [Trigger], actionItems: [MacroActionItem], parentFolderConfig: FolderConfig? = nil) {
+        self.id = UUID()
+        self.fileName = fileName
+        self.fileURL = fileURL
+        self.triggers = triggers
         self.actionItems = actionItems
         self.parentFolderConfig = parentFolderConfig
     }
@@ -408,7 +428,7 @@ class ShortKingParser {
 
     static func parseFile(at url: URL) -> MacroItem? {
         guard let content = try? String(contentsOf: url, encoding: .utf8) else { return nil }
-        var trigger: Trigger?
+        var triggers: [Trigger] = []
         var groupStack: [[MacroActionItem]] = [[]]
         var groupNames: [String] = []
         
@@ -416,7 +436,9 @@ class ShortKingParser {
             let line = rawLine.trimmingCharacters(in: .whitespaces)
             guard !line.isEmpty, !line.hasPrefix("#"), !line.hasPrefix("//") else { continue }
             if line.uppercased().hasPrefix("TRIGGER:") {
-                trigger = parseTrigger(String(line.dropFirst(8)).trimmingCharacters(in: .whitespaces))
+                if let t = parseTrigger(String(line.dropFirst(8)).trimmingCharacters(in: .whitespaces)) {
+                    triggers.append(t)
+                }
             } else if line.uppercased().hasPrefix("ACTION:") {
                 let actionStr = String(line.dropFirst(7)).trimmingCharacters(in: .whitespaces)
                 var cleanActionStr = actionStr
@@ -486,8 +508,8 @@ class ShortKingParser {
         var resolvedItems = items
         resolveDoAgainTargets(in: &resolvedItems, flat: flatItems)
         
-        guard let t = trigger else { return nil }
-        return MacroItem(fileName: url.lastPathComponent, fileURL: url, trigger: t, actionItems: resolvedItems)
+        guard !triggers.isEmpty else { return nil }
+        return MacroItem(fileName: url.lastPathComponent, fileURL: url, triggers: triggers, actionItems: resolvedItems)
     }
 
     static func parseAction(_ s: String) -> MacroAction? {
@@ -534,8 +556,13 @@ class ShortKingParser {
         return nil
     }
 
-    static func generateScript(trigger: Trigger, actionItems: [MacroActionItem]) -> String {
-        var lines = ["# ShortKing Macro Script", "TRIGGER: \(trigger.scriptString)", "", "# Actions:"]
+    static func generateScript(triggers: [Trigger], actionItems: [MacroActionItem]) -> String {
+        var lines = ["# ShortKing Macro Script"]
+        for t in triggers {
+            lines.append("TRIGGER: \(t.scriptString)")
+        }
+        lines.append("")
+        lines.append("# Actions:")
         
         func appendActionItem(_ item: MacroActionItem) {
             var line = ""
@@ -593,9 +620,16 @@ class ShortKingParser {
         return lines.joined(separator: "\n") + "\n"
     }
 
+    static func generateScript(trigger: Trigger, actionItems: [MacroActionItem]) -> String {
+        return generateScript(triggers: [trigger], actionItems: actionItems)
+    }
     static func generateScript(trigger: Trigger, actions: [MacroAction]) -> String {
         let items = actions.map { MacroActionItem(action: $0) }
-        return generateScript(trigger: trigger, actionItems: items)
+        return generateScript(triggers: [trigger], actionItems: items)
+    }
+    static func generateScript(triggers: [Trigger], actions: [MacroAction]) -> String {
+        let items = actions.map { MacroActionItem(action: $0) }
+        return generateScript(triggers: triggers, actionItems: items)
     }
 }
 
@@ -1288,9 +1322,11 @@ class MacroStore: ObservableObject {
                 }
             }
             
-            CarbonHotKeyManager.shared.register(trigger: macro.trigger) {
-                print("🚀 Executing: \(macro.fileName)")
-                InputSimulator.execute(items: items)
+            for trig in macro.triggers {
+                CarbonHotKeyManager.shared.register(trigger: trig) {
+                    print("🚀 Executing: \(macro.fileName)")
+                    InputSimulator.execute(items: items)
+                }
             }
         }
     }
@@ -1324,7 +1360,7 @@ class MacroStore: ObservableObject {
     }
 
     func saveMacro(_ macro: MacroItem) {
-        let content = ShortKingParser.generateScript(trigger: macro.trigger, actions: macro.actions)
+        let content = ShortKingParser.generateScript(triggers: macro.triggers, actions: macro.actions)
         let fileURL = macro.fileURL
         let trigger = macro.trigger
         
@@ -1354,7 +1390,7 @@ class MacroStore: ObservableObject {
             if FileManager.default.fileExists(atPath: oldURL.path) {
                 try FileManager.default.moveItem(at: oldURL, to: newURL)
             } else {
-                let content = ShortKingParser.generateScript(trigger: macro.trigger, actions: macro.actions)
+                let content = ShortKingParser.generateScript(triggers: macro.triggers, actions: macro.actions)
                 try content.write(to: newURL, atomically: true, encoding: .utf8)
             }
             macro.fileURL = newURL
@@ -1402,7 +1438,7 @@ class MacroStore: ObservableObject {
         self.selectedFilePath = url.path
         let t = Trigger(keyCode: 40, requireCmd: true, requireShift: true, requireOption: false, requireControl: false)
         let a: [MacroAction] = [.delay(ms: 500), .typeText(text: "Hello ShortKing!")]
-        try? ShortKingParser.generateScript(trigger: t, actions: a).write(to: url, atomically: true, encoding: .utf8)
+        try? ShortKingParser.generateScript(triggers: [t], actions: a).write(to: url, atomically: true, encoding: .utf8)
         loadMacros()
     }
 
@@ -2839,7 +2875,8 @@ struct ActionCardView: View {
                         Image(systemName: isCollapsed ? "chevron.right" : "chevron.down")
                             .foregroundColor(.secondary)
                             .font(.system(size: 10, weight: .bold))
-                            .frame(width: 12, height: 32)
+                            .frame(width: 32, height: 32)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                 }
@@ -3281,57 +3318,106 @@ struct MacroInspectorView: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 14) {
                     // Card 1: Trigger HotKey (Simplified, no redundant text)
-                    VStack(alignment: .leading, spacing: 6) {
+                    VStack(alignment: .leading, spacing: 10) {
                         HStack {
                             Text("Trigger")
                                 .font(.system(size: 13, weight: .semibold))
                                 .foregroundColor(.secondary)
                                 .padding(.leading, 2)
                             Spacer()
-                            Button(action: {
-                                withAnimation(.easeInOut(duration: 0.15)) {
-                                    isTriggerCollapsed.toggle()
-                                }
-                            }) {
-                                Image(systemName: isTriggerCollapsed ? "chevron.right" : "chevron.down")
-                                    .foregroundColor(.secondary)
-                                    .font(.system(size: 10, weight: .bold))
+                            Image(systemName: isTriggerCollapsed ? "chevron.right" : "chevron.down")
+                                .foregroundColor(.secondary)
+                                .font(.system(size: 10, weight: .bold))
+                        }
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            withAnimation(.easeInOut(duration: 0.15)) {
+                                isTriggerCollapsed.toggle()
                             }
-                            .buttonStyle(.plain)
                         }
 
                         if !isTriggerCollapsed {
-                            HStack(spacing: 12) {
-                                ZStack {
-                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                        .fill(Color(red: 0.45, green: 0.2, blue: 0.8))
-                                        .frame(width: 32, height: 32)
-                                    Image(systemName: "keyboard")
-                                        .foregroundColor(.white)
-                                        .font(.system(size: 15, weight: .semibold))
+                            VStack(spacing: 8) {
+                                ForEach(0..<macro.triggers.count, id: \.self) { idx in
+                                    HStack(spacing: 12) {
+                                        ZStack {
+                                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                                .fill(Color(red: 0.45, green: 0.2, blue: 0.8))
+                                                .frame(width: 32, height: 32)
+                                            Image(systemName: "keyboard")
+                                                .foregroundColor(.white)
+                                                .font(.system(size: 15, weight: .semibold))
+                                        }
+
+                                        Text("Key Press")
+                                            .font(.system(size: 13, weight: .medium))
+                                            .foregroundColor(.white)
+
+                                        Spacer()
+
+                                        HotKeyRecorder(trigger: Binding(
+                                            get: { macro.triggers[idx] },
+                                            set: { newValue in
+                                                store.registerUndoState(for: macro)
+                                                macro.triggers[idx] = newValue
+                                                store.saveMacro(macro)
+                                            }
+                                        )) {
+                                            store.saveMacro(macro)
+                                            isDirty = false
+                                        }
+
+                                        if macro.triggers.count > 1 {
+                                            Button(action: {
+                                                store.registerUndoState(for: macro)
+                                                macro.triggers.remove(at: idx)
+                                                store.saveMacro(macro)
+                                            }) {
+                                                Image(systemName: "xmark")
+                                                    .font(.system(size: 9, weight: .bold))
+                                                    .foregroundColor(.secondary)
+                                                    .frame(width: 20, height: 20)
+                                                    .contentShape(Rectangle())
+                                            }
+                                            .buttonStyle(.plain)
+                                        }
+                                    }
+                                    .padding(.horizontal, 14)
+                                    .padding(.vertical, 11)
+                                    .background(Color(white: 0.18))
+                                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                            .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                                    )
                                 }
 
-                                Text("Key Press")
-                                    .font(.system(size: 13, weight: .medium))
-                                    .foregroundColor(.white)
-                                    .lineLimit(1)
-                                    .fixedSize(horizontal: true, vertical: false)
-
-                                Spacer()
-
-                                HotKeyRecorder(trigger: $macro.trigger) {
+                                Button(action: {
+                                    store.registerUndoState(for: macro)
+                                    macro.triggers.append(Trigger(keyCode: 17, requireCmd: true, requireShift: true, requireOption: false, requireControl: false))
                                     store.saveMacro(macro)
-                                    isDirty = false
+                                }) {
+                                    HStack {
+                                        Spacer()
+                                        Image(systemName: "plus")
+                                            .font(.system(size: 11, weight: .bold))
+                                            .foregroundColor(.secondary)
+                                        Text("Add Trigger")
+                                            .font(.system(size: 11, weight: .semibold))
+                                            .foregroundColor(.secondary)
+                                        Spacer()
+                                    }
+                                    .padding(.vertical, 8)
+                                    .background(Color.white.opacity(0.05))
+                                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                                    )
                                 }
+                                .buttonStyle(.plain)
+                                .padding(.top, 4)
                             }
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 11)
-                            .background(Color(white: 0.18))
-                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                    .stroke(Color.white.opacity(0.06), lineWidth: 1)
-                            )
                         }
                     }
 
@@ -3352,16 +3438,15 @@ struct MacroInspectorView: View {
                                 .font(.system(size: 13, weight: .semibold))
                                 .foregroundColor(.secondary)
                             Spacer()
-                            Button(action: {
-                                withAnimation(.easeInOut(duration: 0.15)) {
-                                    isActionsCollapsed.toggle()
-                                }
-                            }) {
-                                Image(systemName: isActionsCollapsed ? "chevron.right" : "chevron.down")
-                                    .foregroundColor(.secondary)
-                                    .font(.system(size: 10, weight: .bold))
+                            Image(systemName: isActionsCollapsed ? "chevron.right" : "chevron.down")
+                                .foregroundColor(.secondary)
+                                .font(.system(size: 10, weight: .bold))
+                        }
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            withAnimation(.easeInOut(duration: 0.15)) {
+                                isActionsCollapsed.toggle()
                             }
-                            .buttonStyle(.plain)
                         }
 
                         if !isActionsCollapsed {
@@ -3459,16 +3544,15 @@ struct MacroInspectorView: View {
                                     .foregroundColor(.secondary)
                                     .padding(.leading, 2)
                                 Spacer()
-                                Button(action: {
-                                    withAnimation(.easeInOut(duration: 0.15)) {
-                                        isAddActionCollapsed.toggle()
-                                    }
-                                }) {
-                                    Image(systemName: isAddActionCollapsed ? "chevron.right" : "chevron.down")
-                                        .foregroundColor(.secondary)
-                                        .font(.system(size: 10, weight: .bold))
+                                Image(systemName: isAddActionCollapsed ? "chevron.right" : "chevron.down")
+                                    .foregroundColor(.secondary)
+                                    .font(.system(size: 10, weight: .bold))
+                            }
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                withAnimation(.easeInOut(duration: 0.15)) {
+                                    isAddActionCollapsed.toggle()
                                 }
-                                .buttonStyle(.plain)
                             }
                             .padding(.top, 6)
 
