@@ -5929,7 +5929,8 @@ struct MainEditorView: View {
                     .padding(.horizontal, 14)
                     .padding(.vertical, 8)
                 }
-                .padding(.horizontal, 6)
+                .padding(.leading, 8)
+                .padding(.trailing, 2)
                 .frame(width: store.isSidebarVisible ? sidebarWidth : 0)
                 .frame(maxHeight: .infinity)
                 .background(Color(white: 0.12))
@@ -5939,10 +5940,10 @@ struct MainEditorView: View {
                 if store.isSidebarVisible {
                     ZStack {
                         Color.clear
-                            .frame(width: 12)
+                            .frame(width: 6)
                             .contentShape(Rectangle())
                     }
-                    .frame(width: 12)
+                    .frame(width: 6)
                     .contentShape(Rectangle())
                     .onHover { inside in
                         if inside {
