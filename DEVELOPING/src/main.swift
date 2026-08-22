@@ -2680,8 +2680,10 @@ struct CaptureOverlaySwiftUIView: View {
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundColor(.white)
             }
+            .opacity(state.isPassThroughMode ? 0.35 : 1.0)
             .contentShape(Rectangle())
             .onTapGesture {
+                guard !state.isPassThroughMode else { return }
                 if let sel = state.selectedPointIndex, sel < state.points.count {
                     state.cycleType(at: sel)
                     state.defaultPointType = state.points[sel].type
@@ -2708,8 +2710,10 @@ struct CaptureOverlaySwiftUIView: View {
                     .font(.system(size: 15, weight: .bold))
                     .foregroundColor(.white)
             }
+            .opacity(state.isPassThroughMode ? 0.35 : 1.0)
             .contentShape(Rectangle())
             .onTapGesture {
+                guard !state.isPassThroughMode else { return }
                 state.insertPoint()
             }
             
@@ -2723,8 +2727,10 @@ struct CaptureOverlaySwiftUIView: View {
                     .font(.system(size: 15, weight: .bold))
                     .foregroundColor(.white)
             }
+            .opacity(state.isPassThroughMode ? 0.35 : 1.0)
             .contentShape(Rectangle())
             .onTapGesture {
+                guard !state.isPassThroughMode else { return }
                 if let sel = state.selectedPointIndex, sel < state.points.count {
                     state.removePoint(at: sel)
                 } else if !state.points.isEmpty {
