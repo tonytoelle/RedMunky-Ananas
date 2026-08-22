@@ -103,6 +103,8 @@ enum MacroAction: Equatable {
     case customAction(script: String)
     case volumeUp
     case volumeDown
+    case brightnessUp
+    case brightnessDown
     indirect case group(name: String, actions: [MacroActionItem])
 
     var iconName: String {
@@ -118,6 +120,8 @@ enum MacroAction: Equatable {
         case .customAction: return "terminal"
         case .volumeUp:     return "speaker.wave.3.fill"
         case .volumeDown:   return "speaker.wave.1.fill"
+        case .brightnessUp:   return "sun.max.fill"
+        case .brightnessDown: return "sun.min.fill"
         case .group:        return "folder"
         }
     }
@@ -133,6 +137,7 @@ enum MacroAction: Equatable {
         case .moveCursor:   return Color(red: 0.28, green: 0.52, blue: 0.92)
         case .customAction: return Color.pink
         case .volumeUp, .volumeDown: return Color.blue
+        case .brightnessUp, .brightnessDown: return Color.orange
         case .group:        return Color.orange
         }
     }
@@ -149,6 +154,8 @@ enum MacroAction: Equatable {
         case .customAction:         return "Custom Action"
         case .volumeUp:             return "Volume Up"
         case .volumeDown:           return "Volume Down"
+        case .brightnessUp:         return "Brightness Up"
+        case .brightnessDown:       return "Brightness Down"
         case .group:                return "Group"
         }
     }
@@ -178,6 +185,10 @@ enum MacroAction: Equatable {
             return "Increase system volume (Native)"
         case .volumeDown:
             return "Decrease system volume (Native)"
+        case .brightnessUp:
+            return "Increase screen brightness (Native)"
+        case .brightnessDown:
+            return "Decrease screen brightness (Native)"
         case .group(let name, let actions):
             return "Group: \"\(name)\" (\(actions.count) actions)"
         }
@@ -213,6 +224,10 @@ enum MacroAction: Equatable {
             return "+"
         case .volumeDown:
             return "-"
+        case .brightnessUp:
+            return "+"
+        case .brightnessDown:
+            return "-"
         case .group(_, let actions):
             return "\(actions.count) actions"
         }
@@ -243,6 +258,10 @@ enum MacroAction: Equatable {
             return "ACTION: volume_up"
         case .volumeDown:
             return "ACTION: volume_down"
+        case .brightnessUp:
+            return "ACTION: brightness_up"
+        case .brightnessDown:
+            return "ACTION: brightness_down"
         case .group(let name, _):
             return "ACTION: group \"\(name)\""
         }
@@ -591,6 +610,10 @@ class ShortKingParser {
             return .volumeUp
         case "volume_down":
             return .volumeDown
+        case "brightness_up":
+            return .brightnessUp
+        case "brightness_down":
+            return .brightnessDown
         default: break
         }
         return nil
@@ -914,6 +937,14 @@ class InputSimulator {
                 case .volumeDown:
                     guard !isEmergencyStopped else { return }
                     postMediaKey(key: 1) // NX_KEYTYPE_SOUND_DOWN
+                    
+                case .brightnessUp:
+                    guard !isEmergencyStopped else { return }
+                    postMediaKey(key: 2) // NX_KEYTYPE_BRIGHTNESS_UP
+                    
+                case .brightnessDown:
+                    guard !isEmergencyStopped else { return }
+                    postMediaKey(key: 3) // NX_KEYTYPE_BRIGHTNESS_DOWN
                 }
             }
         }
@@ -4067,6 +4098,28 @@ struct MacroInspectorView: View {
                                 ) {
                                     store.registerUndoState(for: macro)
                                     macro.actionItems.append(MacroActionItem(action: .volumeDown))
+                                    store.saveMacro(macro)
+                                }
+
+                                // 13. Brightness Up (Native)
+                                quickActionButton(
+                                    title: "Brit Up",
+                                    icon: "sun.max.fill",
+                                    color: Color.orange
+                                ) {
+                                    store.registerUndoState(for: macro)
+                                    macro.actionItems.append(MacroActionItem(action: .brightnessUp))
+                                    store.saveMacro(macro)
+                                }
+
+                                // 14. Brightness Down (Native)
+                                quickActionButton(
+                                    title: "Brit Down",
+                                    icon: "sun.min.fill",
+                                    color: Color.orange
+                                ) {
+                                    store.registerUndoState(for: macro)
+                                    macro.actionItems.append(MacroActionItem(action: .brightnessDown))
                                     store.saveMacro(macro)
                                 }
                             }

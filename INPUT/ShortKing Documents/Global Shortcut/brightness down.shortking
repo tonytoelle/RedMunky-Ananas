@@ -2,4 +2,4 @@
 TRIGGER: f1
 
 # Actions:
-ACTION: custom_action "~/brightness.sh down"
+ACTION: brightness_down
