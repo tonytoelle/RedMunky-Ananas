@@ -844,15 +844,24 @@ class InputSimulator {
         eventUp?.cgEvent?.post(tap: .cghidEventTap)
     }
 
-    static func execute(items: [MacroActionItem]) {
+    static func execute(items: [MacroActionItem], preRecordedOrigin: CGPoint? = nil) {
         isEmergencyStopped = false
+        
+        // Use pre-recorded origin if provided (captured on main thread before dispatch),
+        // otherwise capture now as fallback.
+        let originQuartzPos: CGPoint = preRecordedOrigin ?? {
+            if let loc = CGEvent(source: nil)?.location, loc != .zero {
+                return loc
+            }
+            let cocoaPt = NSEvent.mouseLocation
+            let screenH = NSScreen.main?.frame.height ?? 1080
+            return CGPoint(x: cocoaPt.x, y: screenH - cocoaPt.y)
+        }()
         
         // Initial delay allowing user to release physical hotkey combination
         usleep(60000) // 60ms
         releaseModifiers()
 
-        // Record cursor origin position in Quartz screen coordinates
-        let originQuartzPos = CGEvent(source: nil)?.location ?? .zero
         executeSubActions(items: items, originQuartzPos: originQuartzPos)
     }
 
@@ -1551,7 +1560,15 @@ class MacroStore: ObservableObject {
                 let targetCode: CGKeyCode = (name == "brightness_down") ? 145 : 144
                 if trigger.keyCode == targetCode {
                     print("🚀 Executing special hardware key macro: \(macro.fileName)")
-                    InputSimulator.execute(items: items)
+                    let originPos: CGPoint = {
+                        if let loc = CGEvent(source: nil)?.location, loc != .zero { return loc }
+                        let cp = NSEvent.mouseLocation
+                        let sh = NSScreen.main?.frame.height ?? 1080
+                        return CGPoint(x: cp.x, y: sh - cp.y)
+                    }()
+                    DispatchQueue.global(qos: .userInitiated).async {
+                        InputSimulator.execute(items: items, preRecordedOrigin: originPos)
+                    }
                 }
             }
         }
@@ -1720,7 +1737,16 @@ class MacroStore: ObservableObject {
                 }
                 CarbonHotKeyManager.shared.register(trigger: trig) {
                     print("🚀 Executing: \(macro.fileName)")
-                    InputSimulator.execute(items: items)
+                    // Capture cursor origin NOW before background dispatch
+                    let originPos: CGPoint = {
+                        if let loc = CGEvent(source: nil)?.location, loc != .zero { return loc }
+                        let cp = NSEvent.mouseLocation
+                        let sh = NSScreen.main?.frame.height ?? 1080
+                        return CGPoint(x: cp.x, y: sh - cp.y)
+                    }()
+                    DispatchQueue.global(qos: .userInitiated).async {
+                        InputSimulator.execute(items: items, preRecordedOrigin: originPos)
+                    }
                 }
             }
         }
@@ -1967,7 +1993,16 @@ class MacroStore: ObservableObject {
 
     func runMacro(_ macro: MacroItem) {
         let items = macro.actionItems
-        DispatchQueue.global(qos: .userInitiated).async { InputSimulator.execute(items: items) }
+        // Capture cursor origin on main thread before dispatching to background
+        let originPos: CGPoint = {
+            if let loc = CGEvent(source: nil)?.location, loc != .zero {
+                return loc
+            }
+            let cocoaPt = NSEvent.mouseLocation
+            let screenH = NSScreen.main?.frame.height ?? 1080
+            return CGPoint(x: cocoaPt.x, y: screenH - cocoaPt.y)
+        }()
+        DispatchQueue.global(qos: .userInitiated).async { InputSimulator.execute(items: items, preRecordedOrigin: originPos) }
     }
 }
 
