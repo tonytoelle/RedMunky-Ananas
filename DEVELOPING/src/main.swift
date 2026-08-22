@@ -2240,10 +2240,10 @@ class CaptureOverlayState: ObservableObject {
     }
     
     var onPointsChanged: (([SequencePoint]) -> Void)? = nil
-    @Published var points: [SequencePoint] = [] {
-        didSet {
-            onPointsChanged?(points)
-        }
+    @Published var points: [SequencePoint] = []
+    
+    func notifyPointsChanged() {
+        onPointsChanged?(points)
     }
     @Published var activeDraggingIndex: Int? = nil
     @Published var hoveredIndex: Int? = nil
@@ -2280,11 +2280,13 @@ class CaptureOverlayState: ObservableObject {
         case .click:
             points[index].type = .move
         }
+        notifyPointsChanged()
     }
     
     func setType(_ type: SequencePointType, at index: Int) {
         guard index >= 0 && index < points.count else { return }
         points[index].type = type
+        notifyPointsChanged()
     }
     
     func removePoint(at index: Int) {
@@ -2297,6 +2299,7 @@ class CaptureOverlayState: ObservableObject {
         } else {
             selectedPointIndex = min(index, points.count - 1)
         }
+        notifyPointsChanged()
     }
     
     func insertPoint() {
@@ -2975,7 +2978,11 @@ class CaptureOverlayHostingView: NSView {
     }
     
     override func mouseUp(with event: NSEvent) {
+        let wasDragging = (stateModel.activeDraggingIndex != nil)
         stateModel.activeDraggingIndex = nil
+        if wasDragging {
+            stateModel.notifyPointsChanged()
+        }
     }
     
     override func mouseDown(with event: NSEvent) {
@@ -2995,6 +3002,7 @@ class CaptureOverlayHostingView: NSView {
                 if stateModel.points.isEmpty {
                     stateModel.points.append(newPt)
                     stateModel.selectedPointIndex = 0
+                    stateModel.notifyPointsChanged()
                 } else {
                     stateModel.points.append(newPt)
                     stateModel.isFollowingCursor = false
@@ -3022,6 +3030,7 @@ class CaptureOverlayHostingView: NSView {
                 
                 // Keep windows ignores mouse events updated
                 updatePassthrough(quartzPt: stateModel.quartzLocation)
+                stateModel.notifyPointsChanged()
             }
         } else {
             // Edit phase: handled when clicking directly on a pin
