@@ -4995,38 +4995,67 @@ struct MacroInspectorView: View {
                     
                     switch newAction {
                     case .path:
-                        CaptureOverlayWindow.shared = CaptureOverlayWindow(initialPoints: [], defaultType: .move) { pts in
-                            guard !pts.isEmpty else { return }
-                            if let idx = macro.actionItems.firstIndex(where: { $0.id == newItem.id }) {
-                                store.registerUndoState(for: macro)
-                                macro.actionItems[idx].action = .path(points: pts)
-                                store.saveMacro(macro)
+                        CaptureOverlayWindow.shared = CaptureOverlayWindow(
+                            initialPoints: [],
+                            defaultType: .move,
+                            onSequenceCaptured: { pts in
+                                guard !pts.isEmpty else { return }
+                                if let idx = macro.actionItems.firstIndex(where: { $0.id == newItem.id }) {
+                                    macro.actionItems[idx].action = .path(points: pts)
+                                    store.saveMacro(macro)
+                                }
+                            },
+                            onSequenceRealTime: { tempPts in
+                                if let idx = macro.actionItems.firstIndex(where: { $0.id == newItem.id }) {
+                                    macro.actionItems[idx].action = .path(points: tempPts)
+                                }
                             }
-                        }
+                        )
                     case .click(_, let button):
-                        CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .click(button: button, initialPoint: nil)) { newPoint in
-                            if let idx = macro.actionItems.firstIndex(where: { $0.id == newItem.id }) {
-                                store.registerUndoState(for: macro)
-                                macro.actionItems[idx].action = .click(point: newPoint, button: button)
-                                store.saveMacro(macro)
+                        CaptureOverlayWindow.shared = CaptureOverlayWindow(
+                            mode: .click(button: button, initialPoint: nil),
+                            onClickCaptured: { newPoint in
+                                if let idx = macro.actionItems.firstIndex(where: { $0.id == newItem.id }) {
+                                    macro.actionItems[idx].action = .click(point: newPoint, button: button)
+                                    store.saveMacro(macro)
+                                }
+                            },
+                            onClickRealTime: { tempPoint in
+                                if let idx = macro.actionItems.firstIndex(where: { $0.id == newItem.id }) {
+                                    macro.actionItems[idx].action = .click(point: tempPoint, button: button)
+                                }
                             }
-                        }
+                        )
                     case .drag:
-                        CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .drag(initialStart: nil, initialEnd: nil)) { start, end in
-                            if let idx = macro.actionItems.firstIndex(where: { $0.id == newItem.id }) {
-                                store.registerUndoState(for: macro)
-                                macro.actionItems[idx].action = .drag(start: start, end: end)
-                                store.saveMacro(macro)
+                        CaptureOverlayWindow.shared = CaptureOverlayWindow(
+                            mode: .drag(initialStart: nil, initialEnd: nil),
+                            onDragCaptured: { start, end in
+                                if let idx = macro.actionItems.firstIndex(where: { $0.id == newItem.id }) {
+                                    macro.actionItems[idx].action = .drag(start: start, end: end)
+                                    store.saveMacro(macro)
+                                }
+                            },
+                            onDragRealTime: { tempStart, tempEnd in
+                                if let idx = macro.actionItems.firstIndex(where: { $0.id == newItem.id }) {
+                                    macro.actionItems[idx].action = .drag(start: tempStart, end: tempEnd)
+                                }
                             }
-                        }
+                        )
                     case .moveCursor:
-                        CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .click(button: .left, initialPoint: nil)) { newPoint in
-                            if let idx = macro.actionItems.firstIndex(where: { $0.id == newItem.id }) {
-                                store.registerUndoState(for: macro)
-                                macro.actionItems[idx].action = .moveCursor(point: newPoint)
-                                store.saveMacro(macro)
+                        CaptureOverlayWindow.shared = CaptureOverlayWindow(
+                            mode: .click(button: .left, initialPoint: nil),
+                            onClickCaptured: { newPoint in
+                                if let idx = macro.actionItems.firstIndex(where: { $0.id == newItem.id }) {
+                                    macro.actionItems[idx].action = .moveCursor(point: newPoint)
+                                    store.saveMacro(macro)
+                                }
+                            },
+                            onClickRealTime: { tempPoint in
+                                if let idx = macro.actionItems.firstIndex(where: { $0.id == newItem.id }) {
+                                    macro.actionItems[idx].action = .moveCursor(point: tempPoint)
+                                }
                             }
-                        }
+                        )
                     default:
                         break
                     }
@@ -5069,44 +5098,115 @@ struct MacroInspectorView: View {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 32, maximum: 40), spacing: 8)], spacing: 8) {
                     // Path / Sequence (Multi-point cursor operation chain)
                     quickActionButton(title: "Path", icon: "point.topleft.down.to.point.bottomright.curvepath.fill", color: Color(red: 0.65, green: 0.25, blue: 0.85)) {
-                        CaptureOverlayWindow.shared = CaptureOverlayWindow(initialPoints: [], defaultType: .move) { pts in
-                            guard !pts.isEmpty else { return }
-                            store.registerUndoState(for: macro)
-                            macro.actionItems.append(MacroActionItem(action: .path(points: pts)))
-                            store.saveMacro(macro)
-                        }
+                        store.registerUndoState(for: macro)
+                        let item = MacroActionItem(action: .path(points: []))
+                        macro.actionItems.append(item)
+                        store.saveMacro(macro)
+                        
+                        CaptureOverlayWindow.shared = CaptureOverlayWindow(
+                            initialPoints: [],
+                            defaultType: .move,
+                            onSequenceCaptured: { pts in
+                                guard !pts.isEmpty else { return }
+                                if let idx = macro.actionItems.firstIndex(where: { $0.id == item.id }) {
+                                    macro.actionItems[idx].action = .path(points: pts)
+                                    store.saveMacro(macro)
+                                }
+                            },
+                            onSequenceRealTime: { tempPts in
+                                if let idx = macro.actionItems.firstIndex(where: { $0.id == item.id }) {
+                                    macro.actionItems[idx].action = .path(points: tempPts)
+                                }
+                            }
+                        )
                     }
 
                     quickActionButton(title: "Left Click", icon: "cursorarrow.click", color: Color(red: 0.08, green: 0.45, blue: 0.82)) {
-                        CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .click(button: .left, initialPoint: nil)) { pt in
-                            store.registerUndoState(for: macro)
-                            macro.actionItems.append(MacroActionItem(action: .click(point: pt, button: .left)))
-                            store.saveMacro(macro)
-                        }
+                        store.registerUndoState(for: macro)
+                        let item = MacroActionItem(action: .click(point: .zero, button: .left))
+                        macro.actionItems.append(item)
+                        store.saveMacro(macro)
+                        
+                        CaptureOverlayWindow.shared = CaptureOverlayWindow(
+                            mode: .click(button: .left, initialPoint: nil),
+                            onClickCaptured: { pt in
+                                if let idx = macro.actionItems.firstIndex(where: { $0.id == item.id }) {
+                                    macro.actionItems[idx].action = .click(point: pt, button: .left)
+                                    store.saveMacro(macro)
+                                }
+                            },
+                            onClickRealTime: { tempPt in
+                                if let idx = macro.actionItems.firstIndex(where: { $0.id == item.id }) {
+                                    macro.actionItems[idx].action = .click(point: tempPt, button: .left)
+                                }
+                            }
+                        )
                     }
 
                     quickActionButton(title: "Right Click", icon: "cursorarrow.click", color: Color(red: 0.04, green: 0.52, blue: 0.54)) {
-                        CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .click(button: .right, initialPoint: nil)) { pt in
-                            store.registerUndoState(for: macro)
-                            macro.actionItems.append(MacroActionItem(action: .click(point: pt, button: .right)))
-                            store.saveMacro(macro)
-                        }
+                        store.registerUndoState(for: macro)
+                        let item = MacroActionItem(action: .click(point: .zero, button: .right))
+                        macro.actionItems.append(item)
+                        store.saveMacro(macro)
+                        
+                        CaptureOverlayWindow.shared = CaptureOverlayWindow(
+                            mode: .click(button: .right, initialPoint: nil),
+                            onClickCaptured: { pt in
+                                if let idx = macro.actionItems.firstIndex(where: { $0.id == item.id }) {
+                                    macro.actionItems[idx].action = .click(point: pt, button: .right)
+                                    store.saveMacro(macro)
+                                }
+                            },
+                            onClickRealTime: { tempPt in
+                                if let idx = macro.actionItems.firstIndex(where: { $0.id == item.id }) {
+                                    macro.actionItems[idx].action = .click(point: tempPt, button: .right)
+                                }
+                            }
+                        )
                     }
 
                     quickActionButton(title: "Drag", icon: "hand.draw", color: Color(red: 0.52, green: 0.22, blue: 0.75)) {
-                        CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .drag(initialStart: nil, initialEnd: nil)) { start, end in
-                            store.registerUndoState(for: macro)
-                            macro.actionItems.append(MacroActionItem(action: .drag(start: start, end: end)))
-                            store.saveMacro(macro)
-                        }
+                        store.registerUndoState(for: macro)
+                        let item = MacroActionItem(action: .drag(start: .zero, end: .zero))
+                        macro.actionItems.append(item)
+                        store.saveMacro(macro)
+                        
+                        CaptureOverlayWindow.shared = CaptureOverlayWindow(
+                            mode: .drag(initialStart: nil, initialEnd: nil),
+                            onDragCaptured: { start, end in
+                                if let idx = macro.actionItems.firstIndex(where: { $0.id == item.id }) {
+                                    macro.actionItems[idx].action = .drag(start: start, end: end)
+                                    store.saveMacro(macro)
+                                }
+                            },
+                            onDragRealTime: { tempStart, tempEnd in
+                                if let idx = macro.actionItems.firstIndex(where: { $0.id == item.id }) {
+                                    macro.actionItems[idx].action = .drag(start: tempStart, end: tempEnd)
+                                }
+                            }
+                        )
                     }
 
                     quickActionButton(title: "Move", icon: "cursorarrow.motionlines", color: Color(red: 0.28, green: 0.52, blue: 0.92)) {
-                        CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .click(button: .left, initialPoint: nil)) { point in
-                            store.registerUndoState(for: macro)
-                            macro.actionItems.append(MacroActionItem(action: .moveCursor(point: point)))
-                            store.saveMacro(macro)
-                        }
+                        store.registerUndoState(for: macro)
+                        let item = MacroActionItem(action: .moveCursor(point: .zero))
+                        macro.actionItems.append(item)
+                        store.saveMacro(macro)
+                        
+                        CaptureOverlayWindow.shared = CaptureOverlayWindow(
+                            mode: .click(button: .left, initialPoint: nil),
+                            onClickCaptured: { pt in
+                                if let idx = macro.actionItems.firstIndex(where: { $0.id == item.id }) {
+                                    macro.actionItems[idx].action = .moveCursor(point: pt)
+                                    store.saveMacro(macro)
+                                }
+                            },
+                            onClickRealTime: { tempPt in
+                                if let idx = macro.actionItems.firstIndex(where: { $0.id == item.id }) {
+                                    macro.actionItems[idx].action = .moveCursor(point: tempPt)
+                                }
+                            }
+                        )
                     }
 
                     quickActionButton(title: "Delay", icon: "timer", color: Color(red: 0.88, green: 0.42, blue: 0.04)) {
