@@ -639,6 +639,10 @@ class ShortKingParser {
             if f.count >= 5, let x1=Double(f[1]),let y1=Double(f[2]),let x2=Double(f[3]),let y2=Double(f[4]) {
                 return .drag(start: CGPoint(x: x1, y: y1), end: CGPoint(x: x2, y: y2))
             }
+        case "move", "move_cursor":
+            if parts.count >= 3, let x = Double(parts[1]), let y = Double(parts[2]) {
+                return .moveCursor(point: CGPoint(x: x, y: y))
+            }
         case "path":
             var pts: [SequencePoint] = []
             for chunk in parts.dropFirst() {
