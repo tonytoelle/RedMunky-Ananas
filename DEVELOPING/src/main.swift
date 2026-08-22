@@ -2789,6 +2789,21 @@ struct CaptureOverlaySwiftUIView: View {
             .onTapGesture {
                 state.isPassThroughMode.toggle()
             }
+            
+            // Green Confirm/Save Checkmark Button
+            ZStack {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(Color.green)
+                    .frame(width: 34, height: 34)
+                
+                Image(systemName: "checkmark")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundColor(.white)
+            }
+            .contentShape(Rectangle())
+            .onTapGesture {
+                state.onConfirmAll?()
+            }
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
@@ -3112,7 +3127,7 @@ class CaptureOverlayHostingView: NSView {
         // Check HUD card
         if stateModel.isHudVisible {
             let hud = stateModel.lastHudCenter
-            if CGRect(x: hud.x - 110, y: hud.y - 30, width: 220, height: 60).contains(quartzPt) {
+            if CGRect(x: hud.x - 130, y: hud.y - 30, width: 260, height: 60).contains(quartzPt) {
                 win.ignoresMouseEvents = false
                 return
             }
@@ -3150,7 +3165,7 @@ class CaptureOverlayHostingView: NSView {
         if stateModel.isPassThroughMode {
             if stateModel.isHudVisible {
                 let hudPos = stateModel.lastHudCenter
-                let hudRect = CGRect(x: hudPos.x - 110, y: hudPos.y - 30, width: 220, height: 60)
+                let hudRect = CGRect(x: hudPos.x - 130, y: hudPos.y - 30, width: 260, height: 60)
                 if hudRect.contains(quartzPt) {
                     return super.hitTest(point)
                 }
@@ -3172,7 +3187,7 @@ class CaptureOverlayHostingView: NSView {
         // Or clicks directly on the HUD card
         if stateModel.isHudVisible {
             let hudPos = stateModel.lastHudCenter
-            let hudRect = CGRect(x: hudPos.x - 110, y: hudPos.y - 30, width: 220, height: 60)
+            let hudRect = CGRect(x: hudPos.x - 130, y: hudPos.y - 30, width: 260, height: 60)
             if hudRect.contains(quartzPt) {
                 return super.hitTest(point)
             }
