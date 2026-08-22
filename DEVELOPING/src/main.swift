@@ -2759,6 +2759,10 @@ class CaptureOverlayHostingView: NSView {
     }
     
     required init?(coder: NSCoder) { fatalError() }
+    
+    deinit {
+        cleanupMonitors()
+    }
 
     private func cleanupMonitors() {
         if let m = localKeyMonitor { NSEvent.removeMonitor(m); localKeyMonitor = nil }
@@ -3058,7 +3062,13 @@ class CaptureOverlayHostingView: NSView {
 // MARK: - Capture Overlay Window
 // ==========================================
 class CaptureOverlayWindow: NSPanel {
-    static var shared: CaptureOverlayWindow?
+    static var shared: CaptureOverlayWindow? {
+        didSet {
+            if let old = oldValue, old !== shared {
+                old.close()
+            }
+        }
+    }
     
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { true }
