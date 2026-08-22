@@ -3,21 +3,9 @@ TRIGGER: shift+f1
 
 # Actions:
 ACTION: brightness_down
-ACTION: path 394,1111:move 500,971:move 680,929:move 835,842:move 901,744:move 911,922:move 1075,877:move 1186,877:move
-ACTION: path 394,1111:move 454,1011:move 564,1011:move
 ACTION: click 906 738
-ACTION: drag 799 769 to 992 720
-ACTION: path 453,949:move
-ACTION: path 453,949:move 525,865:move
-ACTION: path 453,949:move 525,865:move 616,861:move
 ACTION: path 453,949:move 525,865:move 616,861:move 696,781:move
 ACTION: path 453,949:move 525,865:move 616,861:move 696,781:move 802,799:move
 ACTION: path 453,949:move 525,865:move 616,861:move 696,781:move 802,799:move 874,772:move
-ACTION: path 453,949:move 525,865:move 616,861:move 696,781:move 802,799:move 874,772:move
-ACTION: path 493,1007:move
 ACTION: path 493,1007:move 627,982:move
-ACTION: path 493,1007:move 627,982:move 684,952:move
 ACTION: path 493,1007:move 627,982:move 684,952:move 628,1062:move
-ACTION: click 1046 634
-ACTION: drag 466 1070 to 520 980
-ACTION: path 962,598:move 817,754:move 722,670:move 808,536:move 990,928:move 351,747:move 867,471:move 770,737:move 592,879:move

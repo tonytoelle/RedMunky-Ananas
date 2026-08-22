@@ -4313,14 +4313,7 @@ struct ActionCardView: View {
             }
             
             Button("Delete") {
-                if let selected = MacroStore.shared.selectedMacro {
-                    store.registerUndoState(for: selected)
-                    selected.actionItems.removeAll { $0.id == item.id }
-                    if store.selectedActionIDs.contains(item.id) {
-                        store.selectedActionIDs.remove(item.id)
-                    }
-                    store.saveMacro(selected)
-                }
+                onDelete()
             }
             
             Divider()
@@ -4393,8 +4386,23 @@ struct DraggableActionList: View {
 
     var body: some View {
         LazyVStack(spacing: 8) {
-            ForEach($actionItems, id: \.id) { $item in
-                if let index = actionItems.firstIndex(where: { $0.id == item.id }) {
+            ForEach(actionItems) { actionItem in
+                let itemID = actionItem.id
+                if let index = actionItems.firstIndex(where: { $0.id == itemID }) {
+                    let itemBinding = Binding<MacroActionItem>(
+                        get: {
+                            if let idx = actionItems.firstIndex(where: { $0.id == itemID }) {
+                                return actionItems[idx]
+                            }
+                            return actionItem
+                        },
+                        set: { newValue in
+                            if let idx = actionItems.firstIndex(where: { $0.id == itemID }) {
+                                actionItems[idx] = newValue
+                            }
+                        }
+                    )
+                    
                     Group {
                         if index == placeholderIndex, let templateName = draggingTemplate {
                             PlaceholderSlotView(title: templateName)
@@ -4402,12 +4410,17 @@ struct DraggableActionList: View {
                         
                         ActionCardView(
                             index: index,
-                            item: $item,
+                            item: itemBinding,
                             onDelete: {
                                 if let selected = MacroStore.shared.selectedMacro {
                                     MacroStore.shared.registerUndoState(for: selected)
                                 }
-                                actionItems.removeAll { $0.id == item.id }
+                                withAnimation(.easeInOut(duration: 0.15)) {
+                                    actionItems.removeAll { $0.id == itemID }
+                                }
+                                if MacroStore.shared.selectedActionIDs.contains(itemID) {
+                                    MacroStore.shared.selectedActionIDs.remove(itemID)
+                                }
                                 onSave()
                             },
                             onPreSave: {
@@ -4419,14 +4432,14 @@ struct DraggableActionList: View {
                             detailWidth: detailWidth
                         )
                         .onDrag {
-                            draggingID = item.id
+                            draggingID = itemID
                             if let selected = MacroStore.shared.selectedMacro {
                                 MacroStore.shared.registerUndoState(for: selected)
                             }
-                            return NSItemProvider(object: item.id.uuidString as NSString)
+                            return NSItemProvider(object: itemID.uuidString as NSString)
                         }
                         .onDrop(of: [.text], delegate: ActionDropDelegate(
-                            item: item,
+                            item: actionItem,
                             index: index,
                             items: $actionItems,
                             draggingID: $draggingID,
@@ -4435,7 +4448,7 @@ struct DraggableActionList: View {
                             onSave: onSave,
                             onInsertTemplate: onInsertTemplate
                         ))
-                        .opacity(draggingID == item.id ? 0.3 : 1.0)
+                        .opacity(draggingID == itemID ? 0.3 : 1.0)
                     }
                 }
             }
