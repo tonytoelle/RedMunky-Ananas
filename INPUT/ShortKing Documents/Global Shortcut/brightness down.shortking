@@ -3,5 +3,3 @@ TRIGGER: shift+f1
 
 # Actions:
 ACTION: brightness_down
-ACTION: drag 676 720 to 612 822
-ACTION: drag 798 714 to 695 824
