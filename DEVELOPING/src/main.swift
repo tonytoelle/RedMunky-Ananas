@@ -1628,14 +1628,18 @@ class MacroStore: ObservableObject {
 
     func registerUndoState(for macro: MacroItem) {
         let oldActions = macro.actionItems
-        let oldTrigger = macro.trigger
+        let oldTriggers = macro.triggers
+        let oldName = macro.fileName
+        let oldEnabled = macro.isEnabled
         
         undoManager.registerUndo(withTarget: macro) { [weak self] target in
             guard let self = self else { return }
             self.registerUndoState(for: target)
             
             target.actionItems = oldActions
-            target.trigger = oldTrigger
+            target.triggers = oldTriggers
+            target.fileName = oldName
+            target.isEnabled = oldEnabled
             self.saveMacro(target)
             self.objectWillChange.send()
         }
@@ -1706,6 +1710,10 @@ class MacroStore: ObservableObject {
         }
         
         recursiveRemove(from: &macros[idx].actionItems)
+        for tIdx in 0..<macros[idx].triggers.count {
+            recursiveRemove(from: &macros[idx].triggers[tIdx].alternateActionItems)
+        }
+        
         selectedActionIDs.removeAll()
         lastSelectedActionID = nil
         saveMacro(macros[idx])
@@ -2144,8 +2152,29 @@ class MacroStore: ObservableObject {
     }
 
     func deleteFolder(at url: URL) {
-        try? FileManager.default.removeItem(at: url)
-        loadMacros()
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try? FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        let backupURL = tempDir.appendingPathComponent(url.lastPathComponent)
+        
+        do {
+            try FileManager.default.copyItem(at: url, to: backupURL)
+            try FileManager.default.removeItem(at: url)
+            loadMacros()
+            
+            undoManager.registerUndo(withTarget: self) { [weak self] store in
+                guard let self = self else { return }
+                try? FileManager.default.copyItem(at: backupURL, to: url)
+                try? FileManager.default.removeItem(at: tempDir)
+                self.loadMacros()
+                self.selectedFolderPath = url.path
+                
+                store.undoManager.registerUndo(withTarget: self) { store in
+                    store.deleteFolder(at: url)
+                }
+            }
+        } catch {
+            print("❌ Failed to delete/backup folder: \(error)")
+        }
     }
 
     func renameFolder(at url: URL, newName: String) {
@@ -2209,11 +2238,30 @@ class MacroStore: ObservableObject {
     }
 
     func deleteMacro(_ macro: MacroItem) {
-        do {
-            if FileManager.default.fileExists(atPath: macro.fileURL.path) {
-                try FileManager.default.removeItem(at: macro.fileURL)
-            }
+        let fileURL = macro.fileURL
+        
+        guard let content = try? String(contentsOf: fileURL, encoding: .utf8) else {
+            try? FileManager.default.removeItem(at: fileURL)
             loadMacros()
+            return
+        }
+        
+        do {
+            try FileManager.default.removeItem(at: fileURL)
+            loadMacros()
+            
+            undoManager.registerUndo(withTarget: self) { [weak self] store in
+                guard let self = self else { return }
+                try? content.write(to: fileURL, atomically: true, encoding: .utf8)
+                self.loadMacros()
+                self.selectedFilePath = fileURL.path
+                
+                if let restoredMacro = self.macros.first(where: { $0.fileURL.path == fileURL.path }) {
+                    self.undoManager.registerUndo(withTarget: self) { store in
+                        store.deleteMacro(restoredMacro)
+                    }
+                }
+            }
         } catch {
             print("❌ Failed to delete macro: \(error)")
         }
@@ -2264,11 +2312,37 @@ class MacroStore: ObservableObject {
     }
 
     func deleteItems(paths: [String]) {
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try? FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        
+        var backupMap: [(originalURL: URL, backupURL: URL)] = []
         for path in paths {
-            let url = URL(fileURLWithPath: path)
-            try? FileManager.default.removeItem(at: url)
+            let origURL = URL(fileURLWithPath: path)
+            let bkpURL = tempDir.appendingPathComponent(UUID().uuidString + "_" + origURL.lastPathComponent)
+            do {
+                try FileManager.default.copyItem(at: origURL, to: bkpURL)
+                backupMap.append((origURL, bkpURL))
+                try FileManager.default.removeItem(at: origURL)
+            } catch {
+                print("❌ Failed to delete item at \(path): \(error)")
+            }
         }
         loadMacros()
+        
+        guard !backupMap.isEmpty else { return }
+        
+        undoManager.registerUndo(withTarget: self) { [weak self] store in
+            guard let self = self else { return }
+            for item in backupMap {
+                try? FileManager.default.copyItem(at: item.backupURL, to: item.originalURL)
+            }
+            try? FileManager.default.removeItem(at: tempDir)
+            self.loadMacros()
+            
+            self.undoManager.registerUndo(withTarget: self) { store in
+                store.deleteItems(paths: paths)
+            }
+        }
     }
 
     func runMacro(_ macro: MacroItem) {
@@ -8231,26 +8305,74 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDele
     
     private func installDeleteKeyMonitor() {
         deleteKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-            // keyCode 51 = Backspace / Delete, 117 = Forward Delete
-            guard event.keyCode == 51 || event.keyCode == 117 else { return event }
-            
-            // Check if user is currently actively typing in an editable text field/editor
-            if let responder = NSApp.keyWindow?.firstResponder {
-                if let tv = responder as? NSTextView, tv.isEditable {
-                    return event
+            // Handle Cmd+Z (Undo) and Cmd+Shift+Z (Redo)
+            if event.modifierFlags.contains(.command) && event.charactersIgnoringModifiers?.lowercased() == "z" {
+                if let responder = NSApp.keyWindow?.firstResponder {
+                    if let tv = responder as? NSTextView, tv.isEditable {
+                        return event // Allow standard text field undo
+                    }
+                    if let tf = responder as? NSTextField, tf.isEditable {
+                        return event
+                    }
                 }
-                if let tf = responder as? NSTextField, tf.isEditable {
-                    return event
+                
+                if event.modifierFlags.contains(.shift) {
+                    if MacroStore.shared.undoManager.canRedo {
+                        MacroStore.shared.undoManager.redo()
+                        return nil
+                    }
+                } else {
+                    if MacroStore.shared.undoManager.canUndo {
+                        MacroStore.shared.undoManager.undo()
+                        return nil
+                    }
                 }
             }
             
-            // If action(s) are selected in ShortKing, delete them immediately
-            if !MacroStore.shared.selectedActionIDs.isEmpty {
-                MacroStore.shared.deleteSelectedActions()
-                return nil
+            // keyCode 51 = Backspace / Delete, 117 = Forward Delete
+            if event.keyCode == 51 || event.keyCode == 117 {
+                // Check if user is currently actively typing in an editable text field/editor
+                if let responder = NSApp.keyWindow?.firstResponder {
+                    if let tv = responder as? NSTextView, tv.isEditable {
+                        return event
+                    }
+                    if let tf = responder as? NSTextField, tf.isEditable {
+                        return event
+                    }
+                }
+                
+                // If action(s) are selected in ShortKing, delete them immediately
+                if !MacroStore.shared.selectedActionIDs.isEmpty {
+                    MacroStore.shared.deleteSelectedActions()
+                    return nil
+                }
             }
             
             return event
+        }
+    }
+    
+    @objc func undoAction(_ sender: Any?) {
+        if let responder = NSApp.keyWindow?.firstResponder,
+           let tv = responder as? NSTextView, tv.isEditable,
+           let u = tv.undoManager, u.canUndo {
+            u.undo()
+            return
+        }
+        if MacroStore.shared.undoManager.canUndo {
+            MacroStore.shared.undoManager.undo()
+        }
+    }
+
+    @objc func redoAction(_ sender: Any?) {
+        if let responder = NSApp.keyWindow?.firstResponder,
+           let tv = responder as? NSTextView, tv.isEditable,
+           let u = tv.undoManager, u.canRedo {
+            u.redo()
+            return
+        }
+        if MacroStore.shared.undoManager.canRedo {
+            MacroStore.shared.undoManager.redo()
         }
     }
     
@@ -8383,8 +8505,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDele
         // 3. Edit Menu (Standard macOS Clipboard & Text editing)
         let editMenuItem = NSMenuItem()
         let editMenu = NSMenu(title: "Edit")
-        editMenu.addItem(withTitle: "Undo", action: Selector(("undo:")), keyEquivalent: "z")
-        editMenu.addItem(withTitle: "Redo", action: Selector(("redo:")), keyEquivalent: "Z")
+        let undoItem = NSMenuItem(title: "Undo", action: #selector(undoAction(_:)), keyEquivalent: "z")
+        undoItem.target = self
+        editMenu.addItem(undoItem)
+        let redoItem = NSMenuItem(title: "Redo", action: #selector(redoAction(_:)), keyEquivalent: "Z")
+        redoItem.target = self
+        editMenu.addItem(redoItem)
         editMenu.addItem(NSMenuItem.separator())
         editMenu.addItem(withTitle: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
         editMenu.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
