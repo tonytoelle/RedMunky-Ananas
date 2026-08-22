@@ -6008,6 +6008,9 @@ struct MainEditorView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .coordinateSpace(name: "mainContainer")
+            .onTapGesture {
+                NSApp.keyWindow?.makeFirstResponder(nil)
+            }
             .onChange(of: outerGeo.size.width) { oldWidth, newWidth in
                 if newWidth < 580 && store.isSidebarVisible {
                     withAnimation(.easeInOut(duration: 0.2)) {
