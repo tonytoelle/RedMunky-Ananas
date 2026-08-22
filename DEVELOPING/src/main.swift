@@ -3008,23 +3008,6 @@ class CaptureOverlayHostingView: NSView {
             stateModel.quartzLocation = quartzPt
             win.makeFirstResponder(self)
             
-            if localKeyMonitor == nil {
-                localKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-                    guard let self = self, self.window != nil else { return event }
-                    self.handleKeyEvent(event)
-                    return nil
-                }
-            }
-            
-            if globalKeyMonitor == nil {
-                globalKeyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
-                    guard let self = self, self.window != nil else { return }
-                    DispatchQueue.main.async {
-                        self.handleKeyEvent(event)
-                    }
-                }
-            }
-            
             if globalMouseMonitor == nil {
                 globalMouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged, .rightMouseDragged, .scrollWheel]) { [weak self] event in
                     guard let self = self, let win = self.window else { return }
@@ -3291,36 +3274,6 @@ class CaptureOverlayHostingView: NSView {
         mouseDown(with: event)
     }
     
-    private func handleKeyEvent(_ event: NSEvent) {
-        if event.keyCode == 53 { // Esc
-            if stateModel.isFollowingCursor && !stateModel.points.isEmpty {
-                // Cancel current placing action and return to resting state
-                stateModel.isFollowingCursor = false
-                updatePassthrough(quartzPt: stateModel.quartzLocation)
-            } else {
-                cleanupMonitors()
-                onCancel()
-            }
-        } else if event.keyCode == 36 || event.keyCode == 76 || event.keyCode == 49 { // Return / Enter / Space
-            cleanupMonitors()
-            stateModel.onConfirmAll?()
-        } else if event.keyCode == 48 { // Tab: cycle selected point
-            if !stateModel.points.isEmpty {
-                let cur = stateModel.selectedPointIndex ?? -1
-                stateModel.selectedPointIndex = (cur + 1) % stateModel.points.count
-            }
-        } else if event.keyCode == 51 || event.keyCode == 117 { // Backspace / Delete
-            if let sel = stateModel.selectedPointIndex {
-                stateModel.removePoint(at: sel)
-            }
-        }
-    }
-    
-    override func keyDown(with event: NSEvent) {
-        handleKeyEvent(event)
-    }
-    
-    override var acceptsFirstResponder: Bool { true }
 }
 
 // ==========================================
