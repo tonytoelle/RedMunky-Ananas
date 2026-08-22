@@ -2377,6 +2377,7 @@ class CaptureOverlayState: ObservableObject {
     @Published var defaultPointType: SequencePointType = .move
     @Published var isHoveringHud: Bool = false
     @Published var lastHudCenter: CGPoint = .zero
+    @Published var hudDragOffset: CGSize = CGSize(width: 80, height: 40) // Default relative distance offset
     
     var isHudVisible: Bool {
         guard case .sequence = mode else { return false }
@@ -2459,6 +2460,7 @@ func blendColors(typeA: SequencePointType, typeB: SequencePointType) -> Color {
 // ==========================================
 struct CaptureOverlaySwiftUIView: View {
     @ObservedObject var state: CaptureOverlayState
+    @State private var dragStartOffset: CGSize = .zero
     
     var body: some View {
         GeometryReader { geo in
@@ -2606,6 +2608,23 @@ struct CaptureOverlaySwiftUIView: View {
                         .animation(.easeInOut(duration: 0.15), value: state.isHudVisible)
                         .onAppear { state.lastHudCenter = pos }
                         .onChange(of: pos) { _, newPos in state.lastHudCenter = newPos }
+                        .allowsHitTesting(true)
+                        .gesture(
+                            DragGesture(minimumDistance: 1, coordinateSpace: .global)
+                                .onChanged { val in
+                                    guard !state.isPassThroughMode else { return }
+                                    if dragStartOffset == .zero {
+                                        dragStartOffset = state.hudDragOffset
+                                    }
+                                    state.hudDragOffset = CGSize(
+                                        width: dragStartOffset.width + val.translation.width,
+                                        height: dragStartOffset.height + val.translation.height
+                                    )
+                                }
+                                .onEnded { _ in
+                                    dragStartOffset = .zero
+                                }
+                        )
                 }
                 
                 if state.isFollowingCursor && !state.isPassThroughMode {
@@ -2787,30 +2806,15 @@ struct CaptureOverlaySwiftUIView: View {
             targetPt = state.quartzLocation
         }
         
-        // Calculate distance from cursor to our last HUD center
-        let hudCenter = state.lastHudCenter
-        let mouseLoc = state.quartzLocation
-        let dx = mouseLoc.x - hudCenter.x
-        let dy = mouseLoc.y - hudCenter.y
-        let distance = sqrt(dx * dx + dy * dy)
-        
-        // Use a state flag or local logic to decide side
-        // Default side offset: bottom-right (x + 80, y + 40)
-        // If cursor gets too close (distance < 90), switch to top-left (x - 80, y - 40)
-        let useAlternateSide = distance < 90.0
-        
-        var offsetX: CGFloat = useAlternateSide ? -80 : 80
-        var offsetY: CGFloat = useAlternateSide ? -40 : 40
-        
-        var x = targetPt.x + offsetX
-        var y = targetPt.y + offsetY
+        var x = targetPt.x + state.hudDragOffset.width
+        var y = targetPt.y + state.hudDragOffset.height
         
         // Prevent HUD going off screen
         if x + 75 > size.width {
-            x = targetPt.x - 80
+            x = size.width - 75
         }
         if y + 25 > size.height {
-            y = targetPt.y - 40
+            y = size.height - 25
         }
         if x < 75 { x = 75 }
         if y < 25 { y = 25 }
