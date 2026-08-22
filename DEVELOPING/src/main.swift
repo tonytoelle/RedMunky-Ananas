@@ -2946,12 +2946,29 @@ class CaptureOverlayHostingView: NSView {
     required init?(coder: NSCoder) { fatalError() }
     
     deinit {
-        NSCursor.unhide()
+        CaptureOverlayHostingView.safeUnhideCursor()
         cleanupMonitors()
     }
 
-    private func cleanupMonitors() {
+    private static var cursorHideCount = 0
+
+    static func safeHideCursor() {
+        if cursorHideCount == 0 {
+            NSCursor.hide()
+        }
+        cursorHideCount += 1
+    }
+
+    static func safeUnhideCursor() {
+        while cursorHideCount > 0 {
+            NSCursor.unhide()
+            cursorHideCount -= 1
+        }
         NSCursor.unhide()
+    }
+
+    private func cleanupMonitors() {
+        CaptureOverlayHostingView.safeUnhideCursor()
         if let m = localKeyMonitor { NSEvent.removeMonitor(m); localKeyMonitor = nil }
         if let m = globalKeyMonitor { NSEvent.removeMonitor(m); globalKeyMonitor = nil }
         if let m = globalMouseMonitor { NSEvent.removeMonitor(m); globalMouseMonitor = nil }
@@ -2962,7 +2979,7 @@ class CaptureOverlayHostingView: NSView {
         super.viewDidMoveToWindow()
         if let win = window {
             if stateModel.isFollowingCursor && !stateModel.isPassThroughMode {
-                NSCursor.hide()
+                CaptureOverlayHostingView.safeHideCursor()
             }
             let screenPt = NSEvent.mouseLocation
             let winLoc = win.convertPoint(fromScreen: screenPt)
