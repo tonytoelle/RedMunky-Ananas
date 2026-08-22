@@ -5698,6 +5698,7 @@ struct MainEditorView: View {
     @FocusState private var isSearchFocused: Bool
     @State private var keyMonitor: Any? = nil
     @AppStorage("alwaysOnTop") private var alwaysOnTop: Bool = false
+    @State private var sidebarWidth: CGFloat = 290
 
     var displayNodes: [FileSystemNode] {
         if searchText.isEmpty {
@@ -5789,245 +5790,265 @@ struct MainEditorView: View {
 
     var body: some View {
         GeometryReader { outerGeo in
-            HSplitView {
-                if store.isSidebarVisible {
-                    VStack(alignment: .leading, spacing: 0) {
-                        // Titlebar clearance (toggle button is in fixed overlay)
-                        Spacer()
-                            .frame(height: 24)
+            HStack(spacing: 0) {
+                // Left Sidebar Section
+                VStack(alignment: .leading, spacing: 0) {
+                    // Titlebar clearance (toggle button is in fixed overlay)
+                    Spacer()
+                        .frame(height: 24)
 
-                        // Search Capsule Pill
-                        HStack(spacing: 6) {
-                            Image(systemName: "magnifyingglass")
-                                .foregroundColor(.secondary)
-                                .font(.system(size: 13))
-                            TextField("Search macros", text: $searchText)
-                                .textFieldStyle(.plain)
-                                .font(.system(size: 13))
-                                .focused($isSearchFocused)
-                                .onSubmit {
-                                    isSearchFocused = false
-                                }
-                            if !searchText.isEmpty {
-                                Button { searchText = "" } label: {
-                                    Image(systemName: "xmark.circle.fill")
-                                        .foregroundColor(.secondary)
-                                }
-                                .buttonStyle(.plain)
+                    // Search Capsule Pill
+                    HStack(spacing: 6) {
+                        Image(systemName: "magnifyingglass")
+                            .foregroundColor(.secondary)
+                            .font(.system(size: 13))
+                        TextField("Search macros", text: $searchText)
+                            .textFieldStyle(.plain)
+                            .font(.system(size: 13))
+                            .focused($isSearchFocused)
+                            .onSubmit {
+                                isSearchFocused = false
                             }
-                        }
-                        .padding(.horizontal, 9)
-                        .padding(.vertical, 6)
-                        .background(Color(white: 0.20))
-                        .clipShape(Capsule())
-                        .padding(.horizontal, 12)
-                        .padding(.top, 4)
-                        .padding(.bottom, 8)
-
-                // Hierarchical Folder Tree
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 2) {
-                        if displayNodes.isEmpty {
-                            VStack(spacing: 8) {
-                                Text(searchText.isEmpty ? "No macros or folders yet" : "No matching macros")
-                                    .font(.system(size: 12))
+                        if !searchText.isEmpty {
+                            Button { searchText = "" } label: {
+                                Image(systemName: "xmark.circle.fill")
                                     .foregroundColor(.secondary)
                             }
-                            .frame(maxWidth: .infinity, alignment: .center)
-                            .padding(.top, 24)
-                        } else {
-                            ForEach(displayNodes) { node in
-                                SidebarNodeView(
-                                    node: node,
-                                    depth: 0,
-                                    expandedFolders: $expandedFolders,
-                                    selectedPaths: $selectedPaths,
-                                    onSelect: handleSelect,
-                                    onPromptFolder: { isNew, url, name in
-                                        folderPrompt = FolderPromptState(isNewFolder: isNew, targetURL: url, initialName: name)
-                                        folderInputText = name
-                                        showingFolderAlert = true
-                                    }
-                                )
-                            }
+                            .buttonStyle(.plain)
                         }
                     }
-                    .padding(.horizontal, 8)
-                    .padding(.bottom, 12)
-                }
-                .onDrop(of: [.plainText, .utf8PlainText, .fileURL], isTargeted: $isRootDropTarget) { providers in
-                    for provider in providers {
-                        _ = provider.loadObject(ofClass: NSString.self) { string, _ in
-                            guard let str = string as? String else { return }
-                            let paths = str.components(separatedBy: "\n").filter { !$0.isEmpty }
-                            DispatchQueue.main.async {
-                                store.moveItems(paths: paths, toFolder: store.watchDirectoryURL)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 6)
+                    .background(Color(white: 0.20))
+                    .clipShape(Capsule())
+                    .padding(.horizontal, 12)
+                    .padding(.top, 4)
+                    .padding(.bottom, 8)
+
+                    // Hierarchical Folder Tree
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 2) {
+                            if displayNodes.isEmpty {
+                                VStack(spacing: 8) {
+                                    Text(searchText.isEmpty ? "No macros or folders yet" : "No matching macros")
+                                        .font(.system(size: 12))
+                                        .foregroundColor(.secondary)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .center)
+                                .padding(.top, 24)
+                            } else {
+                                ForEach(displayNodes) { node in
+                                    SidebarNodeView(
+                                        node: node,
+                                        depth: 0,
+                                        expandedFolders: $expandedFolders,
+                                        selectedPaths: $selectedPaths,
+                                        onSelect: handleSelect,
+                                        onPromptFolder: { isNew, url, name in
+                                            folderPrompt = FolderPromptState(isNewFolder: isNew, targetURL: url, initialName: name)
+                                            folderInputText = name
+                                            showingFolderAlert = true
+                                        }
+                                    )
+                                }
                             }
                         }
+                        .padding(.horizontal, 8)
+                        .padding(.bottom, 12)
                     }
-                    return true
-                }
-
-                // Bottom Toolbar (+ Macro, + Folder, Delete, Count)
-                HStack(spacing: 12) {
-                    Button {
-                        store.createNewMacro()
-                    } label: {
-                        Image(systemName: "plus")
-                            .font(.system(size: 13, weight: .semibold))
+                    .onDrop(of: [.plainText, .utf8PlainText, .fileURL], isTargeted: $isRootDropTarget) { providers in
+                        for provider in providers {
+                            _ = provider.loadObject(ofClass: NSString.self) { string, _ in
+                                guard let str = string as? String else { return }
+                                let paths = str.components(separatedBy: "\n").filter { !$0.isEmpty }
+                                DispatchQueue.main.async {
+                                    store.moveItems(paths: paths, toFolder: store.watchDirectoryURL)
+                                }
+                            }
+                        }
+                        return true
                     }
-                    .buttonStyle(.borderless)
-                    .help("New Macro")
 
-                    Button {
-                        folderPrompt = FolderPromptState(isNewFolder: true, targetURL: nil, initialName: "")
-                        folderInputText = ""
-                        showingFolderAlert = true
-                    } label: {
-                        Image(systemName: "folder.badge.plus")
-                            .font(.system(size: 13))
-                    }
-                    .buttonStyle(.borderless)
-                    .help("New Folder")
-
-                    if !selectedPaths.isEmpty || store.selectedMacro != nil {
+                    // Bottom Toolbar (+ Macro, + Folder, Delete, Count)
+                    HStack(spacing: 12) {
                         Button {
-                            if !selectedPaths.isEmpty {
-                                store.deleteItems(paths: Array(selectedPaths))
-                                selectedPaths.removeAll()
-                            } else if let m = store.selectedMacro {
-                                store.deleteMacro(m)
-                            }
+                            store.createNewMacro()
                         } label: {
-                            Image(systemName: "trash").font(.system(size: 13))
+                            Image(systemName: "plus")
+                                .font(.system(size: 13, weight: .semibold))
                         }
                         .buttonStyle(.borderless)
-                        .help("Delete Selected Items")
-                        .foregroundColor(.red)
-                    }
-                    
-                    Button {
-                        if let appDelegate = NSApp.delegate as? AppDelegate {
-                            appDelegate.relaunchApp()
-                        }
-                    } label: {
-                        Image(systemName: "arrow.triangle.2.circlepath")
-                            .font(.system(size: 13))
-                    }
-                    .buttonStyle(.borderless)
-                    .help("Relaunch App")
-                    .foregroundColor(.secondary)
+                        .help("New Macro")
 
-                    Spacer()
-                    Text("\(store.macros.count) macros")
-                        .font(.system(size: 11))
-                        .foregroundColor(.secondary)
-                }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 8)
-            }
-            .frame(minWidth: 240, idealWidth: 290, maxWidth: 450)
-            .background(Color(white: 0.12))
-            .alert(folderPrompt?.isNewFolder == true ? "New Folder" : "Rename Folder", isPresented: $showingFolderAlert) {
-                TextField("Folder Name", text: $folderInputText)
-                Button("Cancel", role: .cancel) { folderPrompt = nil }
-                Button(folderPrompt?.isNewFolder == true ? "Create" : "Save") {
-                    if let prompt = folderPrompt {
-                        if prompt.isNewFolder {
-                            store.createFolder(name: folderInputText, parentURL: prompt.targetURL)
-                        } else if let target = prompt.targetURL {
-                            store.renameFolder(at: target, newName: folderInputText)
+                        Button {
+                            folderPrompt = FolderPromptState(isNewFolder: true, targetURL: nil, initialName: "")
+                            folderInputText = ""
+                            showingFolderAlert = true
+                        } label: {
+                            Image(systemName: "folder.badge.plus")
+                                .font(.system(size: 13))
                         }
+                        .buttonStyle(.borderless)
+                        .help("New Folder")
+
+                        if !selectedPaths.isEmpty || store.selectedMacro != nil {
+                            Button {
+                                if !selectedPaths.isEmpty {
+                                    store.deleteItems(paths: Array(selectedPaths))
+                                    selectedPaths.removeAll()
+                                } else if let m = store.selectedMacro {
+                                    store.deleteMacro(m)
+                                }
+                            } label: {
+                                Image(systemName: "trash").font(.system(size: 13))
+                            }
+                            .buttonStyle(.borderless)
+                            .help("Delete Selected Items")
+                            .foregroundColor(.red)
+                        }
+                        
+                        Button {
+                            if let appDelegate = NSApp.delegate as? AppDelegate {
+                                appDelegate.relaunchApp()
+                            }
+                        } label: {
+                            Image(systemName: "arrow.triangle.2.circlepath")
+                                .font(.system(size: 13))
+                        }
+                        .buttonStyle(.borderless)
+                        .help("Relaunch App")
+                        .foregroundColor(.secondary)
+
+                        Spacer()
+                        Text("\(store.macros.count) macros")
+                            .font(.system(size: 11))
+                            .foregroundColor(.secondary)
                     }
-                    folderPrompt = nil
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                }
+                .frame(width: store.isSidebarVisible ? sidebarWidth : 0)
+                .frame(maxHeight: .infinity)
+                .background(Color(white: 0.12))
+                .clipped()
+                
+                // Custom Resizable Divider
+                if store.isSidebarVisible {
+                    Rectangle()
+                        .fill(Color(white: 0.18))
+                        .frame(width: 1)
+                        .contentShape(Rectangle())
+                        .onHover { inside in
+                            if inside {
+                                NSCursor.resizeLeftRight.set()
+                            } else {
+                                NSCursor.arrow.set()
+                            }
+                        }
+                        .gesture(
+                            DragGesture(coordinateSpace: .named("mainContainer"))
+                                .onChanged { gesture in
+                                    let newWidth = gesture.location.x
+                                    sidebarWidth = max(240, min(newWidth, 450))
+                                }
+                        )
+                }
+
+                // Right Detail Canvas Section
+                GeometryReader { detailGeo in
+                    if let macro = store.selectedMacro {
+                        MacroInspectorView(macro: macro, detailWidth: detailGeo.size.width)
+                            .id(macro.id)
+                    } else if let folderPath = store.selectedFolderPath,
+                              let folderInfo = findFolderInfo(path: folderPath, in: store.treeNodes) {
+                        FolderInspectorView(
+                            folderURL: folderInfo.url,
+                            initialConfig: folderInfo.config,
+                            itemCount: folderInfo.count
+                        )
+                        .id(folderPath)
+                    } else {
+                        VStack(spacing: 0) {
+                            // Titlebar clearance (toggle button is in fixed overlay)
+                            Spacer()
+                                .frame(height: 38)
+                        
+                            VStack(spacing: 16) {
+                                ZStack {
+                                    Circle()
+                                        .fill(Color(white: 0.18))
+                                        .frame(width: 72, height: 72)
+                                    Image(systemName: "bolt.circle.fill")
+                                        .font(.system(size: 40))
+                                        .foregroundColor(.accentColor)
+                                }
+                                Text("No Selection")
+                                    .font(.system(size: 16, weight: .semibold))
+                                    .foregroundColor(.white)
+                                Text("Choose a macro or folder from the sidebar.")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.secondary)
+                                Button("Create New Macro") {
+                                    store.createNewMacro()
+                                }
+                                .buttonStyle(.borderedProminent)
+                            }
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        }
+                        .background(Color(white: 0.14))
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            .coordinateSpace(name: "mainContainer")
+            .onChange(of: outerGeo.size.width) { oldWidth, newWidth in
+                if newWidth < 580 && store.isSidebarVisible {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        store.isSidebarVisible = false
+                    }
+                } else if newWidth >= 680 && !store.isSidebarVisible && oldWidth < 680 {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        store.isSidebarVisible = true
+                    }
                 }
             }
-            .onAppear {
-                for node in store.treeNodes {
-                    if case .folder(_, let url, _, _) = node {
-                        expandedFolders.insert(url.path)
-                    }
+        }
+        .onAppear {
+            for node in store.treeNodes {
+                if case .folder(_, let url, _, _) = node {
+                    expandedFolders.insert(url.path)
                 }
-                
-                keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-                    // 123 is Left Arrow, 124 is Right Arrow
-                    if event.keyCode == 123 || event.keyCode == 124 {
-                        let targetPath = store.selectedFolderPath ?? selectedPaths.first
-                        if let path = targetPath, !path.hasSuffix(".shortking") {
-                            if event.keyCode == 123 { // Collapse
-                                if expandedFolders.contains(path) {
-                                    withAnimation(.easeInOut(duration: 0.15)) {
-                                        expandedFolders.remove(path)
-                                    }
-                                    return nil // consume the event
+            }
+            
+            keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+                if event.keyCode == 123 || event.keyCode == 124 {
+                    let targetPath = store.selectedFolderPath ?? selectedPaths.first
+                    if let path = targetPath, !path.hasSuffix(".shortking") {
+                        if event.keyCode == 123 { // Collapse
+                            if expandedFolders.contains(path) {
+                                withAnimation(.easeInOut(duration: 0.15)) {
+                                    expandedFolders.remove(path)
                                 }
-                            } else if event.keyCode == 124 { // Expand
-                                if !expandedFolders.contains(path) {
-                                    withAnimation(.easeInOut(duration: 0.15)) {
-                                        expandedFolders.insert(path)
-                                    }
-                                    return nil // consume the event
+                                return nil // consume
+                            }
+                        } else if event.keyCode == 124 { // Expand
+                            if !expandedFolders.contains(path) {
+                                withAnimation(.easeInOut(duration: 0.15)) {
+                                    expandedFolders.insert(path)
                                 }
+                                return nil // consume
                             }
                         }
                     }
-                    return event
                 }
-            }
-            .onDisappear {
-                if let monitor = keyMonitor {
-                    NSEvent.removeMonitor(monitor)
-                    keyMonitor = nil
-                }
+                return event
             }
         }
-
-            // ═══════════════════════════════════════════════════
-            // RIGHT DETAIL CANVAS (Macro Inspector or Folder Inspector)
-            // ═══════════════════════════════════════════════════
-            GeometryReader { detailGeo in
-                if let macro = store.selectedMacro {
-                    MacroInspectorView(macro: macro, detailWidth: detailGeo.size.width)
-                        .id(macro.id)
-                } else if let folderPath = store.selectedFolderPath,
-                          let folderInfo = findFolderInfo(path: folderPath, in: store.treeNodes) {
-                    FolderInspectorView(
-                        folderURL: folderInfo.url,
-                        initialConfig: folderInfo.config,
-                        itemCount: folderInfo.count
-                    )
-                    .id(folderPath)
-                } else {
-                    VStack(spacing: 0) {
-                        // Titlebar clearance (toggle button is in fixed overlay)
-                        Spacer()
-                            .frame(height: 38)
-                    
-                    VStack(spacing: 16) {
-                        ZStack {
-                            Circle()
-                                .fill(Color(white: 0.18))
-                                .frame(width: 72, height: 72)
-                            Image(systemName: "bolt.circle.fill")
-                                .font(.system(size: 40))
-                                .foregroundColor(.accentColor)
-                        }
-                        Text("No Selection")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(.white)
-                        Text("Choose a macro or folder from the sidebar.")
-                            .font(.system(size: 12))
-                            .foregroundColor(.secondary)
-                        Button("Create New Macro") {
-                            store.createNewMacro()
-                        }
-                        .buttonStyle(.borderedProminent)
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                }
-                .background(Color(white: 0.14))
+        .onDisappear {
+            if let monitor = keyMonitor {
+                NSEvent.removeMonitor(monitor)
+                keyMonitor = nil
             }
-        }
         }
         .overlay(alignment: .topLeading) {
             // Fixed sidebar toggle button — pinned next to macOS traffic lights
@@ -6066,20 +6087,8 @@ struct MainEditorView: View {
             .padding(.top, 7)       // Vertically centered in 38px titlebar
             .offset(y: -34)         // Pinned at the same vertical offset
         }
-        .onChange(of: outerGeo.size.width) { oldWidth, newWidth in
-            if newWidth < 580 && store.isSidebarVisible {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    store.isSidebarVisible = false
-                }
-            } else if newWidth >= 680 && !store.isSidebarVisible && oldWidth < 680 {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    store.isSidebarVisible = true
-                }
-            }
-        }
+        .frame(minWidth: 180, minHeight: 350)
     }
-    .frame(minWidth: 180, minHeight: 350)
-}
 }
 
 class EditorWindow: NSWindow {
