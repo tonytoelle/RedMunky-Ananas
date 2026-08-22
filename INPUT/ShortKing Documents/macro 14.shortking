@@ -1,0 +1,6 @@
+# ShortKing Macro Script
+TRIGGER: f6
+
+# Actions:
+ACTION: click 394 1111
+ACTION: drag 1408 430 to 1208 577

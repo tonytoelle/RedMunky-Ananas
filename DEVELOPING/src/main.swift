@@ -2096,15 +2096,36 @@ struct HotKeyRecorder: View {
 }
 
 // ==========================================
-// MARK: - Interactive Coordinate Capture Overlay Window (Screenshot HUD Style)
+// MARK: - Interactive Coordinate Capture Overlay Window (HUD Style)
 // ==========================================
 class CaptureOverlayState: ObservableObject {
-    @Published var mode: CaptureOverlayWindow.Mode = .click(button: .left)
+    enum HandleType {
+        case startPoint
+        case endPoint
+        case singlePoint
+    }
+    
+    @Published var mode: CaptureOverlayWindow.Mode = .click(button: .left, initialPoint: nil)
     @Published var currentLocation: CGPoint = .zero       // In Cocoa window coordinates (bottom-left origin)
     @Published var quartzLocation: CGPoint = .zero        // In Quartz display coordinates (top-left origin)
-    @Published var dragStep: Int = 1                     // 1: Start point, 2: End point
-    @Published var dragStartLocation: CGPoint? = nil      // Start in Cocoa window coordinates
-    @Published var dragStartQuartz: CGPoint? = nil        // Start in Quartz coordinates
+    
+    // Drag mode properties (in Quartz display coordinates)
+    @Published var dragStep: Int = 1                     // 1: setting start, 2: setting end, 3: both points set (editable / confirmable)
+    @Published var dragStartQuartz: CGPoint? = nil
+    @Published var dragEndQuartz: CGPoint? = nil
+    
+    // Click mode properties (in Quartz display coordinates)
+    @Published var pointQuartz: CGPoint? = nil
+    @Published var isPointSet: Bool = false
+    
+    // Active dragging & hovering handles
+    @Published var activeDraggingHandle: HandleType? = nil
+    @Published var hoveredHandle: HandleType? = nil
+    
+    var onConfirmClick: (() -> Void)? = nil
+    var onConfirmDrag: (() -> Void)? = nil
+    var onCancelAction: (() -> Void)? = nil
+    var onResetAction: (() -> Void)? = nil
 }
 
 struct CaptureOverlaySwiftUIView: View {
@@ -2114,94 +2135,386 @@ struct CaptureOverlaySwiftUIView: View {
         GeometryReader { geo in
             ZStack {
                 // Subtle dark transparent backdrop
-                Color.black.opacity(0.05)
+                Color.black.opacity(0.12)
                     .edgesIgnoringSafeArea(.all)
                 
-                // Crosshair guide lines (hidden for Left Click and Drag)
-                if shouldShowCrosshair {
-                    Path { path in
-                        // Horizontal hairline
-                        path.move(to: CGPoint(x: 0, y: geo.size.height - state.currentLocation.y))
-                        path.addLine(to: CGPoint(x: geo.size.width, y: geo.size.height - state.currentLocation.y))
-                        // Vertical hairline
-                        path.move(to: CGPoint(x: state.currentLocation.x, y: 0))
-                        path.addLine(to: CGPoint(x: state.currentLocation.x, y: geo.size.height))
+                // ─────────────────────────────────────────────
+                // DRAG MODE RENDERING
+                // ─────────────────────────────────────────────
+                if case .drag = state.mode {
+                    // Line while drawing step 2 (from Start point to current cursor)
+                    if state.dragStep == 2, let start = state.dragStartQuartz {
+                        Path { path in
+                            path.move(to: start)
+                            path.addLine(to: state.quartzLocation)
+                        }
+                        .stroke(Color.purple.opacity(0.9), style: StrokeStyle(lineWidth: 2.5, lineCap: .round, dash: [6, 4]))
+                        
+                        // Pin 1 at Start
+                        pinMarker(number: "1", title: "Start", color: .purple, point: start, isHovered: false, isDragging: false)
                     }
-                    .stroke(Color.white.opacity(0.35), style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
+                    
+                    // Both pins placed (Step 3: Review & Live Dragging Mode)
+                    if state.dragStep == 3, let start = state.dragStartQuartz, let end = state.dragEndQuartz {
+                        // Connecting line with gradient & arrow indicator
+                        Path { path in
+                            path.move(to: start)
+                            path.addLine(to: end)
+                        }
+                        .stroke(
+                            LinearGradient(
+                                colors: [Color.purple, Color.cyan],
+                                startPoint: .init(x: start.x / max(geo.size.width, 1), y: start.y / max(geo.size.height, 1)),
+                                endPoint: .init(x: end.x / max(geo.size.width, 1), y: end.y / max(geo.size.height, 1))
+                            ),
+                            style: StrokeStyle(lineWidth: 3, lineCap: .round, dash: [8, 4])
+                        )
+                        
+                        // Midpoint delta info badge
+                        let midX = (start.x + end.x) / 2
+                        let midY = (start.y + end.y) / 2
+                        deltaBadge(start: start, end: end)
+                            .position(x: midX, y: max(30, midY - 24))
+                        
+                        // Pin 1 (Start)
+                        pinMarker(
+                            number: "1",
+                            title: "Start",
+                            color: Color.purple,
+                            point: start,
+                            isHovered: state.hoveredHandle == .startPoint,
+                            isDragging: state.activeDraggingHandle == .startPoint
+                        )
+                        
+                        // Pin 2 (End)
+                        pinMarker(
+                            number: "2",
+                            title: "End",
+                            color: Color.cyan,
+                            point: end,
+                            isHovered: state.hoveredHandle == .endPoint,
+                            isDragging: state.activeDraggingHandle == .endPoint
+                        )
+                        
+                        // Floating Confirmation Card near the pins
+                        dragConfirmationHUD(start: start, end: end, in: geo.size)
+                            .position(dragHudPosition(start: start, end: end, in: geo.size))
+                    }
                 }
                 
-                // If Drag Step 2: Draw connecting line and start point pin
-                if case .drag = state.mode, state.dragStep == 2, let start = state.dragStartLocation {
-                    let startCocoaY = geo.size.height - start.y
-                    let currentCocoaY = geo.size.height - state.currentLocation.y
+                // ─────────────────────────────────────────────
+                // CLICK / MOVE MODE RENDERING
+                // ─────────────────────────────────────────────
+                if case .click(let b, _) = state.mode {
+                    let btnColor = (b == .left) ? Color(red: 0.08, green: 0.55, blue: 1.0) : Color.teal
                     
-                    Path { path in
-                        path.move(to: CGPoint(x: start.x, y: startCocoaY))
-                        path.addLine(to: CGPoint(x: state.currentLocation.x, y: currentCocoaY))
+                    if let pt = state.pointQuartz {
+                        // Placed pin marker
+                        pinMarker(
+                            number: "📍",
+                            title: b == .left ? "Left Click" : "Right Click",
+                            color: btnColor,
+                            point: pt,
+                            isHovered: state.hoveredHandle == .singlePoint,
+                            isDragging: state.activeDraggingHandle == .singlePoint
+                        )
+                        
+                        // Floating Confirmation Card for Single Click
+                        clickConfirmationHUD(point: pt, color: btnColor, in: geo.size)
+                            .position(clickHudPosition(point: pt, in: geo.size))
                     }
-                    .stroke(Color.purple.opacity(0.85), style: StrokeStyle(lineWidth: 2.5, lineCap: .round, dash: [6, 4]))
-                    
-                    // Pin marker at Start Point
+                }
+                
+                // ─────────────────────────────────────────────
+                // LIVE CURSOR HUD (shown during initial selection steps)
+                // ─────────────────────────────────────────────
+                if shouldShowCursorReticle {
+                    // Reticle center
                     ZStack {
                         Circle()
-                            .fill(Color.purple)
-                            .frame(width: 24, height: 24)
-                            .shadow(color: .black.opacity(0.5), radius: 3)
-                        Text("1")
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundColor(.white)
+                            .stroke(Color.white, lineWidth: 1.5)
+                            .frame(width: 28, height: 28)
+                            .shadow(color: .black.opacity(0.5), radius: 2)
+                        
+                        Circle()
+                            .fill(cursorAccentColor)
+                            .frame(width: 6, height: 6)
                     }
-                    .position(x: start.x, y: startCocoaY)
-                }
-                
-                // Custom Crosshair Reticle Center
-                let curCocoaY = geo.size.height - state.currentLocation.y
-                ZStack {
-                    Circle()
-                        .stroke(Color.white, lineWidth: 1.5)
-                        .frame(width: 28, height: 28)
-                        .shadow(color: .black.opacity(0.5), radius: 2)
+                    .position(x: state.quartzLocation.x, y: state.quartzLocation.y)
                     
-                    Circle()
-                        .fill(cursorAccentColor)
-                        .frame(width: 6, height: 6)
+                    // Floating cursor tooltip
+                    cursorHUD
+                        .position(cursorHudPosition(in: geo.size))
                 }
-                .position(x: state.currentLocation.x, y: curCocoaY)
-                
-                // Floating Coordinates HUD Pill (Ekor kursor mirip macOS screenshot)
-                cursorHUD
-                    .position(hudPosition(in: geo.size))
             }
+        }
+    }
+    
+    private var shouldShowCursorReticle: Bool {
+        switch state.mode {
+        case .click:
+            return state.pointQuartz == nil
+        case .drag:
+            return state.dragStep < 3
         }
     }
     
     private var cursorAccentColor: Color {
         switch state.mode {
-        case .click(let b):
-            return b == .left ? Color(red: 0.08, green: 0.45, blue: 0.82) : Color(red: 0.04, green: 0.52, blue: 0.54)
+        case .click(let b, _):
+            return b == .left ? Color(red: 0.08, green: 0.55, blue: 1.0) : Color.teal
         case .drag:
             return Color.purple
         }
     }
     
-    private func hudPosition(in size: CGSize) -> CGPoint {
-        let curY = size.height - state.currentLocation.y
-        var x = state.currentLocation.x + 95
-        var y = curY - 38
+    // MARK: - Pin Marker Component
+    @ViewBuilder
+    private func pinMarker(
+        number: String,
+        title: String,
+        color: Color,
+        point: CGPoint,
+        isHovered: Bool,
+        isDragging: Bool
+    ) -> some View {
+        VStack(spacing: 4) {
+            // Coordinate tooltip badge above the pin
+            HStack(spacing: 4) {
+                Text("\(title):")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundColor(color)
+                Text("\(Int(point.x)), \(Int(point.y))")
+                    .font(.system(size: 10, weight: .bold, design: .monospaced))
+                    .foregroundColor(.white)
+            }
+            .padding(.horizontal, 7)
+            .padding(.vertical, 3)
+            .background(Color.black.opacity(0.85))
+            .clipShape(Capsule())
+            .overlay(Capsule().stroke(Color.white.opacity(0.18), lineWidth: 1))
+            .shadow(color: .black.opacity(0.4), radius: 4)
+            
+            // Pin Head Icon
+            ZStack {
+                // Pulse halo if hovered / dragging
+                if isHovered || isDragging {
+                    Circle()
+                        .stroke(color.opacity(0.6), lineWidth: 3)
+                        .frame(width: 38, height: 38)
+                }
+                
+                Circle()
+                    .fill(color)
+                    .frame(width: 28, height: 28)
+                    .shadow(color: color.opacity(0.5), radius: 6)
+                
+                Circle()
+                    .stroke(Color.white, lineWidth: 2)
+                    .frame(width: 28, height: 28)
+                
+                Text(number)
+                    .font(.system(size: 12, weight: .heavy))
+                    .foregroundColor(.white)
+            }
+        }
+        .position(x: point.x, y: point.y - 14)
+    }
+    
+    // MARK: - Delta Info Badge
+    @ViewBuilder
+    private func deltaBadge(start: CGPoint, end: CGPoint) -> some View {
+        let dx = Int(end.x - start.x)
+        let dy = Int(end.y - start.y)
+        let dist = Int(sqrt(Double(dx * dx + dy * dy)))
         
-        // Clamping to screen bounds so HUD is never cut off
+        HStack(spacing: 6) {
+            Image(systemName: "arrow.right.circle.fill")
+                .foregroundColor(.cyan)
+                .font(.system(size: 10))
+            Text("ΔX: \(dx > 0 ? "+\(dx)" : "\(dx)"), ΔY: \(dy > 0 ? "+\(dy)" : "\(dy)") • \(dist)px")
+                .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                .foregroundColor(.white)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 3)
+        .background(Color.black.opacity(0.8))
+        .clipShape(Capsule())
+        .overlay(Capsule().stroke(Color.white.opacity(0.15), lineWidth: 0.8))
+    }
+    
+    // MARK: - Drag Confirmation HUD (The OK Button & Controls)
+    @ViewBuilder
+    private func dragConfirmationHUD(start: CGPoint, end: CGPoint, in size: CGSize) -> some View {
+        VStack(spacing: 8) {
+            HStack(spacing: 8) {
+                // Confirm OK Button
+                Button {
+                    state.onConfirmDrag?()
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 12, weight: .bold))
+                        Text("OK / Confirm (↵)")
+                            .font(.system(size: 12, weight: .bold))
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 7)
+                    .background(Color.green)
+                    .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                
+                // Cancel Button
+                Button {
+                    state.onCancelAction?()
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 10, weight: .bold))
+                        Text("Cancel (Esc)")
+                            .font(.system(size: 11, weight: .medium))
+                    }
+                    .foregroundColor(Color(white: 0.85))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 7)
+                    .background(Color(white: 0.22))
+                    .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                
+                // Reset Button
+                Button {
+                    state.onResetAction?()
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.counterclockwise")
+                            .font(.system(size: 10, weight: .bold))
+                        Text("Reset")
+                            .font(.system(size: 11, weight: .medium))
+                    }
+                    .foregroundColor(Color(white: 0.85))
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 7)
+                    .background(Color(white: 0.22))
+                    .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                }
+                .buttonStyle(.plain)
+            }
+            
+            Text("💡 Geser Pin 1 atau Pin 2 untuk ubah posisi • Tekan ↵ Enter untuk OK")
+                .font(.system(size: 10, weight: .medium))
+                .foregroundColor(Color(white: 0.7))
+        }
+        .padding(10)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color.black.opacity(0.88))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(Color.white.opacity(0.2), lineWidth: 1)
+        )
+        .shadow(color: Color.black.opacity(0.6), radius: 10, x: 0, y: 4)
+    }
+    
+    // MARK: - Click Confirmation HUD
+    @ViewBuilder
+    private func clickConfirmationHUD(point: CGPoint, color: Color, in size: CGSize) -> some View {
+        VStack(spacing: 8) {
+            HStack(spacing: 8) {
+                // Confirm OK Button
+                Button {
+                    state.onConfirmClick?()
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 12, weight: .bold))
+                        Text("OK / Confirm (↵)")
+                            .font(.system(size: 12, weight: .bold))
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 7)
+                    .background(Color.green)
+                    .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                
+                // Cancel Button
+                Button {
+                    state.onCancelAction?()
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 10, weight: .bold))
+                        Text("Cancel (Esc)")
+                            .font(.system(size: 11, weight: .medium))
+                    }
+                    .foregroundColor(Color(white: 0.85))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 7)
+                    .background(Color(white: 0.22))
+                    .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                }
+                .buttonStyle(.plain)
+            }
+            
+            Text("💡 Geser Pin untuk ubah posisi • Klik di mana saja untuk pindah")
+                .font(.system(size: 10, weight: .medium))
+                .foregroundColor(Color(white: 0.7))
+        }
+        .padding(10)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color.black.opacity(0.88))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(Color.white.opacity(0.2), lineWidth: 1)
+        )
+        .shadow(color: Color.black.opacity(0.6), radius: 10, x: 0, y: 4)
+    }
+    
+    // MARK: - Floating Position Helpers
+    private func dragHudPosition(start: CGPoint, end: CGPoint, in size: CGSize) -> CGPoint {
+        var x = (start.x + end.x) / 2
+        var y = max(start.y, end.y) + 70
+        
+        if y + 60 > size.height {
+            y = min(start.y, end.y) - 80
+        }
+        x = max(180, min(x, size.width - 180))
+        y = max(60, min(y, size.height - 60))
+        return CGPoint(x: x, y: y)
+    }
+    
+    private func clickHudPosition(point: CGPoint, in size: CGSize) -> CGPoint {
+        var x = point.x
+        var y = point.y + 65
+        if y + 60 > size.height {
+            y = point.y - 75
+        }
+        x = max(160, min(x, size.width - 160))
+        y = max(60, min(y, size.height - 60))
+        return CGPoint(x: x, y: y)
+    }
+    
+    private func cursorHudPosition(in size: CGSize) -> CGPoint {
+        var x = state.quartzLocation.x + 95
+        var y = state.quartzLocation.y - 38
         if x + 100 > size.width {
-            x = state.currentLocation.x - 95
+            x = state.quartzLocation.x - 95
         }
         if y - 30 < 0 {
-            y = curY + 45
+            y = state.quartzLocation.y + 45
         }
         return CGPoint(x: x, y: y)
     }
     
     private var cursorHUD: some View {
         HStack(spacing: 8) {
-            // Mode Icon or Step Badge
             if case .drag = state.mode {
                 ZStack {
                     Circle()
@@ -2211,14 +2524,13 @@ struct CaptureOverlaySwiftUIView: View {
                         .font(.system(size: 11, weight: .bold))
                         .foregroundColor(.white)
                 }
-            } else if case .click(let b) = state.mode {
-                Image(systemName: b == .left ? "cursorarrow.click" : "cursorarrow.click")
+            } else if case .click(let b, _) = state.mode {
+                Image(systemName: "cursorarrow.click")
                     .foregroundColor(b == .left ? Color(red: 0.35, green: 0.7, blue: 1.0) : Color.teal)
                     .font(.system(size: 14, weight: .semibold))
             }
             
             VStack(alignment: .leading, spacing: 1) {
-                // Coordinate Display
                 HStack(spacing: 6) {
                     Text("X: \(Int(state.quartzLocation.x))")
                         .font(.system(size: 12, weight: .bold, design: .monospaced))
@@ -2227,8 +2539,6 @@ struct CaptureOverlaySwiftUIView: View {
                         .font(.system(size: 12, weight: .bold, design: .monospaced))
                         .foregroundColor(.white)
                 }
-                
-                // Instruction tip
                 Text(tipText)
                     .font(.system(size: 9, weight: .medium))
                     .foregroundColor(Color(white: 0.75))
@@ -2236,32 +2546,22 @@ struct CaptureOverlaySwiftUIView: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
-        .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(Color.black.opacity(0.85))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(Color.white.opacity(0.2), lineWidth: 1)
-        )
+        .background(RoundedRectangle(cornerRadius: 8).fill(Color.black.opacity(0.85)))
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.white.opacity(0.2), lineWidth: 1))
         .shadow(color: Color.black.opacity(0.5), radius: 6, x: 0, y: 3)
     }
     
     private var tipText: String {
         switch state.mode {
-        case .click(let b):
+        case .click(let b, _):
             return "Click to set \(b == .left ? "left" : "right") click • Esc to cancel"
         case .drag:
             if state.dragStep == 1 {
-                return "Click start point (1) • Esc to cancel"
+                return "Click Start Point (1) • Esc to cancel"
             } else {
-                return "Click or Enter end point (2) • Esc to cancel"
+                return "Click End Point (2) • Esc to cancel"
             }
         }
-    }
-
-    private var shouldShowCrosshair: Bool {
-        return false
     }
 }
 
@@ -2285,6 +2585,45 @@ class CaptureOverlayHostingView: NSView {
         super.init(frame: .zero)
         
         stateModel.mode = mode
+        
+        // Wire callbacks from SwiftUI buttons
+        stateModel.onConfirmClick = { [weak self] in
+            guard let self = self, let pt = self.stateModel.pointQuartz else { return }
+            self.onFinishClick(pt)
+        }
+        stateModel.onConfirmDrag = { [weak self] in
+            guard let self = self, let s = self.stateModel.dragStartQuartz, let e = self.stateModel.dragEndQuartz else { return }
+            self.onFinishDrag(s, e)
+        }
+        stateModel.onCancelAction = { [weak self] in
+            self?.onCancel()
+        }
+        stateModel.onResetAction = { [weak self] in
+            self?.stateModel.dragStep = 1
+            self?.stateModel.dragStartQuartz = nil
+            self?.stateModel.dragEndQuartz = nil
+            self?.stateModel.activeDraggingHandle = nil
+            self?.stateModel.hoveredHandle = nil
+        }
+        
+        // Initialize state based on mode
+        switch mode {
+        case .click(_, let initialPoint):
+            if let initial = initialPoint {
+                stateModel.pointQuartz = initial
+                stateModel.isPointSet = true
+            }
+        case .drag(let initialStart, let initialEnd):
+            if let s = initialStart, let e = initialEnd {
+                stateModel.dragStartQuartz = s
+                stateModel.dragEndQuartz = e
+                stateModel.dragStep = 3
+            } else if let s = initialStart {
+                stateModel.dragStartQuartz = s
+                stateModel.dragStep = 2
+            }
+        }
+        
         let swiftUIView = CaptureOverlaySwiftUIView(state: stateModel)
         let host = NSHostingView(rootView: swiftUIView)
         host.translatesAutoresizingMaskIntoConstraints = false
@@ -2319,12 +2658,40 @@ class CaptureOverlayHostingView: NSView {
         trackingArea = ta
     }
     
+    private func dist(_ p1: CGPoint, _ p2: CGPoint) -> CGFloat {
+        let dx = p1.x - p2.x
+        let dy = p1.y - p2.y
+        return sqrt(dx * dx + dy * dy)
+    }
+    
     private func updateMouse(event: NSEvent) {
         let winLoc = event.locationInWindow
         let screenHeight = window?.screen?.frame.height ?? NSScreen.main?.frame.height ?? bounds.height
         let quartzPt = CGPoint(x: winLoc.x, y: screenHeight - winLoc.y)
         stateModel.currentLocation = winLoc
         stateModel.quartzLocation = quartzPt
+        
+        // Handle hovering detection for handles
+        switch mode {
+        case .drag:
+            if stateModel.dragStep == 3 {
+                if let s = stateModel.dragStartQuartz, dist(quartzPt, s) < 28 {
+                    stateModel.hoveredHandle = .startPoint
+                } else if let e = stateModel.dragEndQuartz, dist(quartzPt, e) < 28 {
+                    stateModel.hoveredHandle = .endPoint
+                } else {
+                    stateModel.hoveredHandle = nil
+                }
+            } else {
+                stateModel.hoveredHandle = nil
+            }
+        case .click:
+            if let p = stateModel.pointQuartz, dist(quartzPt, p) < 28 {
+                stateModel.hoveredHandle = .singlePoint
+            } else {
+                stateModel.hoveredHandle = nil
+            }
+        }
     }
     
     override func mouseMoved(with event: NSEvent) {
@@ -2333,50 +2700,82 @@ class CaptureOverlayHostingView: NSView {
     
     override func mouseDragged(with event: NSEvent) {
         updateMouse(event: event)
+        if let handle = stateModel.activeDraggingHandle {
+            switch handle {
+            case .startPoint:
+                stateModel.dragStartQuartz = stateModel.quartzLocation
+            case .endPoint:
+                stateModel.dragEndQuartz = stateModel.quartzLocation
+            case .singlePoint:
+                stateModel.pointQuartz = stateModel.quartzLocation
+            }
+        }
+    }
+    
+    override func mouseUp(with event: NSEvent) {
+        stateModel.activeDraggingHandle = nil
     }
     
     override func mouseDown(with event: NSEvent) {
         updateMouse(event: event)
         switch mode {
         case .click:
-            onFinishClick(stateModel.quartzLocation)
+            if stateModel.hoveredHandle == .singlePoint {
+                stateModel.activeDraggingHandle = .singlePoint
+            } else {
+                stateModel.pointQuartz = stateModel.quartzLocation
+                stateModel.isPointSet = true
+                stateModel.activeDraggingHandle = .singlePoint
+            }
         case .drag:
             if stateModel.dragStep == 1 {
-                stateModel.dragStartLocation = stateModel.currentLocation
                 stateModel.dragStartQuartz = stateModel.quartzLocation
                 stateModel.dragStep = 2
-            } else {
-                if let startQ = stateModel.dragStartQuartz {
-                    onFinishDrag(startQ, stateModel.quartzLocation)
+            } else if stateModel.dragStep == 2 {
+                stateModel.dragEndQuartz = stateModel.quartzLocation
+                stateModel.dragStep = 3
+            } else if stateModel.dragStep == 3 {
+                if stateModel.hoveredHandle == .startPoint {
+                    stateModel.activeDraggingHandle = .startPoint
+                } else if stateModel.hoveredHandle == .endPoint {
+                    stateModel.activeDraggingHandle = .endPoint
+                } else if let s = stateModel.dragStartQuartz, let e = stateModel.dragEndQuartz {
+                    // Clicked on canvas: check which pin is closer, move it and begin dragging
+                    let distS = dist(stateModel.quartzLocation, s)
+                    let distE = dist(stateModel.quartzLocation, e)
+                    if distS < distE {
+                        stateModel.dragStartQuartz = stateModel.quartzLocation
+                        stateModel.activeDraggingHandle = .startPoint
+                    } else {
+                        stateModel.dragEndQuartz = stateModel.quartzLocation
+                        stateModel.activeDraggingHandle = .endPoint
+                    }
                 }
             }
         }
     }
     
     override func rightMouseDown(with event: NSEvent) {
-        updateMouse(event: event)
-        switch mode {
-        case .click:
-            onFinishClick(stateModel.quartzLocation)
-        case .drag:
-            if stateModel.dragStep == 1 {
-                stateModel.dragStartLocation = stateModel.currentLocation
-                stateModel.dragStartQuartz = stateModel.quartzLocation
-                stateModel.dragStep = 2
-            } else {
-                if let startQ = stateModel.dragStartQuartz {
-                    onFinishDrag(startQ, stateModel.quartzLocation)
-                }
-            }
-        }
+        mouseDown(with: event)
     }
     
     override func keyDown(with event: NSEvent) {
         if event.keyCode == 53 { // Esc
             onCancel()
-        } else if event.keyCode == 36 { // Enter
-            if case .drag = mode, stateModel.dragStep == 2, let startQ = stateModel.dragStartQuartz {
-                onFinishDrag(startQ, stateModel.quartzLocation)
+        } else if event.keyCode == 36 || event.keyCode == 76 || event.keyCode == 49 { // Return / Enter / Space
+            switch mode {
+            case .click:
+                if let pt = stateModel.pointQuartz {
+                    onFinishClick(pt)
+                }
+            case .drag:
+                if stateModel.dragStep == 3, let s = stateModel.dragStartQuartz, let e = stateModel.dragEndQuartz {
+                    onFinishDrag(s, e)
+                }
+            }
+        } else if event.keyCode == 15 { // 'R' key for Reset
+            if case .drag = mode {
+                stateModel.onResetAction?()
             }
         }
     }
@@ -2388,15 +2787,15 @@ class CaptureOverlayWindow: NSWindow {
     static var shared: CaptureOverlayWindow?
     
     enum Mode {
-        case click(button: CGMouseButton = .left)
-        case drag
+        case click(button: CGMouseButton = .left, initialPoint: CGPoint? = nil)
+        case drag(initialStart: CGPoint? = nil, initialEnd: CGPoint? = nil)
     }
     
     private var mode: Mode
     private var onClickCaptured: ((CGPoint) -> Void)?
     private var onDragCaptured: ((CGPoint, CGPoint) -> Void)?
     
-    init(mode: Mode = .click(button: .left), onClickCaptured: @escaping (CGPoint) -> Void) {
+    init(mode: Mode = .click(button: .left, initialPoint: nil), onClickCaptured: @escaping (CGPoint) -> Void) {
         self.mode = mode
         self.onClickCaptured = onClickCaptured
         let screenRect = NSScreen.main?.frame ?? NSRect(x: 0, y: 0, width: 1920, height: 1080)
@@ -2407,7 +2806,7 @@ class CaptureOverlayWindow: NSWindow {
         setupWindow()
     }
     
-    init(mode: Mode = .drag, onDragCaptured: @escaping (CGPoint, CGPoint) -> Void) {
+    init(mode: Mode = .drag(initialStart: nil, initialEnd: nil), onDragCaptured: @escaping (CGPoint, CGPoint) -> Void) {
         self.mode = mode
         self.onDragCaptured = onDragCaptured
         let screenRect = NSScreen.main?.frame ?? NSRect(x: 0, y: 0, width: 1920, height: 1080)
@@ -2443,12 +2842,10 @@ class CaptureOverlayWindow: NSWindow {
         )
         
         self.contentView = overlayView
-        NSCursor.hide()
         self.makeKeyAndOrderFront(nil)
     }
     
     func closeWindow() {
-        NSCursor.unhide()
         self.orderOut(nil)
         CaptureOverlayWindow.shared = nil
     }
@@ -2479,7 +2876,8 @@ struct ClickEditView: View {
                 Spacer()
                 
                 Button("📍 Recapture") {
-                    CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .click(button: buttonType)) { newPoint in
+                    let curPt: CGPoint? = (Double(xStr) != nil && Double(yStr) != nil) ? CGPoint(x: Double(xStr)!, y: Double(yStr)!) : nil
+                    CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .click(button: buttonType, initialPoint: curPt)) { newPoint in
                         let xv = Int(newPoint.x)
                         let yv = Int(newPoint.y)
                         xStr = String(xv)
@@ -2543,7 +2941,9 @@ struct DragEditView: View {
                 Text("Coordinates").font(.system(size: 11, weight: .semibold)).foregroundColor(.secondary)
                 Spacer()
                 Button("📍 Recapture") {
-                    CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .drag) { ns, ne in
+                    let startPt: CGPoint? = (Double(xStr) != nil && Double(yStr) != nil) ? CGPoint(x: Double(xStr)!, y: Double(yStr)!) : nil
+                    let endPt: CGPoint? = (Double(x2Str) != nil && Double(y2Str) != nil) ? CGPoint(x: Double(x2Str)!, y: Double(y2Str)!) : nil
+                    CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .drag(initialStart: startPt, initialEnd: endPt)) { ns, ne in
                         let xs = Int(ns.x)
                         let ys = Int(ns.y)
                         let xe = Int(ne.x)
@@ -3179,7 +3579,7 @@ struct ActionCardView: View {
                     // Render appropriate parameter editor/display
                     let isItemEditing = store.selectedActionIDs.contains(item.id)
                     switch item.action {
-                    case .click(_, let button):
+                    case .click(let point, let button):
                         Text(item.action.parameterString)
                             .font(.system(size: 12, weight: .medium, design: .monospaced))
                             .foregroundColor(.secondary)
@@ -3192,13 +3592,13 @@ struct ActionCardView: View {
                                     .stroke(isItemEditing ? Color.white.opacity(0.1) : Color.clear, lineWidth: 1)
                             )
                             .onTapGesture {
-                                CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .click(button: button)) { newPoint in
+                                CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .click(button: button, initialPoint: point)) { newPoint in
                                     onPreSave()
                                     item.action = .click(point: newPoint, button: button)
                                     onSave()
                                 }
                             }
-                    case .drag(_, _):
+                    case .drag(let start, let end):
                         Text(item.action.parameterString)
                             .font(.system(size: 12, weight: .medium, design: .monospaced))
                             .foregroundColor(.secondary)
@@ -3211,13 +3611,13 @@ struct ActionCardView: View {
                                     .stroke(isItemEditing ? Color.white.opacity(0.1) : Color.clear, lineWidth: 1)
                             )
                             .onTapGesture {
-                                CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .drag) { start, end in
+                                CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .drag(initialStart: start, initialEnd: end)) { newStart, newEnd in
                                     onPreSave()
-                                    item.action = .drag(start: start, end: end)
+                                    item.action = .drag(start: newStart, end: newEnd)
                                     onSave()
                                 }
                             }
-                    case .moveCursor(_):
+                    case .moveCursor(let point):
                         Text(item.action.parameterString)
                             .font(.system(size: 12, weight: .medium, design: .monospaced))
                             .foregroundColor(.secondary)
@@ -3230,7 +3630,7 @@ struct ActionCardView: View {
                                     .stroke(isItemEditing ? Color.white.opacity(0.1) : Color.clear, lineWidth: 1)
                             )
                             .onTapGesture {
-                                CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .click(button: .left)) { newPoint in
+                                CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .click(button: .left, initialPoint: point)) { newPoint in
                                     onPreSave()
                                     item.action = .moveCursor(point: newPoint)
                                     onSave()
@@ -3744,196 +4144,12 @@ struct MacroInspectorView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Top Header Bar (Macro Title)
-            HStack(spacing: 12) {
-
-                HStack(spacing: 2) {
-                    if isEditingName {
-                        TextField("Macro Name", text: $tempName)
-                            .font(.system(size: 15, weight: .bold))
-                            .textFieldStyle(.plain)
-                            .foregroundColor(.white)
-                            .lineLimit(1)
-                            .frame(minWidth: 80, maxWidth: 180)
-                            .focused($isNameFocused)
-                            .onSubmit {
-                                store.renameMacro(macro, newBaseName: tempName)
-                                isNameFocused = false
-                                isEditingName = false
-                            }
-                            .onChange(of: isNameFocused) { _, focused in
-                                if !focused {
-                                    store.renameMacro(macro, newBaseName: tempName)
-                                    isEditingName = false
-                                }
-                            }
-                            .onAppear {
-                                isNameFocused = true
-                            }
-                    } else {
-                        Text(tempName.isEmpty ? "Untitled Macro" : tempName.capitalized)
-                            .font(.system(size: 15, weight: .bold))
-                            .foregroundColor(.white)
-                            .lineLimit(1)
-                            .onTapGesture(count: 2) {
-                                isEditingName = true
-                            }
-                    }
-                }
-                .fixedSize(horizontal: true, vertical: false)
-
-                Spacer()
-
-                if !permissions.isAccessibilityGranted {
-                    Button {
-                        permissions.openAccessibilitySettings()
-                    } label: {
-                        Image(systemName: "exclamationmark.shield.fill")
-                            .foregroundColor(.yellow)
-                            .font(.system(size: 13, weight: .bold))
-                            .frame(width: 26, height: 22)
-                            .background(Color.yellow.opacity(0.15))
-                            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                    }
-                    .buttonStyle(.plain)
-                    .help("Accessibility permission required to simulate keystrokes and mouse clicks")
-                }
-
-                if isDirty {
-                    Button("Save") {
-                        store.saveMacro(macro)
-                        isDirty = false
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
-                    .fixedSize()
-                }
-
-                Button {
-                    store.runMacro(macro)
-                } label: {
-                    Label("Test Run", systemImage: "play.fill")
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.small)
-                .fixedSize()
-            }
-            .padding(.horizontal, 22)
-            .padding(.top, 14)
-            .padding(.bottom, 12)
-            .background(Color(white: 0.14))
-            .background(WindowDragView())
+            headerSection
 
             // Main Detail ScrollView
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 14) {
-                    // Card 1: Trigger HotKey (Simplified, no redundant text)
-                    // Card 1: Trigger HotKey (Simplified, no redundant text)
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack {
-                            Text("Trigger")
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundColor(.secondary)
-                                .padding(.leading, 2)
-                            Spacer()
-                            Image(systemName: isTriggerCollapsed ? "chevron.right" : "chevron.down")
-                                .foregroundColor(.secondary)
-                                .font(.system(size: 10, weight: .bold))
-                        }
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            withAnimation(.easeInOut(duration: 0.15)) {
-                                isTriggerCollapsed.toggle()
-                            }
-                        }
-
-                        if !isTriggerCollapsed {
-                            ForEach(macro.triggers) { trig in
-                                HStack(spacing: 12) {
-                                    ZStack {
-                                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                            .fill(Color(red: 0.45, green: 0.2, blue: 0.8))
-                                            .frame(width: 32, height: 32)
-                                        Image(systemName: "keyboard")
-                                            .foregroundColor(.white)
-                                            .font(.system(size: 15, weight: .semibold))
-                                    }
-
-                                    if detailWidth > 320 {
-                                        Text("Key Press")
-                                            .font(.system(size: 13, weight: .medium))
-                                            .foregroundColor(.white)
-                                    }
-
-                                    Spacer()
-
-                                    HotKeyRecorder(trigger: Binding(
-                                        get: { macro.triggers.first(where: { $0.id == trig.id }) ?? trig },
-                                        set: { newValue in
-                                            if let index = macro.triggers.firstIndex(where: { $0.id == trig.id }) {
-                                                store.registerUndoState(for: macro)
-                                                macro.triggers[index] = newValue
-                                                store.saveMacro(macro)
-                                            }
-                                        }
-                                    )) {
-                                        store.saveMacro(macro)
-                                        isDirty = false
-                                    }
-
-                                    if macro.triggers.count > 1 {
-                                        Button(action: {
-                                            store.registerUndoState(for: macro)
-                                            macro.triggers.removeAll(where: { $0.id == trig.id })
-                                            store.saveMacro(macro)
-                                        }) {
-                                            Image(systemName: "xmark")
-                                                .font(.system(size: 9, weight: .bold))
-                                                .foregroundColor(.secondary)
-                                                .frame(width: 20, height: 20)
-                                                .contentShape(Rectangle())
-                                        }
-                                        .buttonStyle(.plain)
-                                    }
-                                }
-                            }
-
-                            HStack {
-                                Spacer()
-                                Button(action: {
-                                    store.registerUndoState(for: macro)
-                                    macro.triggers.append(Trigger(keyCode: 17, requireCmd: true, requireShift: true, requireOption: false, requireControl: false))
-                                    store.saveMacro(macro)
-                                }) {
-                                    HStack(spacing: 4) {
-                                        Image(systemName: "plus")
-                                            .font(.system(size: 9, weight: .bold))
-                                        Text("Add Trigger")
-                                            .font(.system(size: 11, weight: .semibold))
-                                    }
-                                    .foregroundColor(.secondary)
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 4)
-                                    .background(Color.white.opacity(0.05))
-                                    .clipShape(RoundedRectangle(cornerRadius: 6))
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 6)
-                                            .stroke(Color.white.opacity(0.06), lineWidth: 1)
-                                    )
-                                }
-                                .buttonStyle(.plain)
-                                .padding(.top, 4)
-                            }
-                        }
-                    }
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 12)
-                    .background(Color(white: 0.18))
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .stroke(Color.white.opacity(0.06), lineWidth: 1)
-                    )
+                    triggerSection
 
                     // Downward connector arrow
                     HStack {
@@ -3945,307 +4161,19 @@ struct MacroInspectorView: View {
                     }
                     .padding(.vertical, 2)
 
-                    // Section: Actions (No counter, clean design)
-                    VStack(alignment: .leading, spacing: 10) {
-                        HStack {
-                            Text("Actions")
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundColor(.secondary)
-                            Spacer()
-                            Image(systemName: isActionsCollapsed ? "chevron.right" : "chevron.down")
-                                .foregroundColor(.secondary)
-                                .font(.system(size: 10, weight: .bold))
-                        }
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            withAnimation(.easeInOut(duration: 0.15)) {
-                                isActionsCollapsed.toggle()
-                            }
-                        }
+                    actionsSection
 
-                        if !isActionsCollapsed {
-                            // Draggable Action Cards
-                            DraggableActionList(actionItems: $macro.actionItems, onSave: {
-                                store.saveMacro(macro)
-                            }, onInsertTemplate: { typeName, targetIndex in
-                                store.registerUndoState(for: macro)
-                                let newAction: MacroAction
-                                switch typeName {
-                                case "Left Click":
-                                    newAction = .click(point: .zero, button: .left)
-                                case "Right Click":
-                                    newAction = .click(point: .zero, button: .right)
-                                case "Drag":
-                                    newAction = .drag(start: .zero, end: .zero)
-                                case "Delay":
-                                    newAction = .delay(ms: 300)
-                                case "Text":
-                                    newAction = .typeText(text: "Hello ShortKing")
-                                case "Key":
-                                    newAction = .pressKey(keyCode: 36)
-                                case "Origin", "Do Again":
-                                    newAction = .doAgain(target: .origin)
-                                case "Move Cursor":
-                                    newAction = .moveCursor(point: .zero)
-                                default:
-                                    newAction = .delay(ms: 300)
-                                }
-                                
-                                let newItem = MacroActionItem(action: newAction)
-                                if targetIndex >= macro.actionItems.count {
-                                    macro.actionItems.append(newItem)
-                                } else {
-                                    macro.actionItems.insert(newItem, at: targetIndex)
-                                }
-                                store.saveMacro(macro)
-                                
-                                // Immediately trigger capture overlay for click/drag/move actions
-                                switch newAction {
-                                case .click(_, let button):
-                                    CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .click(button: button)) { newPoint in
-                                        if let idx = macro.actionItems.firstIndex(where: { $0.id == newItem.id }) {
-                                            store.registerUndoState(for: macro)
-                                            macro.actionItems[idx].action = .click(point: newPoint, button: button)
-                                            store.saveMacro(macro)
-                                        }
-                                    }
-                                case .drag:
-                                    CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .drag) { start, end in
-                                        if let idx = macro.actionItems.firstIndex(where: { $0.id == newItem.id }) {
-                                            store.registerUndoState(for: macro)
-                                            macro.actionItems[idx].action = .drag(start: start, end: end)
-                                            store.saveMacro(macro)
-                                        }
-                                    }
-                                case .moveCursor:
-                                    CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .click(button: .left)) { newPoint in
-                                        if let idx = macro.actionItems.firstIndex(where: { $0.id == newItem.id }) {
-                                            store.registerUndoState(for: macro)
-                                            macro.actionItems[idx].action = .moveCursor(point: newPoint)
-                                            store.saveMacro(macro)
-                                        }
-                                    }
-                                default:
-                                    break
-                                }
-                            }, detailWidth: detailWidth)
-                        }
+                    // Minimalist + separator
+                    HStack {
+                        Spacer()
+                        Image(systemName: "plus")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundColor(Color(white: 0.35))
+                        Spacer()
                     }
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 12)
-                    .background(Color(white: 0.18))
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .stroke(Color.white.opacity(0.06), lineWidth: 1)
-                    )
+                    .padding(.vertical, 2)
 
-                        // Minimalist + separator
-                        HStack {
-                            Spacer()
-                            Image(systemName: "plus")
-                                .font(.system(size: 11, weight: .bold))
-                                .foregroundColor(Color(white: 0.35))
-                            Spacer()
-                        }
-                        .padding(.vertical, 2)
-
-                        // Add Action Section (5 Quick Action Buttons with Instant Coordinate Overlay)
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack {
-                                Text("Add Action")
-                                    .font(.system(size: 12, weight: .semibold))
-                                    .foregroundColor(.secondary)
-                                    .padding(.leading, 2)
-                                Spacer()
-                                Image(systemName: isAddActionCollapsed ? "chevron.right" : "chevron.down")
-                                    .foregroundColor(.secondary)
-                                    .font(.system(size: 10, weight: .bold))
-                            }
-                            .contentShape(Rectangle())
-                            .onTapGesture {
-                                withAnimation(.easeInOut(duration: 0.15)) {
-                                    isAddActionCollapsed.toggle()
-                                }
-                            }
-                            .padding(.top, 6)
-
-                            if !isAddActionCollapsed {
-                                LazyVGrid(columns: [GridItem(.adaptive(minimum: 32, maximum: 40), spacing: 8)], spacing: 8) {
-                                // 1. Left Click (Instant Screen Coordinate Capture)
-                                quickActionButton(
-                                    title: "Left Click",
-                                    icon: "cursorarrow.click",
-                                    color: Color(red: 0.08, green: 0.45, blue: 0.82)
-                                ) {
-                                    CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .click(button: .left)) { pt in
-                                        store.registerUndoState(for: macro)
-                                        macro.actionItems.append(MacroActionItem(action: .click(point: pt, button: .left)))
-                                        store.saveMacro(macro)
-                                    }
-                                }
-
-                                // 2. Right Click (Instant Screen Coordinate Capture)
-                                quickActionButton(
-                                    title: "Right Click",
-                                    icon: "cursorarrow.click",
-                                    color: Color(red: 0.04, green: 0.52, blue: 0.54)
-                                ) {
-                                    CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .click(button: .right)) { pt in
-                                        store.registerUndoState(for: macro)
-                                        macro.actionItems.append(MacroActionItem(action: .click(point: pt, button: .right)))
-                                        store.saveMacro(macro)
-                                    }
-                                }
-
-                                // 3. Drag (Two-step Start -> End Coordinate Capture with Trail)
-                                quickActionButton(
-                                    title: "Drag",
-                                    icon: "hand.draw",
-                                    color: Color(red: 0.52, green: 0.22, blue: 0.75)
-                                ) {
-                                    CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .drag) { start, end in
-                                        store.registerUndoState(for: macro)
-                                        macro.actionItems.append(MacroActionItem(action: .drag(start: start, end: end)))
-                                        store.saveMacro(macro)
-                                    }
-                                }
-
-                                // 4. Move (Warp mouse cursor to captured coordinate)
-                                quickActionButton(
-                                    title: "Move",
-                                    icon: "cursorarrow.motionlines",
-                                    color: Color(red: 0.28, green: 0.52, blue: 0.92)
-                                ) {
-                                    CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .click(button: .left)) { point in
-                                        store.registerUndoState(for: macro)
-                                        macro.actionItems.append(MacroActionItem(action: .moveCursor(point: point)))
-                                        store.saveMacro(macro)
-                                    }
-                                }
-
-                                // 5. Delay
-                                quickActionButton(
-                                    title: "Delay",
-                                    icon: "timer",
-                                    color: Color(red: 0.88, green: 0.42, blue: 0.04)
-                                ) {
-                                    store.registerUndoState(for: macro)
-                                    macro.actionItems.append(MacroActionItem(action: .delay(ms: 300)))
-                                    store.saveMacro(macro)
-                                }
-
-                                // 6. Text
-                                quickActionButton(
-                                    title: "Text",
-                                    icon: "text.cursor",
-                                    color: Color(red: 0.12, green: 0.58, blue: 0.24)
-                                ) {
-                                    store.registerUndoState(for: macro)
-                                    macro.actionItems.append(MacroActionItem(action: .typeText(text: "Hello ShortKing")))
-                                    store.saveMacro(macro)
-                                }
-
-                                // 7. Key
-                                quickActionButton(
-                                    title: "Key",
-                                    icon: "keyboard",
-                                    color: Color(red: 0.32, green: 0.28, blue: 0.72)
-                                ) {
-                                    store.registerUndoState(for: macro)
-                                    macro.actionItems.append(MacroActionItem(action: .pressKey(keyCode: 36)))
-                                    store.saveMacro(macro)
-                                }
-
-                                // 8. Do Again (Restore original cursor position or target another action)
-                                quickActionButton(
-                                    title: "Do Again",
-                                    icon: "arrow.counterclockwise",
-                                    color: Color(red: 0.12, green: 0.58, blue: 0.65)
-                                ) {
-                                    store.registerUndoState(for: macro)
-                                    macro.actionItems.append(MacroActionItem(action: .doAgain(target: .origin)))
-                                    store.saveMacro(macro)
-                                }
-
-                                // 9. Group (Container Action)
-                                quickActionButton(
-                                    title: "Group",
-                                    icon: "folder",
-                                    color: Color.orange
-                                ) {
-                                    store.registerUndoState(for: macro)
-                                    macro.actionItems.append(MacroActionItem(action: .group(name: "New Group", actions: [])))
-                                    store.saveMacro(macro)
-                                }
-
-                                // 10. Custom Action (Command/Script Execution)
-                                quickActionButton(
-                                    title: "Custom",
-                                    icon: "terminal",
-                                    color: Color.pink
-                                ) {
-                                    store.registerUndoState(for: macro)
-                                    macro.actionItems.append(MacroActionItem(action: .customAction(script: "osascript -e 'set volume output volume (output volume of (get volume settings) + 6)'")))
-                                    store.saveMacro(macro)
-                                }
-
-                                // 11. Volume Up (Native)
-                                quickActionButton(
-                                    title: "Vol Up",
-                                    icon: "speaker.wave.3.fill",
-                                    color: Color.blue
-                                ) {
-                                    store.registerUndoState(for: macro)
-                                    macro.actionItems.append(MacroActionItem(action: .volumeUp))
-                                    store.saveMacro(macro)
-                                }
-
-                                // 12. Volume Down (Native)
-                                quickActionButton(
-                                    title: "Vol Down",
-                                    icon: "speaker.wave.1.fill",
-                                    color: Color.blue
-                                ) {
-                                    store.registerUndoState(for: macro)
-                                    macro.actionItems.append(MacroActionItem(action: .volumeDown))
-                                    store.saveMacro(macro)
-                                }
-
-                                // 13. Brightness Up (Native)
-                                quickActionButton(
-                                    title: "Brit Up",
-                                    icon: "sun.max.fill",
-                                    color: Color.orange
-                                ) {
-                                    store.registerUndoState(for: macro)
-                                    macro.actionItems.append(MacroActionItem(action: .brightnessUp))
-                                    store.saveMacro(macro)
-                                }
-
-                                // 14. Brightness Down (Native)
-                                quickActionButton(
-                                    title: "Brit Down",
-                                    icon: "sun.min.fill",
-                                    color: Color.orange
-                                ) {
-                                    store.registerUndoState(for: macro)
-                                    macro.actionItems.append(MacroActionItem(action: .brightnessDown))
-                                    store.saveMacro(macro)
-                                }
-                            }
-                        }
-                    }
-                    .padding(.horizontal, 14)
-                        .padding(.vertical, 12)
-                        .background(Color(white: 0.18))
-                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .stroke(Color.white.opacity(0.06), lineWidth: 1)
-                        )
-                        .padding(.top, 4)
-                    }
+                    addActionSection
                 }
                 .padding(22)
             }
@@ -4262,7 +4190,6 @@ struct MacroInspectorView: View {
                         }
                         if !store.selectedActionIDs.isEmpty {
                             store.registerUndoState(for: macro)
-                            // Recursively remove selected action items from the main list and sub-groups
                             func recursiveRemove(from list: inout [MacroActionItem], targetIDs: Set<UUID>) {
                                 list.removeAll { targetIDs.contains($0.id) }
                                 for i in 0..<list.count {
@@ -4287,16 +4214,417 @@ struct MacroInspectorView: View {
                     keyMonitor = nil
                 }
             }
-            .onChange(of: macro.id) { _, _ in
+            .onChange(of: macro.id) {
                 tempName = macro.fileName.replacingOccurrences(of: ".shortking", with: "")
                 isEditingName = false
-                store.selectedActionID = nil // Reset action selection on macro change
+                store.selectedActionID = nil
             }
             .onChange(of: macro.fileName) { newFileName in
                 tempName = newFileName.replacingOccurrences(of: ".shortking", with: "")
                 isEditingName = false
             }
         }
+    }
+
+    // MARK: - Header Section
+    @ViewBuilder
+    private var headerSection: some View {
+        HStack(spacing: 12) {
+            HStack(spacing: 2) {
+                if isEditingName {
+                    TextField("Macro Name", text: $tempName)
+                        .font(.system(size: 15, weight: .bold))
+                        .textFieldStyle(.plain)
+                        .foregroundColor(.white)
+                        .lineLimit(1)
+                        .frame(minWidth: 80, maxWidth: 180)
+                        .focused($isNameFocused)
+                        .onSubmit {
+                            store.renameMacro(macro, newBaseName: tempName)
+                            isNameFocused = false
+                            isEditingName = false
+                        }
+                        .onChange(of: isNameFocused) { _, focused in
+                            if !focused {
+                                store.renameMacro(macro, newBaseName: tempName)
+                                isEditingName = false
+                            }
+                        }
+                        .onAppear {
+                            isNameFocused = true
+                        }
+                } else {
+                    Text(tempName.isEmpty ? "Untitled Macro" : tempName.capitalized)
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundColor(.white)
+                        .lineLimit(1)
+                        .onTapGesture(count: 2) {
+                            isEditingName = true
+                        }
+                }
+            }
+            .fixedSize(horizontal: true, vertical: false)
+
+            Spacer()
+
+            if !permissions.isAccessibilityGranted {
+                Button {
+                    permissions.openAccessibilitySettings()
+                } label: {
+                    Image(systemName: "exclamationmark.shield.fill")
+                        .foregroundColor(.yellow)
+                        .font(.system(size: 13, weight: .bold))
+                        .frame(width: 26, height: 22)
+                        .background(Color.yellow.opacity(0.15))
+                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .help("Accessibility permission required to simulate keystrokes and mouse clicks")
+            }
+
+            if isDirty {
+                Button("Save") {
+                    store.saveMacro(macro)
+                    isDirty = false
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+                .fixedSize()
+            }
+
+            Button {
+                store.runMacro(macro)
+            } label: {
+                Label("Test Run", systemImage: "play.fill")
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.small)
+            .fixedSize()
+        }
+        .padding(.horizontal, 22)
+        .padding(.top, 14)
+        .padding(.bottom, 12)
+        .background(Color(white: 0.14))
+        .background(WindowDragView())
+    }
+
+    // MARK: - Trigger Section
+    @ViewBuilder
+    private var triggerSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Trigger")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(.secondary)
+                    .padding(.leading, 2)
+                Spacer()
+                Image(systemName: isTriggerCollapsed ? "chevron.right" : "chevron.down")
+                    .foregroundColor(.secondary)
+                    .font(.system(size: 10, weight: .bold))
+            }
+            .contentShape(Rectangle())
+            .onTapGesture {
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    isTriggerCollapsed.toggle()
+                }
+            }
+
+            if !isTriggerCollapsed {
+                ForEach(macro.triggers) { trig in
+                    HStack(spacing: 12) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .fill(Color(red: 0.45, green: 0.2, blue: 0.8))
+                                .frame(width: 32, height: 32)
+                            Image(systemName: "keyboard")
+                                .foregroundColor(.white)
+                                .font(.system(size: 15, weight: .semibold))
+                        }
+
+                        if detailWidth > 320 {
+                            Text("Key Press")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundColor(.white)
+                        }
+
+                        Spacer()
+
+                        HotKeyRecorder(trigger: triggerBinding(for: trig)) {
+                            store.saveMacro(macro)
+                            isDirty = false
+                        }
+
+                        if macro.triggers.count > 1 {
+                            Button {
+                                store.registerUndoState(for: macro)
+                                macro.triggers.removeAll(where: { $0.id == trig.id })
+                                store.saveMacro(macro)
+                            } label: {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 9, weight: .bold))
+                                    .foregroundColor(.secondary)
+                                    .frame(width: 20, height: 20)
+                                    .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+
+                HStack {
+                    Spacer()
+                    Button {
+                        store.registerUndoState(for: macro)
+                        macro.triggers.append(Trigger(keyCode: 17, requireCmd: true, requireShift: true, requireOption: false, requireControl: false))
+                        store.saveMacro(macro)
+                    } label: {
+                        Label("Add Trigger", systemImage: "plus")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(.secondary)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color.white.opacity(0.05))
+                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.top, 4)
+                }
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(Color(white: 0.18))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(Color.white.opacity(0.06), lineWidth: 1)
+        )
+    }
+
+    // MARK: - Actions Section
+    @ViewBuilder
+    private var actionsSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Actions")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(.secondary)
+                Spacer()
+                Image(systemName: isActionsCollapsed ? "chevron.right" : "chevron.down")
+                    .foregroundColor(.secondary)
+                    .font(.system(size: 10, weight: .bold))
+            }
+            .contentShape(Rectangle())
+            .onTapGesture {
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    isActionsCollapsed.toggle()
+                }
+            }
+
+            if !isActionsCollapsed {
+                DraggableActionList(actionItems: $macro.actionItems, onSave: {
+                    store.saveMacro(macro)
+                }, onInsertTemplate: { typeName, targetIndex in
+                    store.registerUndoState(for: macro)
+                    let newAction: MacroAction
+                    switch typeName {
+                    case "Left Click":
+                        newAction = .click(point: .zero, button: .left)
+                    case "Right Click":
+                        newAction = .click(point: .zero, button: .right)
+                    case "Drag":
+                        newAction = .drag(start: .zero, end: .zero)
+                    case "Delay":
+                        newAction = .delay(ms: 300)
+                    case "Text":
+                        newAction = .typeText(text: "Hello ShortKing")
+                    case "Key":
+                        newAction = .pressKey(keyCode: 36)
+                    case "Origin", "Do Again":
+                        newAction = .doAgain(target: .origin)
+                    case "Move Cursor":
+                        newAction = .moveCursor(point: .zero)
+                    default:
+                        newAction = .delay(ms: 300)
+                    }
+                    
+                    let newItem = MacroActionItem(action: newAction)
+                    if targetIndex >= macro.actionItems.count {
+                        macro.actionItems.append(newItem)
+                    } else {
+                        macro.actionItems.insert(newItem, at: targetIndex)
+                    }
+                    store.saveMacro(macro)
+                    
+                    switch newAction {
+                    case .click(_, let button):
+                        CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .click(button: button, initialPoint: nil)) { newPoint in
+                            if let idx = macro.actionItems.firstIndex(where: { $0.id == newItem.id }) {
+                                store.registerUndoState(for: macro)
+                                macro.actionItems[idx].action = .click(point: newPoint, button: button)
+                                store.saveMacro(macro)
+                            }
+                        }
+                    case .drag:
+                        CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .drag(initialStart: nil, initialEnd: nil)) { start, end in
+                            if let idx = macro.actionItems.firstIndex(where: { $0.id == newItem.id }) {
+                                store.registerUndoState(for: macro)
+                                macro.actionItems[idx].action = .drag(start: start, end: end)
+                                store.saveMacro(macro)
+                            }
+                        }
+                    case .moveCursor:
+                        CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .click(button: .left, initialPoint: nil)) { newPoint in
+                            if let idx = macro.actionItems.firstIndex(where: { $0.id == newItem.id }) {
+                                store.registerUndoState(for: macro)
+                                macro.actionItems[idx].action = .moveCursor(point: newPoint)
+                                store.saveMacro(macro)
+                            }
+                        }
+                    default:
+                        break
+                    }
+                }, detailWidth: detailWidth)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(Color(white: 0.18))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(Color.white.opacity(0.06), lineWidth: 1)
+        )
+    }
+
+    // MARK: - Add Action Palette Section
+    @ViewBuilder
+    private var addActionSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Add Action")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.secondary)
+                    .padding(.leading, 2)
+                Spacer()
+                Image(systemName: isAddActionCollapsed ? "chevron.right" : "chevron.down")
+                    .foregroundColor(.secondary)
+                    .font(.system(size: 10, weight: .bold))
+            }
+            .contentShape(Rectangle())
+            .onTapGesture {
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    isAddActionCollapsed.toggle()
+                }
+            }
+            .padding(.top, 6)
+
+            if !isAddActionCollapsed {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 32, maximum: 40), spacing: 8)], spacing: 8) {
+                    quickActionButton(title: "Left Click", icon: "cursorarrow.click", color: Color(red: 0.08, green: 0.45, blue: 0.82)) {
+                        CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .click(button: .left, initialPoint: nil)) { pt in
+                            store.registerUndoState(for: macro)
+                            macro.actionItems.append(MacroActionItem(action: .click(point: pt, button: .left)))
+                            store.saveMacro(macro)
+                        }
+                    }
+
+                    quickActionButton(title: "Right Click", icon: "cursorarrow.click", color: Color(red: 0.04, green: 0.52, blue: 0.54)) {
+                        CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .click(button: .right, initialPoint: nil)) { pt in
+                            store.registerUndoState(for: macro)
+                            macro.actionItems.append(MacroActionItem(action: .click(point: pt, button: .right)))
+                            store.saveMacro(macro)
+                        }
+                    }
+
+                    quickActionButton(title: "Drag", icon: "hand.draw", color: Color(red: 0.52, green: 0.22, blue: 0.75)) {
+                        CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .drag(initialStart: nil, initialEnd: nil)) { start, end in
+                            store.registerUndoState(for: macro)
+                            macro.actionItems.append(MacroActionItem(action: .drag(start: start, end: end)))
+                            store.saveMacro(macro)
+                        }
+                    }
+
+                    quickActionButton(title: "Move", icon: "cursorarrow.motionlines", color: Color(red: 0.28, green: 0.52, blue: 0.92)) {
+                        CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .click(button: .left, initialPoint: nil)) { point in
+                            store.registerUndoState(for: macro)
+                            macro.actionItems.append(MacroActionItem(action: .moveCursor(point: point)))
+                            store.saveMacro(macro)
+                        }
+                    }
+
+                    quickActionButton(title: "Delay", icon: "timer", color: Color(red: 0.88, green: 0.42, blue: 0.04)) {
+                        store.registerUndoState(for: macro)
+                        macro.actionItems.append(MacroActionItem(action: .delay(ms: 300)))
+                        store.saveMacro(macro)
+                    }
+
+                    quickActionButton(title: "Text", icon: "text.cursor", color: Color(red: 0.12, green: 0.58, blue: 0.24)) {
+                        store.registerUndoState(for: macro)
+                        macro.actionItems.append(MacroActionItem(action: .typeText(text: "Hello ShortKing")))
+                        store.saveMacro(macro)
+                    }
+
+                    quickActionButton(title: "Key", icon: "keyboard", color: Color(red: 0.32, green: 0.28, blue: 0.72)) {
+                        store.registerUndoState(for: macro)
+                        macro.actionItems.append(MacroActionItem(action: .pressKey(keyCode: 36)))
+                        store.saveMacro(macro)
+                    }
+
+                    quickActionButton(title: "Do Again", icon: "arrow.counterclockwise", color: Color(red: 0.12, green: 0.58, blue: 0.65)) {
+                        store.registerUndoState(for: macro)
+                        macro.actionItems.append(MacroActionItem(action: .doAgain(target: .origin)))
+                        store.saveMacro(macro)
+                    }
+
+                    quickActionButton(title: "Group", icon: "folder", color: Color.orange) {
+                        store.registerUndoState(for: macro)
+                        macro.actionItems.append(MacroActionItem(action: .group(name: "New Group", actions: [])))
+                        store.saveMacro(macro)
+                    }
+
+                    quickActionButton(title: "Custom", icon: "terminal", color: Color.pink) {
+                        store.registerUndoState(for: macro)
+                        macro.actionItems.append(MacroActionItem(action: .customAction(script: "osascript -e 'set volume output volume (output volume of (get volume settings) + 6)'")))
+                        store.saveMacro(macro)
+                    }
+
+                    quickActionButton(title: "Vol Up", icon: "speaker.wave.3.fill", color: Color.blue) {
+                        store.registerUndoState(for: macro)
+                        macro.actionItems.append(MacroActionItem(action: .volumeUp))
+                        store.saveMacro(macro)
+                    }
+
+                    quickActionButton(title: "Vol Down", icon: "speaker.wave.1.fill", color: Color.blue) {
+                        store.registerUndoState(for: macro)
+                        macro.actionItems.append(MacroActionItem(action: .volumeDown))
+                        store.saveMacro(macro)
+                    }
+
+                    quickActionButton(title: "Brit Up", icon: "sun.max.fill", color: Color.orange) {
+                        store.registerUndoState(for: macro)
+                        macro.actionItems.append(MacroActionItem(action: .brightnessUp))
+                        store.saveMacro(macro)
+                    }
+
+                    quickActionButton(title: "Brit Down", icon: "sun.min.fill", color: Color.orange) {
+                        store.registerUndoState(for: macro)
+                        macro.actionItems.append(MacroActionItem(action: .brightnessDown))
+                        store.saveMacro(macro)
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(Color(white: 0.18))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(Color.white.opacity(0.06), lineWidth: 1)
+        )
+        .padding(.top, 4)
+    }
 
     @ViewBuilder
     private func quickActionButton(
@@ -4324,6 +4652,19 @@ struct MacroInspectorView: View {
         .onDrag {
             return NSItemProvider(object: "action_template:\(title)" as NSString)
         }
+    }
+
+    private func triggerBinding(for trig: Trigger) -> Binding<Trigger> {
+        Binding(
+            get: { macro.triggers.first(where: { $0.id == trig.id }) ?? trig },
+            set: { newValue in
+                if let index = macro.triggers.firstIndex(where: { $0.id == trig.id }) {
+                    store.registerUndoState(for: macro)
+                    macro.triggers[index] = newValue
+                    store.saveMacro(macro)
+                }
+            }
+        )
     }
 }
 

@@ -4,9 +4,7 @@
 EXCLUDED=(
   "com.apple.finder"
   "com.redmunky.shortking"
-  "com.google.antigravity"
-  "com.googlecode.iterm2"
-  "com.apple.Terminal"
+
   "ca.spreadspace.Hidden"
   "ca.spreadspace.HiddenBar"
 )
