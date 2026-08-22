@@ -911,14 +911,32 @@ class InputSimulator {
                     CGWarpMouseCursorPosition(lastPt)
                     usleep(30000)
                     
+                    var isMouseDown = false
+                    
                     for i in 0..<points.count {
                         guard !isEmergencyStopped else { return }
                         let cur = points[i]
+                        
                         switch cur.type {
                         case .move:
+                            if isMouseDown {
+                                let u = CGEvent(mouseEventSource: source, mouseType: .leftMouseUp, mouseCursorPosition: lastPt, mouseButton: .left)
+                                u?.flags = []
+                                u?.post(tap: .cghidEventTap)
+                                usleep(20000)
+                                isMouseDown = false
+                            }
                             CGWarpMouseCursorPosition(cur.point)
                             usleep(25000)
+                            
                         case .click:
+                            if isMouseDown {
+                                let u = CGEvent(mouseEventSource: source, mouseType: .leftMouseUp, mouseCursorPosition: lastPt, mouseButton: .left)
+                                u?.flags = []
+                                u?.post(tap: .cghidEventTap)
+                                usleep(20000)
+                                isMouseDown = false
+                            }
                             CGWarpMouseCursorPosition(cur.point)
                             usleep(20000)
                             let d = CGEvent(mouseEventSource: source, mouseType: .leftMouseDown, mouseCursorPosition: cur.point, mouseButton: .left)
@@ -929,14 +947,21 @@ class InputSimulator {
                             usleep(20000)
                             u?.post(tap: .cghidEventTap)
                             usleep(25000)
+                            
                         case .drag:
-                            if i > 0 {
-                                let start = lastPt
-                                let end = cur.point
-                                let d = CGEvent(mouseEventSource: source, mouseType: .leftMouseDown, mouseCursorPosition: start, mouseButton: .left)
+                            if !isMouseDown {
+                                // Start dragging: move to this position, and press down mouse button
+                                CGWarpMouseCursorPosition(cur.point)
+                                usleep(20000)
+                                let d = CGEvent(mouseEventSource: source, mouseType: .leftMouseDown, mouseCursorPosition: cur.point, mouseButton: .left)
                                 d?.flags = []
                                 d?.post(tap: .cghidEventTap)
                                 usleep(30000)
+                                isMouseDown = true
+                            } else {
+                                // Drag continuation: drag from lastPt to cur.point smoothly
+                                let start = lastPt
+                                let end = cur.point
                                 for s in 1...12 {
                                     guard !isEmergencyStopped else { return }
                                     let p = CGFloat(s)/12
@@ -946,15 +971,17 @@ class InputSimulator {
                                     m?.post(tap: .cghidEventTap)
                                     usleep(12000)
                                 }
-                                let u = CGEvent(mouseEventSource: source, mouseType: .leftMouseUp, mouseCursorPosition: end, mouseButton: .left)
-                                u?.flags = []
-                                u?.post(tap: .cghidEventTap)
-                                usleep(25000)
-                            } else {
-                                CGWarpMouseCursorPosition(cur.point)
                             }
                         }
                         lastPt = cur.point
+                    }
+                    
+                    // Safety: Release mouse if it's still down at the end of the path
+                    if isMouseDown {
+                        let u = CGEvent(mouseEventSource: source, mouseType: .leftMouseUp, mouseCursorPosition: lastPt, mouseButton: .left)
+                        u?.flags = []
+                        u?.post(tap: .cghidEventTap)
+                        usleep(25000)
                     }
 
                 case .delay(let ms):
