@@ -10,3 +10,7 @@ ACTION: move 825 852
 ACTION: move 845 809
 ACTION: click 1021 832
 ACTION: path 
+ACTION: click 1241 830
+ACTION: right_click 1329 711
+ACTION: drag 1214 772 to 1305 669
+ACTION: path 1214,789:move

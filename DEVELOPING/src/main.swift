@@ -2566,7 +2566,7 @@ struct CaptureOverlaySwiftUIView: View {
                         .onChange(of: pos) { _, newPos in state.lastHudCenter = newPos }
                 }
                 
-                if case .sequence = state.mode, state.isFollowingCursor && !state.isPassThroughMode {
+                if state.isFollowingCursor && !state.isPassThroughMode {
                     ZStack {
                         // Outer circular outline
                         Circle()
