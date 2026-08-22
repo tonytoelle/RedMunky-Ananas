@@ -4,6 +4,3 @@ TRIGGER: cmd+shift+k
 # Actions:
 ACTION: delay 500
 ACTION: type "Hello ShortKing!"
-ACTION: path 895,738:move
-ACTION: path 895,738:move 1020,618:move
-ACTION: path 895,738:move 1020,618:move 1098,622:move

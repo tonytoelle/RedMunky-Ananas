@@ -3338,7 +3338,10 @@ class CaptureOverlayWindow: NSPanel {
                     self.onDragCaptured?(currentPoints[0].point, currentPoints[1].point)
                 }
             case .sequence:
-                self.onSequenceCaptured?(currentPoints)
+                // Use realtime callback for intermediate point updates,
+                // NOT onSequenceCaptured which creates new action items.
+                // onSequenceCaptured only fires via onFinishSequence (Confirm All).
+                self.onSequenceRealTime?(currentPoints)
             }
         }, onPointsRealtime: { [weak self] currentPoints in
             guard let self = self else { return }
