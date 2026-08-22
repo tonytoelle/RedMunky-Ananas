@@ -1,0 +1,4 @@
+# Safari Next Tab Macro
+TRIGGER: shift+right
+
+ACTION: press_shortcut ctrl+tab

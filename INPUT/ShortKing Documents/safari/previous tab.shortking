@@ -1,0 +1,4 @@
+# Safari Previous Tab Macro
+TRIGGER: shift+left
+
+ACTION: press_shortcut ctrl+shift+tab
