@@ -2354,26 +2354,54 @@ struct CaptureOverlaySwiftUIView: View {
                     }
                 }()
                 
-                if shouldShowCursorLine, let lastPt = state.points.last {
-                    let start = lastPt.point
-                    let end = state.quartzLocation
-                    let startColor = lastPt.type.color.opacity(0.95)
-                    let endColor: Color = (lastPt.type == .move) ? state.defaultPointType.color.opacity(0.0) : state.defaultPointType.color.opacity(0.95)
-                    
-                    let activeGrad = LinearGradient(
-                        gradient: Gradient(colors: [startColor, endColor]),
-                        startPoint: UnitPoint(x: start.x / max(1, geo.size.width), y: start.y / max(1, geo.size.height)),
-                        endPoint: UnitPoint(x: end.x / max(1, geo.size.width), y: end.y / max(1, geo.size.height))
-                    )
-                    
-                    Path { path in
-                        path.move(to: start)
-                        path.addLine(to: end)
+                if shouldShowCursorLine {
+                    let sel = state.selectedPointIndex ?? (state.points.count - 1)
+                    if sel >= 0 && sel < state.points.count {
+                        let prevPt = state.points[sel]
+                        let start = prevPt.point
+                        let end = state.quartzLocation
+                        
+                        let startColor = prevPt.type.color.opacity(0.95)
+                        let endColor: Color = (prevPt.type == .move) ? state.defaultPointType.color.opacity(0.0) : state.defaultPointType.color.opacity(0.95)
+                        let activeGrad = LinearGradient(
+                            gradient: Gradient(colors: [startColor, endColor]),
+                            startPoint: UnitPoint(x: start.x / max(1, geo.size.width), y: start.y / max(1, geo.size.height)),
+                            endPoint: UnitPoint(x: end.x / max(1, geo.size.width), y: end.y / max(1, geo.size.height))
+                        )
+                        
+                        Path { path in
+                            path.move(to: start)
+                            path.addLine(to: end)
+                        }
+                        .stroke(
+                            activeGrad,
+                            style: StrokeStyle(lineWidth: 2.5, lineCap: .round, dash: [4, 5])
+                        )
+                        
+                        // If inserting in between, show preview connecting cursor to next point
+                        if sel + 1 < state.points.count {
+                            let nextPt = state.points[sel + 1]
+                            let nextStart = end
+                            let nextEnd = nextPt.point
+                            let nextStartColor = state.defaultPointType.color.opacity(0.95)
+                            let nextEndColor: Color = (state.defaultPointType == .move) ? nextPt.type.color.opacity(0.0) : nextPt.type.color.opacity(0.95)
+                            
+                            let nextGrad = LinearGradient(
+                                gradient: Gradient(colors: [nextStartColor, nextEndColor]),
+                                startPoint: UnitPoint(x: nextStart.x / max(1, geo.size.width), y: nextStart.y / max(1, geo.size.height)),
+                                endPoint: UnitPoint(x: nextEnd.x / max(1, geo.size.width), y: nextEnd.y / max(1, geo.size.height))
+                            )
+                            
+                            Path { path in
+                                path.move(to: nextStart)
+                                path.addLine(to: nextEnd)
+                            }
+                            .stroke(
+                                nextGrad,
+                                style: StrokeStyle(lineWidth: 2.5, lineCap: .round, dash: [4, 5])
+                            )
+                        }
                     }
-                    .stroke(
-                        activeGrad,
-                        style: StrokeStyle(lineWidth: 2.5, lineCap: .round, dash: [4, 5])
-                    )
                 }
                 
                 // ─────────────────────────────────────────────
