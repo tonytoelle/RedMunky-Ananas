@@ -3,3 +3,4 @@ TRIGGER: cmd+l
 
 # Actions:
 ACTION: path 394,1110:click*2 533,1034:drag 476,955:drag
+ACTION: do_again
