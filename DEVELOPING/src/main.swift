@@ -4029,13 +4029,21 @@ struct ActionCardView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     ForEach(Array(subActions.enumerated()), id: \.element.id) { subIndex, subItem in
                         let subItemBinding = Binding<MacroActionItem>(
-                            get: { subActions[subIndex] },
+                            get: {
+                                if subIndex < subActions.count {
+                                    return subActions[subIndex]
+                                } else {
+                                    return subItem
+                                }
+                            },
                             set: { newValue in
                                 onPreSave()
                                 var newSubActions = subActions
-                                newSubActions[subIndex] = newValue
-                                item.action = .group(name: name, actions: newSubActions)
-                                onSave()
+                                if subIndex < newSubActions.count {
+                                    newSubActions[subIndex] = newValue
+                                    item.action = .group(name: name, actions: newSubActions)
+                                    onSave()
+                                }
                             }
                         )
                         
