@@ -2238,6 +2238,22 @@ class CaptureOverlayState: ObservableObject {
     @Published var hoveredIndex: Int? = nil
     @Published var selectedPointIndex: Int? = nil
     @Published var defaultPointType: SequencePointType = .move
+    @Published var isHoveringHud: Bool = false
+    @Published var lastHudCenter: CGPoint = .zero
+    
+    var isHudVisible: Bool {
+        if phase == .recording { return true }
+        if selectedPointIndex != nil || activeDraggingIndex != nil || isHoveringHud { return true }
+        if hoveredIndex != nil { return true }
+        for p in points {
+            let dx = quartzLocation.x - p.point.x
+            let dy = quartzLocation.y - p.point.y
+            if sqrt(dx * dx + dy * dy) <= 45 {
+                return true
+            }
+        }
+        return false
+    }
     
     var onConfirmAll: (() -> Void)? = nil
     var onCancelAction: (() -> Void)? = nil
@@ -2273,7 +2289,7 @@ class CaptureOverlayState: ObservableObject {
 }
 
 // ==========================================
-// MARK: - Capture Overlay SwiftUI View (Minimalist HUD)
+// MARK: - Capture Overlay SwiftUI View (Minimalist Compact HUD)
 // ==========================================
 struct CaptureOverlaySwiftUIView: View {
     @ObservedObject var state: CaptureOverlayState
@@ -2281,8 +2297,8 @@ struct CaptureOverlaySwiftUIView: View {
     var body: some View {
         GeometryReader { geo in
             ZStack {
-                // Subtle dark transparent backdrop
-                Color.black.opacity(0.15)
+                // Completely transparent background in edit mode so underlying windows are crystal clear
+                Color.black.opacity(state.phase == .recording ? 0.12 : 0.001)
                     .edgesIgnoringSafeArea(.all)
                 
                 // ─────────────────────────────────────────────
@@ -2311,7 +2327,7 @@ struct CaptureOverlaySwiftUIView: View {
                         }
                         .stroke(
                             grad,
-                            style: StrokeStyle(lineWidth: 3.5, lineCap: .round, dash: [5, 6])
+                            style: StrokeStyle(lineWidth: 2.5, lineCap: .round, dash: [4, 5])
                         )
                     }
                 }
@@ -2347,12 +2363,12 @@ struct CaptureOverlaySwiftUIView: View {
                     }
                     .stroke(
                         activeGrad,
-                        style: StrokeStyle(lineWidth: 3.5, lineCap: .round, dash: [5, 6])
+                        style: StrokeStyle(lineWidth: 2.5, lineCap: .round, dash: [4, 5])
                     )
                 }
                 
                 // ─────────────────────────────────────────────
-                // PINS RENDERING (Clean Minimal Circles)
+                // PINS RENDERING (Compact Clean Minimal Circles)
                 // ─────────────────────────────────────────────
                 ForEach(Array(state.points.enumerated()), id: \.element.id) { idx, item in
                     let isHovered = state.hoveredIndex == idx
@@ -2381,21 +2397,25 @@ struct CaptureOverlaySwiftUIView: View {
                             }
                     )
                     .onTapGesture {
-                        // Clicking a pin selects it without changing its mode!
                         state.selectedPointIndex = idx
                     }
                 }
                 
                 // ─────────────────────────────────────────────
-                // FLOATING COMPACT HUD CARD
+                // FLOATING COMPACT HUD CARD (Hover-based visibility)
                 // ─────────────────────────────────────────────
+                let pos = hudPosition(in: geo.size)
                 floatingHUDCard
-                    .position(hudPosition(in: geo.size))
+                    .position(pos)
+                    .opacity(state.isHudVisible ? 1.0 : 0.0)
+                    .animation(.easeInOut(duration: 0.15), value: state.isHudVisible)
+                    .onAppear { state.lastHudCenter = pos }
+                    .onChange(of: pos) { _, newPos in state.lastHudCenter = newPos }
             }
         }
     }
     
-    // MARK: - Minimal Clean Pin Marker
+    // MARK: - Minimal Compact Pin Marker
     @ViewBuilder
     private func pinMarker(
         number: String,
@@ -2407,28 +2427,28 @@ struct CaptureOverlaySwiftUIView: View {
         ZStack {
             if isHovered || isDragging || isSelected {
                 Circle()
-                    .stroke(type.color.opacity(0.55), lineWidth: 5)
-                    .frame(width: 42, height: 42)
+                    .stroke(type.color.opacity(0.55), lineWidth: 3.5)
+                    .frame(width: 30, height: 30)
             }
             
             Circle()
                 .fill(type.color)
-                .frame(width: 32, height: 32)
-                .shadow(color: type.color.opacity(0.6), radius: 6)
+                .frame(width: 22, height: 22)
+                .shadow(color: type.color.opacity(0.6), radius: 4)
             
             Circle()
-                .stroke(Color.white.opacity(isSelected ? 0.95 : 0.35), lineWidth: isSelected ? 2 : 1)
-                .frame(width: 32, height: 32)
+                .stroke(Color.white.opacity(isSelected ? 0.95 : 0.35), lineWidth: isSelected ? 1.5 : 1)
+                .frame(width: 22, height: 22)
             
             Text(number)
-                .font(.system(size: 14, weight: .heavy, design: .rounded))
+                .font(.system(size: 11, weight: .heavy, design: .rounded))
                 .foregroundColor(.white)
         }
-        .frame(width: 44, height: 44)
+        .frame(width: 32, height: 32)
         .contentShape(Circle())
     }
     
-    // MARK: - Floating HUD Card (Matching User Screenshot)
+    // MARK: - Floating Compact HUD Card
     @ViewBuilder
     private var floatingHUDCard: some View {
         let currentType: SequencePointType = {
@@ -2454,8 +2474,8 @@ struct CaptureOverlaySwiftUIView: View {
             return Int(state.quartzLocation.y)
         }()
         
-        HStack(spacing: 14) {
-            // Left: Squircle Action Type Icon Button (Only place where mode changes!)
+        HStack(spacing: 10) {
+            // Left: Squircle Action Type Icon Button
             Button {
                 if let sel = state.selectedPointIndex, sel < state.points.count {
                     state.cycleType(at: sel)
@@ -2473,64 +2493,64 @@ struct CaptureOverlaySwiftUIView: View {
                 }
             } label: {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
                         .fill(currentType.color)
-                        .frame(width: 52, height: 52)
-                        .shadow(color: currentType.color.opacity(0.4), radius: 6)
+                        .frame(width: 36, height: 36)
+                        .shadow(color: currentType.color.opacity(0.4), radius: 4)
                     
                     Image(systemName: currentType.icon == "hand.draw" ? "hand.tap.fill" : currentType.icon)
-                        .font(.system(size: 24, weight: .medium))
+                        .font(.system(size: 17, weight: .semibold))
                         .foregroundColor(.white)
                 }
             }
             .buttonStyle(.plain)
             
             // Right: Coordinates and Subtitle
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
                     Text("\(displayX)")
-                        .font(.system(size: 22, weight: .bold, design: .rounded))
+                        .font(.system(size: 15, weight: .bold, design: .rounded))
                         .foregroundColor(.white)
                     
                     Text("•")
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundColor(.white.opacity(0.8))
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(.white.opacity(0.7))
                     
                     Text("\(displayY)")
-                        .font(.system(size: 22, weight: .bold, design: .rounded))
+                        .font(.system(size: 15, weight: .bold, design: .rounded))
                         .foregroundColor(.white)
                 }
                 
                 VStack(alignment: .leading, spacing: 1) {
                     if state.phase == .recording {
                         Text("enter to edit")
-                            .font(.system(size: 11, weight: .semibold))
+                            .font(.system(size: 9.5, weight: .semibold))
                             .foregroundColor(Color(red: 0.85, green: 0.20, blue: 0.95))
                         Text("esc to cancel")
-                            .font(.system(size: 11, weight: .semibold))
+                            .font(.system(size: 9.5, weight: .semibold))
                             .foregroundColor(Color(red: 0.85, green: 0.20, blue: 0.95))
                     } else {
                         Text("click to change action")
-                            .font(.system(size: 11, weight: .semibold))
+                            .font(.system(size: 9.5, weight: .semibold))
                             .foregroundColor(Color(red: 0.85, green: 0.20, blue: 0.95))
                         Text("enter to confirm")
-                            .font(.system(size: 11, weight: .semibold))
+                            .font(.system(size: 9.5, weight: .semibold))
                             .foregroundColor(Color(red: 0.85, green: 0.20, blue: 0.95))
                     }
                 }
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
         .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .fill(Color(white: 0.05).opacity(0.96))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .stroke(Color.white.opacity(0.12), lineWidth: 1)
         )
-        .shadow(color: Color.black.opacity(0.65), radius: 14, y: 6)
+        .shadow(color: Color.black.opacity(0.65), radius: 10, y: 4)
     }
     
     // MARK: - HUD Dynamic Position Following Cursor / Active Pin
@@ -2542,18 +2562,18 @@ struct CaptureOverlaySwiftUIView: View {
             targetPt = state.quartzLocation
         }
         
-        var x = targetPt.x + 130
-        var y = targetPt.y + 60
+        var x = targetPt.x + 95
+        var y = targetPt.y + 40
         
         // Prevent HUD going off screen
-        if x + 120 > size.width {
-            x = targetPt.x - 130
+        if x + 85 > size.width {
+            x = targetPt.x - 95
         }
-        if y + 60 > size.height {
-            y = targetPt.y - 60
+        if y + 40 > size.height {
+            y = targetPt.y - 40
         }
-        if x < 120 { x = 130 }
-        if y < 50 { y = 60 }
+        if x < 90 { x = 95 }
+        if y < 35 { y = 40 }
         
         return CGPoint(x: x, y: y)
     }
@@ -2569,6 +2589,7 @@ class CaptureOverlayHostingView: NSView {
     
     private var trackingArea: NSTrackingArea?
     private var localKeyMonitor: Any?
+    private var globalMouseMonitor: Any?
     private var stateModel = CaptureOverlayState()
     
     init(mode: CaptureOverlayWindow.Mode,
@@ -2639,10 +2660,29 @@ class CaptureOverlayHostingView: NSView {
                     return nil
                 }
             }
+            
+            if globalMouseMonitor == nil {
+                globalMouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged]) { [weak self] event in
+                    guard let self = self, let win = self.window else { return }
+                    let screenPt = NSEvent.mouseLocation
+                    let winLoc = win.convertPoint(fromScreen: screenPt)
+                    let screenHeight = win.screen?.frame.height ?? NSScreen.main?.frame.height ?? self.bounds.height
+                    let quartzPt = CGPoint(x: winLoc.x, y: screenHeight - winLoc.y)
+                    DispatchQueue.main.async {
+                        self.stateModel.currentLocation = winLoc
+                        self.stateModel.quartzLocation = quartzPt
+                        self.updateHover(quartzPt: quartzPt)
+                    }
+                }
+            }
         } else {
             if let monitor = localKeyMonitor {
                 NSEvent.removeMonitor(monitor)
                 localKeyMonitor = nil
+            }
+            if let monitor = globalMouseMonitor {
+                NSEvent.removeMonitor(monitor)
+                globalMouseMonitor = nil
             }
         }
     }
@@ -2661,22 +2701,54 @@ class CaptureOverlayHostingView: NSView {
         return sqrt(dx * dx + dy * dy)
     }
     
+    private func updateHover(quartzPt: CGPoint) {
+        var foundIdx: Int? = nil
+        for (i, p) in stateModel.points.enumerated() {
+            if dist(quartzPt, p.point) <= 22 {
+                foundIdx = i
+                break
+            }
+        }
+        stateModel.hoveredIndex = foundIdx
+    }
+    
     private func updateMouse(event: NSEvent) {
         let winLoc = event.locationInWindow
         let screenHeight = window?.screen?.frame.height ?? NSScreen.main?.frame.height ?? bounds.height
         let quartzPt = CGPoint(x: winLoc.x, y: screenHeight - winLoc.y)
         stateModel.currentLocation = winLoc
         stateModel.quartzLocation = quartzPt
+        updateHover(quartzPt: quartzPt)
+    }
+    
+    // MARK: - Passthrough Background Clicks (Hit Testing)
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        let screenHeight = window?.screen?.frame.height ?? NSScreen.main?.frame.height ?? bounds.height
+        let quartzPt = CGPoint(x: point.x, y: screenHeight - point.y)
         
-        // Hover detection
-        var foundIdx: Int? = nil
-        for (i, p) in stateModel.points.enumerated() {
-            if dist(quartzPt, p.point) < 26 {
-                foundIdx = i
-                break
+        // During recording: capture all clicks
+        if stateModel.phase == .recording {
+            return super.hitTest(point)
+        }
+        
+        // During edit: only capture clicks on/near pins
+        for p in stateModel.points {
+            if dist(quartzPt, p.point) <= 22 {
+                return super.hitTest(point)
             }
         }
-        stateModel.hoveredIndex = foundIdx
+        
+        // Or clicks on the HUD card
+        if stateModel.isHudVisible {
+            let hudPos = stateModel.lastHudCenter
+            let hudRect = CGRect(x: hudPos.x - 70, y: hudPos.y - 25, width: 140, height: 50)
+            if hudRect.contains(quartzPt) {
+                return super.hitTest(point)
+            }
+        }
+        
+        // Otherwise, click passes through to the underlying window!
+        return nil
     }
     
     override func mouseMoved(with event: NSEvent) {
@@ -2715,7 +2787,6 @@ class CaptureOverlayHostingView: NSView {
                 }
                 
             case .sequence:
-                // New point always takes defaultPointType (.move by default)
                 stateModel.points.append(SequencePoint(point: stateModel.quartzLocation, type: stateModel.defaultPointType))
                 stateModel.selectedPointIndex = stateModel.points.count - 1
             }
@@ -2727,7 +2798,7 @@ class CaptureOverlayHostingView: NSView {
             } else {
                 var found: Int? = nil
                 for (i, p) in stateModel.points.enumerated() {
-                    if dist(stateModel.quartzLocation, p.point) <= 30 {
+                    if dist(stateModel.quartzLocation, p.point) <= 22 {
                         found = i
                         break
                     }
@@ -2735,12 +2806,7 @@ class CaptureOverlayHostingView: NSView {
                 if let f = found {
                     stateModel.selectedPointIndex = f
                     stateModel.activeDraggingIndex = f
-                } else if case .click = stateModel.mode, !stateModel.points.isEmpty {
-                    stateModel.points[0].point = stateModel.quartzLocation
-                    stateModel.selectedPointIndex = 0
-                    stateModel.activeDraggingIndex = 0
                 } else {
-                    // Clicking empty canvas deselects selection cleanly
                     stateModel.selectedPointIndex = nil
                     stateModel.activeDraggingIndex = nil
                 }
@@ -2755,20 +2821,16 @@ class CaptureOverlayHostingView: NSView {
     private func handleKeyEvent(_ event: NSEvent) {
         if event.keyCode == 53 { // Esc
             if stateModel.selectedPointIndex != nil {
-                // Esc clears active selection!
                 stateModel.selectedPointIndex = nil
             } else {
-                // If nothing is selected, Esc cancels and closes overlay
                 onCancel()
             }
         } else if event.keyCode == 36 || event.keyCode == 76 || event.keyCode == 49 { // Return / Enter / Space
             if case .sequence = stateModel.mode {
                 if stateModel.phase == .recording {
-                    // First Enter: Finish recording points and switch to Edit Mode (selection cleared)
                     stateModel.phase = .editing
                     stateModel.selectedPointIndex = nil
                 } else {
-                    // Second Enter: Final Confirm & Save
                     stateModel.onConfirmAll?()
                 }
             } else {
@@ -2863,43 +2925,40 @@ class CaptureOverlayWindow: NSWindow {
     private func setupWindow(initialPoints: [SequencePoint], defaultType: SequencePointType) {
         self.isOpaque = false
         self.backgroundColor = .clear
-        self.level = .screenSaver
+        self.level = .floating
         self.ignoresMouseEvents = false
         self.acceptsMouseMovedEvents = true
         self.hasShadow = false
         self.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         
-        let overlayView = CaptureOverlayHostingView(
-            mode: mode,
-            initialPoints: initialPoints,
-            defaultType: defaultType,
-            onFinishSequence: { [weak self] pts in
-                guard let self = self else { return }
-                self.closeWindow()
-                if let onSeq = self.onSequenceCaptured {
-                    onSeq(pts)
-                } else if let onDrag = self.onDragCaptured {
-                    let s = pts.first?.point ?? .zero
-                    let e = pts.count > 1 ? pts[1].point : s
-                    onDrag(s, e)
-                } else if let onClick = self.onClickCaptured {
-                    let pt = pts.first?.point ?? .zero
-                    onClick(pt)
+        let contentView = CaptureOverlayHostingView(mode: self.mode,
+                                                   initialPoints: initialPoints,
+                                                   defaultType: defaultType,
+                                                   onFinishSequence: { [weak self] finalPoints in
+            guard let self = self else { return }
+            self.close()
+            CaptureOverlayWindow.shared = nil
+            
+            switch self.mode {
+            case .click:
+                if let pt = finalPoints.first?.point {
+                    self.onClickCaptured?(pt)
                 }
-            },
-            onCancel: { [weak self] in
-                self?.closeWindow()
+            case .drag:
+                if finalPoints.count >= 2 {
+                    self.onDragCaptured?(finalPoints[0].point, finalPoints[1].point)
+                }
+            case .sequence:
+                self.onSequenceCaptured?(finalPoints)
             }
-        )
+        }, onCancel: { [weak self] in
+            self?.close()
+            CaptureOverlayWindow.shared = nil
+        })
         
-        self.contentView = overlayView
+        self.contentView = contentView
         self.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
-    }
-    
-    func closeWindow() {
-        self.orderOut(nil)
-        CaptureOverlayWindow.shared = nil
     }
 }
 
