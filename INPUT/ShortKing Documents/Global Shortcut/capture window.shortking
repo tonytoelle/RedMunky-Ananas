@@ -1,0 +1,5 @@
+# ShortKing Macro Script
+TRIGGER: shift+f3
+
+# Actions:
+ACTION: custom_action "screencapture -i -W -c"
