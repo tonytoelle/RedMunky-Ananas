@@ -7266,14 +7266,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDele
     
     private func installDeleteKeyMonitor() {
         deleteKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-            // keyCode 51 = Backspace, 117 = Forward Delete
+            // keyCode 51 = Backspace / Delete, 117 = Forward Delete
             guard event.keyCode == 51 || event.keyCode == 117 else { return event }
             
-            // If focused on an editable text input, let it handle deletion normally
+            // Check if user is currently actively typing in an editable text field/editor
             if let responder = NSApp.keyWindow?.firstResponder {
-                // Field editors are NSTextView; check if they're inside an editable NSTextField
-                if responder is NSTextView {
-                    // A field editor backing an NSTextField — always pass through
+                if let tv = responder as? NSTextView, tv.isEditable {
                     return event
                 }
                 if let tf = responder as? NSTextField, tf.isEditable {
@@ -7281,13 +7279,19 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDele
                 }
             }
             
-            // Delete selected actions if any are selected
+            // If action(s) are selected in ShortKing, delete them immediately
             if !MacroStore.shared.selectedActionIDs.isEmpty {
                 MacroStore.shared.deleteSelectedActions()
-                return nil   // Consume the event — don't pass to any view
+                return nil
             }
             
             return event
+        }
+    }
+    
+    @objc func deleteSelectedActionFromMenu(_ sender: Any?) {
+        if !MacroStore.shared.selectedActionIDs.isEmpty {
+            MacroStore.shared.deleteSelectedActions()
         }
     }
 
@@ -7420,6 +7424,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDele
         editMenu.addItem(withTitle: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
         editMenu.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
         editMenu.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+        let deleteMenuItem = NSMenuItem(title: "Delete", action: #selector(deleteSelectedActionFromMenu(_:)), keyEquivalent: "\u{08}")
+        deleteMenuItem.target = self
+        editMenu.addItem(deleteMenuItem)
         editMenu.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
         editMenuItem.submenu = editMenu
         mainMenu.addItem(editMenuItem)
