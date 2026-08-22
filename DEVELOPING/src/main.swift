@@ -5936,24 +5936,31 @@ struct MainEditorView: View {
                 
                 // Custom Resizable Divider
                 if store.isSidebarVisible {
-                    Rectangle()
-                        .fill(Color(white: 0.18))
-                        .frame(width: 1)
-                        .contentShape(Rectangle())
-                        .onHover { inside in
-                            if inside {
-                                NSCursor.resizeLeftRight.set()
-                            } else {
-                                NSCursor.arrow.set()
-                            }
+                    ZStack {
+                        Color.clear
+                            .frame(width: 12)
+                            .contentShape(Rectangle())
+                        
+                        Rectangle()
+                            .fill(Color(white: 0.18))
+                            .frame(width: 1)
+                    }
+                    .frame(width: 12)
+                    .contentShape(Rectangle())
+                    .onHover { inside in
+                        if inside {
+                            NSCursor.resizeLeftRight.set()
+                        } else {
+                            NSCursor.arrow.set()
                         }
-                        .gesture(
-                            DragGesture(coordinateSpace: .named("mainContainer"))
-                                .onChanged { gesture in
-                                    let newWidth = gesture.location.x
-                                    sidebarWidth = max(240, min(newWidth, 450))
-                                }
-                        )
+                    }
+                    .gesture(
+                        DragGesture(coordinateSpace: .named("mainContainer"))
+                            .onChanged { gesture in
+                                let newWidth = gesture.location.x
+                                sidebarWidth = max(240, min(newWidth, 450))
+                            }
+                    )
                 }
 
                 // Right Detail Canvas Section
@@ -6395,6 +6402,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDele
             win.title = "👑 ShortKing — Macro Editor"
             win.titlebarAppearsTransparent = true
             win.titleVisibility = .hidden
+            win.titlebarSeparatorStyle = .none
             win.contentViewController = NSHostingController(rootView: MainEditorView())
             win.isReleasedWhenClosed = false
             win.delegate = self
