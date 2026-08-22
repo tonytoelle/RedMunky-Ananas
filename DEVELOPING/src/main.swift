@@ -2589,6 +2589,7 @@ class CaptureOverlayHostingView: NSView {
     
     private var trackingArea: NSTrackingArea?
     private var localKeyMonitor: Any?
+    private var globalKeyMonitor: Any?
     private var globalMouseMonitor: Any?
     private var stateModel = CaptureOverlayState()
     
@@ -2615,9 +2616,11 @@ class CaptureOverlayHostingView: NSView {
         
         stateModel.onConfirmAll = { [weak self] in
             guard let self = self else { return }
+            self.cleanupMonitors()
             self.onFinishSequence(self.stateModel.points)
         }
         stateModel.onCancelAction = { [weak self] in
+            self?.cleanupMonitors()
             self?.onCancel()
         }
         stateModel.onResetAction = { [weak self] in
@@ -2626,6 +2629,7 @@ class CaptureOverlayHostingView: NSView {
             self?.stateModel.activeDraggingIndex = nil
             self?.stateModel.hoveredIndex = nil
             self?.stateModel.selectedPointIndex = nil
+            self?.window?.ignoresMouseEvents = false
         }
         
         let swiftUIView = CaptureOverlaySwiftUIView(state: stateModel)
@@ -2642,6 +2646,12 @@ class CaptureOverlayHostingView: NSView {
     
     required init?(coder: NSCoder) { fatalError() }
 
+    private func cleanupMonitors() {
+        if let m = localKeyMonitor { NSEvent.removeMonitor(m); localKeyMonitor = nil }
+        if let m = globalKeyMonitor { NSEvent.removeMonitor(m); globalKeyMonitor = nil }
+        if let m = globalMouseMonitor { NSEvent.removeMonitor(m); globalMouseMonitor = nil }
+    }
+
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         if let win = window {
@@ -2653,11 +2663,26 @@ class CaptureOverlayHostingView: NSView {
             stateModel.quartzLocation = quartzPt
             win.makeFirstResponder(self)
             
+            if stateModel.phase == .editing {
+                win.ignoresMouseEvents = true
+            } else {
+                win.ignoresMouseEvents = false
+            }
+            
             if localKeyMonitor == nil {
                 localKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
                     guard let self = self, self.window != nil else { return event }
                     self.handleKeyEvent(event)
                     return nil
+                }
+            }
+            
+            if globalKeyMonitor == nil {
+                globalKeyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
+                    guard let self = self, self.window != nil else { return }
+                    DispatchQueue.main.async {
+                        self.handleKeyEvent(event)
+                    }
                 }
             }
             
@@ -2676,14 +2701,7 @@ class CaptureOverlayHostingView: NSView {
                 }
             }
         } else {
-            if let monitor = localKeyMonitor {
-                NSEvent.removeMonitor(monitor)
-                localKeyMonitor = nil
-            }
-            if let monitor = globalMouseMonitor {
-                NSEvent.removeMonitor(monitor)
-                globalMouseMonitor = nil
-            }
+            cleanupMonitors()
         }
     }
     
@@ -2710,6 +2728,23 @@ class CaptureOverlayHostingView: NSView {
             }
         }
         stateModel.hoveredIndex = foundIdx
+        
+        // Dynamically toggle ignoresMouseEvents for true background click-through!
+        if stateModel.phase == .editing {
+            var isOverInteractive = (foundIdx != nil) || (stateModel.selectedPointIndex != nil) || (stateModel.activeDraggingIndex != nil)
+            
+            if !isOverInteractive && stateModel.isHudVisible {
+                let hudPos = stateModel.lastHudCenter
+                let hudRect = CGRect(x: hudPos.x - 70, y: hudPos.y - 25, width: 140, height: 50)
+                if hudRect.contains(quartzPt) {
+                    isOverInteractive = true
+                }
+            }
+            
+            window?.ignoresMouseEvents = !isOverInteractive
+        } else {
+            window?.ignoresMouseEvents = false
+        }
     }
     
     private func updateMouse(event: NSEvent) {
@@ -2726,19 +2761,16 @@ class CaptureOverlayHostingView: NSView {
         let screenHeight = window?.screen?.frame.height ?? NSScreen.main?.frame.height ?? bounds.height
         let quartzPt = CGPoint(x: point.x, y: screenHeight - point.y)
         
-        // During recording: capture all clicks
         if stateModel.phase == .recording {
             return super.hitTest(point)
         }
         
-        // During edit: only capture clicks on/near pins
         for p in stateModel.points {
             if dist(quartzPt, p.point) <= 22 {
                 return super.hitTest(point)
             }
         }
         
-        // Or clicks on the HUD card
         if stateModel.isHudVisible {
             let hudPos = stateModel.lastHudCenter
             let hudRect = CGRect(x: hudPos.x - 70, y: hudPos.y - 25, width: 140, height: 50)
@@ -2747,7 +2779,6 @@ class CaptureOverlayHostingView: NSView {
             }
         }
         
-        // Otherwise, click passes through to the underlying window!
         return nil
     }
     
@@ -2822,7 +2853,9 @@ class CaptureOverlayHostingView: NSView {
         if event.keyCode == 53 { // Esc
             if stateModel.selectedPointIndex != nil {
                 stateModel.selectedPointIndex = nil
+                window?.ignoresMouseEvents = true
             } else {
+                cleanupMonitors()
                 onCancel()
             }
         } else if event.keyCode == 36 || event.keyCode == 76 || event.keyCode == 49 { // Return / Enter / Space
@@ -2830,16 +2863,20 @@ class CaptureOverlayHostingView: NSView {
                 if stateModel.phase == .recording {
                     stateModel.phase = .editing
                     stateModel.selectedPointIndex = nil
+                    window?.ignoresMouseEvents = true
                 } else {
+                    cleanupMonitors()
                     stateModel.onConfirmAll?()
                 }
             } else {
+                cleanupMonitors()
                 stateModel.onConfirmAll?()
             }
         } else if event.keyCode == 48 { // Tab: cycle selected point
             if !stateModel.points.isEmpty {
                 let cur = stateModel.selectedPointIndex ?? -1
                 stateModel.selectedPointIndex = (cur + 1) % stateModel.points.count
+                window?.ignoresMouseEvents = false
             }
         } else if event.keyCode == 51 || event.keyCode == 117 { // Backspace / Delete
             if case .sequence = stateModel.mode, let sel = stateModel.selectedPointIndex {
