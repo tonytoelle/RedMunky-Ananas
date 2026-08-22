@@ -2480,7 +2480,7 @@ struct CaptureOverlaySwiftUIView: View {
                         let ptB = state.points[idx + 1]
                         
                         let isLineBeingBypassed = state.isFollowingCursor && state.selectedPointIndex == idx
-                        let lineOpacityMultiplier: Double = isLineBeingBypassed ? 0.0 : (state.isPassThroughMode ? 0.20 : 1.0)
+                        let lineOpacityMultiplier: Double = isLineBeingBypassed ? 0.0 : (state.isPassThroughMode ? 0.35 : 1.0)
                         
                         let midColor = blendColors(typeA: ptA.type, typeB: ptB.type)
                         
@@ -2512,7 +2512,7 @@ struct CaptureOverlaySwiftUIView: View {
                     let end = state.quartzLocation
                     let ptA = state.points[sel]
                     
-                    let lineOpacityMultiplier: Double = state.isPassThroughMode ? 0.20 : 1.0
+                    let lineOpacityMultiplier: Double = state.isPassThroughMode ? 0.35 : 1.0
                     let midColor = blendColors(typeA: ptA.type, typeB: state.defaultPointType)
                     let grad = LinearGradient(
                         gradient: Gradient(stops: [
@@ -2577,7 +2577,7 @@ struct CaptureOverlaySwiftUIView: View {
                         isDragging: isDragging
                     )
                     .position(x: item.point.x, y: item.point.y)
-                    .opacity(state.isPassThroughMode ? 0.20 : 1.0)
+                    .opacity(state.isPassThroughMode ? 0.35 : 1.0)
                     .allowsHitTesting(!state.isPassThroughMode)
                     .gesture(
                         DragGesture(minimumDistance: 1, coordinateSpace: .global)
