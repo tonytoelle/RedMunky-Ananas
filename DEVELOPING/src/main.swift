@@ -2239,7 +2239,12 @@ class CaptureOverlayState: ObservableObject {
         }
     }
     
-    @Published var points: [SequencePoint] = []
+    var onPointsChanged: (([SequencePoint]) -> Void)? = nil
+    @Published var points: [SequencePoint] = [] {
+        didSet {
+            onPointsChanged?(points)
+        }
+    }
     @Published var activeDraggingIndex: Int? = nil
     @Published var hoveredIndex: Int? = nil
     @Published var selectedPointIndex: Int? = nil
@@ -2654,7 +2659,7 @@ struct CaptureOverlaySwiftUIView: View {
     // MARK: - HUD Dynamic Position Following Cursor / Active Pin
     private func hudPosition(in size: CGSize) -> CGPoint {
         let targetPt: CGPoint
-        if state.phase == .editing, let sel = state.selectedPointIndex, sel < state.points.count {
+        if !state.isFollowingCursor, let sel = state.selectedPointIndex, sel < state.points.count {
             targetPt = state.points[sel].point
         } else {
             targetPt = state.quartzLocation
@@ -2684,6 +2689,7 @@ class CaptureOverlayHostingView: NSView {
     var mode: CaptureOverlayWindow.Mode
     var onFinishSequence: ([SequencePoint]) -> Void
     var onCancel: () -> Void
+    var onPointsChanged: ([SequencePoint]) -> Void
     
     private var trackingArea: NSTrackingArea?
     private var localKeyMonitor: Any?
@@ -2696,11 +2702,17 @@ class CaptureOverlayHostingView: NSView {
          initialPoints: [SequencePoint] = [],
          defaultType: SequencePointType = .move,
          onFinishSequence: @escaping ([SequencePoint]) -> Void,
-         onCancel: @escaping () -> Void) {
+         onCancel: @escaping () -> Void,
+         onPointsChanged: @escaping ([SequencePoint]) -> Void) {
         self.mode = mode
         self.onFinishSequence = onFinishSequence
         self.onCancel = onCancel
+        self.onPointsChanged = onPointsChanged
         super.init(frame: .zero)
+        
+        stateModel.onPointsChanged = { points in
+            onPointsChanged(points)
+        }
         
         stateModel.mode = mode
         stateModel.defaultPointType = defaultType
@@ -2717,6 +2729,7 @@ class CaptureOverlayHostingView: NSView {
         
         stateModel.onIsFollowingCursorChanged = { [weak self] following in
             guard let self = self else { return }
+            self.window?.invalidateCursorRects(for: self)
             if following {
                 self.window?.ignoresMouseEvents = false
                 
@@ -2909,6 +2922,15 @@ class CaptureOverlayHostingView: NSView {
     // MARK: - Accepts First Mouse (Instant interaction even when background apps are active)
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
         return true
+    }
+    
+    override func resetCursorRects() {
+        super.resetCursorRects()
+        if stateModel.isFollowingCursor {
+            addCursorRect(bounds, cursor: .crosshair)
+        } else {
+            addCursorRect(bounds, cursor: .arrow)
+        }
     }
     
     // MARK: - Hit Testing (Native macOS Click-Through)
@@ -3166,6 +3188,20 @@ class CaptureOverlayWindow: NSPanel {
         }, onCancel: { [weak self] in
             self?.close()
             CaptureOverlayWindow.shared = nil
+        }, onPointsChanged: { [weak self] currentPoints in
+            guard let self = self else { return }
+            switch self.mode {
+            case .click:
+                if let pt = currentPoints.first?.point {
+                    self.onClickCaptured?(pt)
+                }
+            case .drag:
+                if currentPoints.count >= 2 {
+                    self.onDragCaptured?(currentPoints[0].point, currentPoints[1].point)
+                }
+            case .sequence:
+                self.onSequenceCaptured?(currentPoints)
+            }
         })
         
         self.contentView = contentView
