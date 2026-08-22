@@ -5933,7 +5933,9 @@ struct MainEditorView: View {
                 .padding(.trailing, 2)
                 .frame(width: store.isSidebarVisible ? sidebarWidth : 0)
                 .frame(maxHeight: .infinity)
-                .background(Color(white: 0.12))
+                .background(Color(white: 0.12).onTapGesture {
+                    NSApp.keyWindow?.makeFirstResponder(nil)
+                })
                 .clipped()
                 
                 // Custom Resizable Divider
@@ -6002,15 +6004,14 @@ struct MainEditorView: View {
                             }
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                         }
-                        .background(Color(white: 0.14))
+                        .background(Color(white: 0.14).onTapGesture {
+                            NSApp.keyWindow?.makeFirstResponder(nil)
+                        })
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .coordinateSpace(name: "mainContainer")
-            .onTapGesture {
-                NSApp.keyWindow?.makeFirstResponder(nil)
-            }
             .onChange(of: outerGeo.size.width) { oldWidth, newWidth in
                 if newWidth < 580 && store.isSidebarVisible {
                     withAnimation(.easeInOut(duration: 0.2)) {
