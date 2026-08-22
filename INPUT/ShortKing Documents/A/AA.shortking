@@ -14,3 +14,11 @@ ACTION: click 1241 830
 ACTION: right_click 1329 711
 ACTION: drag 1214 772 to 1305 669
 ACTION: path 1214,789:move
+ACTION: path 1309,786:move
+ACTION: click 1381 781
+ACTION: right_click 1039 821
+ACTION: move 1026 829
+ACTION: move 0 0
+ACTION: move 1553 814
+ACTION: move 0 0
+ACTION: move 0 0

@@ -2800,6 +2800,7 @@ class CaptureOverlayHostingView: NSView {
             guard let self = self else { return }
             self.window?.invalidateCursorRects(for: self)
             if following && !self.stateModel.isPassThroughMode {
+                NSCursor.hide()
                 self.window?.ignoresMouseEvents = false
                 
                 // Get current mouse location instantly
@@ -2815,7 +2816,13 @@ class CaptureOverlayHostingView: NSView {
         stateModel.onPassThroughChanged = { [weak self] isPassThrough in
             guard let self = self else { return }
             self.window?.invalidateCursorRects(for: self)
-            NSCursor.unhide()
+            if isPassThrough {
+                NSCursor.unhide()
+            } else if self.stateModel.isFollowingCursor {
+                NSCursor.hide()
+            } else {
+                NSCursor.unhide()
+            }
         }
         
         stateModel.onConfirmAll = { [weak self] in
@@ -2866,7 +2873,7 @@ class CaptureOverlayHostingView: NSView {
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         if let win = window {
-            if case .sequence = stateModel.mode, stateModel.isFollowingCursor {
+            if stateModel.isFollowingCursor && !stateModel.isPassThroughMode {
                 NSCursor.hide()
             }
             let screenPt = NSEvent.mouseLocation
