@@ -2545,42 +2545,29 @@ struct CaptureOverlaySwiftUIView: View {
         .contentShape(Circle())
     }
     
-    // MARK: - Floating Compact HUD Card
+    // MARK: - Minimal Compact Floating Action HUD Card
     @ViewBuilder
     private var floatingHUDCard: some View {
         let currentType: SequencePointType = {
-            if let sel = state.selectedPointIndex, sel < state.points.count {
+            if state.phase == .editing, let sel = state.selectedPointIndex, sel < state.points.count {
                 return state.points[sel].type
-            } else if let last = state.points.last {
+            }
+            if let last = state.points.last {
                 return last.type
             }
             return state.defaultPointType
         }()
         
-        let displayX: Int = {
-            if state.phase == .editing, let sel = state.selectedPointIndex, sel < state.points.count {
-                return Int(state.points[sel].point.x)
-            }
-            return Int(state.quartzLocation.x)
-        }()
-        
-        let displayY: Int = {
-            if state.phase == .editing, let sel = state.selectedPointIndex, sel < state.points.count {
-                return Int(state.points[sel].point.y)
-            }
-            return Int(state.quartzLocation.y)
-        }()
-        
-        HStack(spacing: 12) {
+        return HStack(spacing: 8) {
             // Left: Squircle Action Type Icon Button
             ZStack {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .fill(currentType.color)
-                    .frame(width: 44, height: 44)
-                    .shadow(color: currentType.color.opacity(0.4), radius: 4)
+                    .frame(width: 34, height: 34)
+                    .shadow(color: currentType.color.opacity(0.4), radius: 3)
                 
                 Image(systemName: currentType.icon == "hand.draw" ? "hand.tap.fill" : currentType.icon)
-                    .font(.system(size: 20, weight: .semibold))
+                    .font(.system(size: 16, weight: .semibold))
                     .foregroundColor(.white)
             }
             .contentShape(Rectangle())
@@ -2603,12 +2590,12 @@ struct CaptureOverlaySwiftUIView: View {
             
             // Plus button to insert/add a point
             ZStack {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .fill(Color.white.opacity(0.15))
-                    .frame(width: 44, height: 44)
+                    .frame(width: 34, height: 34)
                 
                 Image(systemName: "plus")
-                    .font(.system(size: 19, weight: .bold))
+                    .font(.system(size: 15, weight: .bold))
                     .foregroundColor(.white)
             }
             .contentShape(Rectangle())
@@ -2618,12 +2605,12 @@ struct CaptureOverlaySwiftUIView: View {
             
             // Minus button to delete/remove the selected or last point
             ZStack {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .fill(Color.white.opacity(0.15))
-                    .frame(width: 44, height: 44)
+                    .frame(width: 34, height: 34)
                 
                 Image(systemName: "minus")
-                    .font(.system(size: 19, weight: .bold))
+                    .font(.system(size: 15, weight: .bold))
                     .foregroundColor(.white)
             }
             .contentShape(Rectangle())
@@ -2634,47 +2621,18 @@ struct CaptureOverlaySwiftUIView: View {
                     state.removePoint(at: state.points.count - 1)
                 }
             }
-            
-            // Right: Coordinates and Subtitle
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 6) {
-                    Text("\(displayX)")
-                        .font(.system(size: 15, weight: .bold, design: .rounded))
-                        .foregroundColor(.white)
-                    
-                    Text("•")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundColor(.white.opacity(0.7))
-                    
-                    Text("\(displayY)")
-                        .font(.system(size: 15, weight: .bold, design: .rounded))
-                        .foregroundColor(.white)
-                }
-                
-                VStack(alignment: .leading, spacing: 1) {
-                    if state.phase == .recording {
-                        Text("enter to edit")
-                            .font(.system(size: 9.5, weight: .semibold))
-                            .foregroundColor(Color(red: 0.85, green: 0.20, blue: 0.95))
-                    } else {
-                        Text("click to change action")
-                            .font(.system(size: 9.5, weight: .semibold))
-                            .foregroundColor(Color(red: 0.85, green: 0.20, blue: 0.95))
-                    }
-                }
-            }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
         .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .fill(Color(white: 0.05).opacity(0.96))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(Color.white.opacity(0.12), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Color.white.opacity(0.15), lineWidth: 1)
         )
-        .shadow(color: Color.black.opacity(0.65), radius: 10, y: 4)
+        .shadow(color: Color.black.opacity(0.65), radius: 8, y: 3)
     }
     
     // MARK: - HUD Dynamic Position Following Cursor / Active Pin
@@ -2686,18 +2644,18 @@ struct CaptureOverlaySwiftUIView: View {
             targetPt = state.quartzLocation
         }
         
-        var x = targetPt.x + 130
-        var y = targetPt.y + 60
+        var x = targetPt.x + 80
+        var y = targetPt.y + 40
         
         // Prevent HUD going off screen
-        if x + 110 > size.width {
-            x = targetPt.x - 130
+        if x + 75 > size.width {
+            x = targetPt.x - 80
         }
-        if y + 45 > size.height {
-            y = targetPt.y - 60
+        if y + 25 > size.height {
+            y = targetPt.y - 40
         }
-        if x < 110 { x = 110 }
-        if y < 45 { y = 45 }
+        if x < 75 { x = 75 }
+        if y < 25 { y = 25 }
         
         return CGPoint(x: x, y: y)
     }
@@ -2929,7 +2887,7 @@ class CaptureOverlayHostingView: NSView {
         // Check HUD card
         if stateModel.isHudVisible {
             let hud = stateModel.lastHudCenter
-            if CGRect(x: hud.x - 155, y: hud.y - 50, width: 310, height: 100).contains(quartzPt) {
+            if CGRect(x: hud.x - 85, y: hud.y - 30, width: 170, height: 60).contains(quartzPt) {
                 win.ignoresMouseEvents = false
                 return
             }
@@ -2981,7 +2939,7 @@ class CaptureOverlayHostingView: NSView {
         // Or clicks directly on the HUD card
         if stateModel.isHudVisible {
             let hudPos = stateModel.lastHudCenter
-            let hudRect = CGRect(x: hudPos.x - 155, y: hudPos.y - 50, width: 310, height: 100)
+            let hudRect = CGRect(x: hudPos.x - 85, y: hudPos.y - 30, width: 170, height: 60)
             if hudRect.contains(quartzPt) {
                 return super.hitTest(point)
             }
