@@ -2461,6 +2461,7 @@ func blendColors(typeA: SequencePointType, typeB: SequencePointType) -> Color {
 struct CaptureOverlaySwiftUIView: View {
     @ObservedObject var state: CaptureOverlayState
     @State private var dragStartOffset: CGSize = .zero
+    @State private var pinDragStartPoint: CGPoint? = nil
     
     var body: some View {
         GeometryReader { geo in
@@ -2584,12 +2585,18 @@ struct CaptureOverlaySwiftUIView: View {
                             .onChanged { val in
                                 state.activeDraggingIndex = idx
                                 state.selectedPointIndex = idx
-                                let newX = max(0, min(val.location.x, geo.size.width))
-                                let newY = max(0, min(val.location.y, geo.size.height))
-                                state.points[idx].point = CGPoint(x: newX, y: newY)
+                                if pinDragStartPoint == nil {
+                                    pinDragStartPoint = item.point
+                                }
+                                if let startPt = pinDragStartPoint {
+                                    let newX = max(0, min(startPt.x + val.translation.width, geo.size.width))
+                                    let newY = max(0, min(startPt.y + val.translation.height, geo.size.height))
+                                    state.points[idx].point = CGPoint(x: newX, y: newY)
+                                }
                             }
                             .onEnded { _ in
                                 state.activeDraggingIndex = nil
+                                pinDragStartPoint = nil
                             }
                     )
                     .onTapGesture {
