@@ -6069,7 +6069,7 @@ struct MainEditorView: View {
             }
             .buttonStyle(.plain)
             .help("Toggle Sidebar")
-            .padding(.leading, 78) // After traffic lights (72px) + gap
+            .padding(.leading, 84) // After traffic lights (72px) + larger gap
             .padding(.top, 7)      // Vertically centered in 38px titlebar
             .offset(y: -34)        // Dinaikan paksa total 34px (dinaikkan 1px dari -33px)
         }
