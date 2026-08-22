@@ -1283,8 +1283,8 @@ func generateFinderFolderIcon(config: FolderConfig) -> NSImage {
 }
 
 func updateFinderFolderIcon(for folderURL: URL, config: FolderConfig) {
-    let iconImage = generateFinderFolderIcon(config: config)
     DispatchQueue.main.async {
+        let iconImage = generateFinderFolderIcon(config: config)
         NSWorkspace.shared.setIcon(iconImage, forFile: folderURL.path, options: [])
         NSWorkspace.shared.noteFileSystemChanged(folderURL.path)
         
@@ -1298,8 +1298,8 @@ func updateFinderFolderIcon(for folderURL: URL, config: FolderConfig) {
 }
 
 func updateMacroFinderIcon(for fileURL: URL, trigger: Trigger) {
-    let iconImage = generateShortcutIcon(for: trigger)
     DispatchQueue.main.async {
+        let iconImage = generateShortcutIcon(for: trigger)
         NSWorkspace.shared.setIcon(iconImage, forFile: fileURL.path, options: [])
         NSWorkspace.shared.noteFileSystemChanged(fileURL.path)
     }
@@ -2629,7 +2629,6 @@ class CaptureOverlayHostingView: NSView {
             self?.stateModel.activeDraggingIndex = nil
             self?.stateModel.hoveredIndex = nil
             self?.stateModel.selectedPointIndex = nil
-            self?.window?.ignoresMouseEvents = false
         }
         
         let swiftUIView = CaptureOverlaySwiftUIView(state: stateModel)
@@ -2662,12 +2661,6 @@ class CaptureOverlayHostingView: NSView {
             stateModel.currentLocation = winLoc
             stateModel.quartzLocation = quartzPt
             win.makeFirstResponder(self)
-            
-            if stateModel.phase == .editing {
-                win.ignoresMouseEvents = true
-            } else {
-                win.ignoresMouseEvents = false
-            }
             
             if localKeyMonitor == nil {
                 localKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
@@ -2722,29 +2715,12 @@ class CaptureOverlayHostingView: NSView {
     private func updateHover(quartzPt: CGPoint) {
         var foundIdx: Int? = nil
         for (i, p) in stateModel.points.enumerated() {
-            if dist(quartzPt, p.point) <= 22 {
+            if dist(quartzPt, p.point) <= 24 {
                 foundIdx = i
                 break
             }
         }
         stateModel.hoveredIndex = foundIdx
-        
-        // Dynamically toggle ignoresMouseEvents for true background click-through!
-        if stateModel.phase == .editing {
-            var isOverInteractive = (foundIdx != nil) || (stateModel.selectedPointIndex != nil) || (stateModel.activeDraggingIndex != nil)
-            
-            if !isOverInteractive && stateModel.isHudVisible {
-                let hudPos = stateModel.lastHudCenter
-                let hudRect = CGRect(x: hudPos.x - 70, y: hudPos.y - 25, width: 140, height: 50)
-                if hudRect.contains(quartzPt) {
-                    isOverInteractive = true
-                }
-            }
-            
-            window?.ignoresMouseEvents = !isOverInteractive
-        } else {
-            window?.ignoresMouseEvents = false
-        }
     }
     
     private func updateMouse(event: NSEvent) {
@@ -2756,21 +2732,29 @@ class CaptureOverlayHostingView: NSView {
         updateHover(quartzPt: quartzPt)
     }
     
+    // MARK: - Accepts First Mouse (Instant interaction even when background apps are active)
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+        return true
+    }
+    
     // MARK: - Passthrough Background Clicks (Hit Testing)
     override func hitTest(_ point: NSPoint) -> NSView? {
         let screenHeight = window?.screen?.frame.height ?? NSScreen.main?.frame.height ?? bounds.height
         let quartzPt = CGPoint(x: point.x, y: screenHeight - point.y)
         
+        // During recording: capture all clicks
         if stateModel.phase == .recording {
             return super.hitTest(point)
         }
         
+        // During edit: capture clicks on/near pins
         for p in stateModel.points {
-            if dist(quartzPt, p.point) <= 22 {
+            if dist(quartzPt, p.point) <= 24 {
                 return super.hitTest(point)
             }
         }
         
+        // Or clicks on the HUD card
         if stateModel.isHudVisible {
             let hudPos = stateModel.lastHudCenter
             let hudRect = CGRect(x: hudPos.x - 70, y: hudPos.y - 25, width: 140, height: 50)
@@ -2779,6 +2763,7 @@ class CaptureOverlayHostingView: NSView {
             }
         }
         
+        // Return nil so click passes straight through to any window below!
         return nil
     }
     
@@ -2829,7 +2814,7 @@ class CaptureOverlayHostingView: NSView {
             } else {
                 var found: Int? = nil
                 for (i, p) in stateModel.points.enumerated() {
-                    if dist(stateModel.quartzLocation, p.point) <= 22 {
+                    if dist(stateModel.quartzLocation, p.point) <= 24 {
                         found = i
                         break
                     }
@@ -2853,7 +2838,6 @@ class CaptureOverlayHostingView: NSView {
         if event.keyCode == 53 { // Esc
             if stateModel.selectedPointIndex != nil {
                 stateModel.selectedPointIndex = nil
-                window?.ignoresMouseEvents = true
             } else {
                 cleanupMonitors()
                 onCancel()
@@ -2863,7 +2847,6 @@ class CaptureOverlayHostingView: NSView {
                 if stateModel.phase == .recording {
                     stateModel.phase = .editing
                     stateModel.selectedPointIndex = nil
-                    window?.ignoresMouseEvents = true
                 } else {
                     cleanupMonitors()
                     stateModel.onConfirmAll?()
@@ -2876,7 +2859,6 @@ class CaptureOverlayHostingView: NSView {
             if !stateModel.points.isEmpty {
                 let cur = stateModel.selectedPointIndex ?? -1
                 stateModel.selectedPointIndex = (cur + 1) % stateModel.points.count
-                window?.ignoresMouseEvents = false
             }
         } else if event.keyCode == 51 || event.keyCode == 117 { // Backspace / Delete
             if case .sequence = stateModel.mode, let sel = stateModel.selectedPointIndex {
@@ -2895,7 +2877,7 @@ class CaptureOverlayHostingView: NSView {
 // ==========================================
 // MARK: - Capture Overlay Window
 // ==========================================
-class CaptureOverlayWindow: NSWindow {
+class CaptureOverlayWindow: NSPanel {
     static var shared: CaptureOverlayWindow?
     
     override var canBecomeKey: Bool { true }
@@ -2917,7 +2899,7 @@ class CaptureOverlayWindow: NSWindow {
         self.onClickCaptured = onClickCaptured
         let screenRect = NSScreen.main?.frame ?? NSRect(x: 0, y: 0, width: 1920, height: 1080)
         super.init(contentRect: screenRect,
-                   styleMask: [.borderless],
+                   styleMask: [.borderless, .nonactivatingPanel],
                    backing: .buffered,
                    defer: false)
         
@@ -2933,7 +2915,7 @@ class CaptureOverlayWindow: NSWindow {
         self.onDragCaptured = onDragCaptured
         let screenRect = NSScreen.main?.frame ?? NSRect(x: 0, y: 0, width: 1920, height: 1080)
         super.init(contentRect: screenRect,
-                   styleMask: [.borderless],
+                   styleMask: [.borderless, .nonactivatingPanel],
                    backing: .buffered,
                    defer: false)
         
@@ -2953,7 +2935,7 @@ class CaptureOverlayWindow: NSWindow {
         self.onSequenceCaptured = onSequenceCaptured
         let screenRect = NSScreen.main?.frame ?? NSRect(x: 0, y: 0, width: 1920, height: 1080)
         super.init(contentRect: screenRect,
-                   styleMask: [.borderless],
+                   styleMask: [.borderless, .nonactivatingPanel],
                    backing: .buffered,
                    defer: false)
         setupWindow(initialPoints: initialPoints, defaultType: defaultType)
@@ -2966,6 +2948,9 @@ class CaptureOverlayWindow: NSWindow {
         self.ignoresMouseEvents = false
         self.acceptsMouseMovedEvents = true
         self.hasShadow = false
+        self.isFloatingPanel = true
+        self.hidesOnDeactivate = false
+        self.becomesKeyOnlyIfNeeded = true
         self.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         
         let contentView = CaptureOverlayHostingView(mode: self.mode,
@@ -2994,8 +2979,7 @@ class CaptureOverlayWindow: NSWindow {
         })
         
         self.contentView = contentView
-        self.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
+        self.orderFrontRegardless()
     }
 }
 
