@@ -7622,6 +7622,17 @@ struct SidebarNodeView: View {
                     }
                     return true
                 }
+                .onChange(of: isDropTarget) { _, targeted in
+                    if targeted {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                            if isDropTarget {
+                                withAnimation(.easeInOut(duration: 0.15)) {
+                                    expandedFolders.insert(url.path)
+                                }
+                            }
+                        }
+                    }
+                }
                 .contextMenu {
                     Button {
                         store.selectedFolderPath = url.path
@@ -7738,13 +7749,17 @@ struct SidebarNodeView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(Rectangle())
                 .background(
-                    isDropTarget
-                        ? Color.accentColor.opacity(0.3)
-                        : (isSelected ? Color(red: 0.05, green: 0.45, blue: 0.95) : Color.clear)
+                    isSelected ? Color(red: 0.05, green: 0.45, blue: 0.95) : Color.clear
                 )
                 .overlay(
-                    Capsule()
-                        .stroke(isDropTarget ? Color.accentColor : Color.clear, lineWidth: 1.5)
+                    VStack {
+                        if isDropTarget {
+                            Color.accentColor
+                                .frame(height: 2)
+                                .padding(.horizontal, 8)
+                        }
+                        Spacer()
+                    }
                 )
                 .clipShape(Capsule())
             }
