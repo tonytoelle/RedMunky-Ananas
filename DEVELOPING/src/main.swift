@@ -2682,7 +2682,7 @@ class CaptureOverlayHostingView: NSView {
             }
             
             if globalMouseMonitor == nil {
-                globalMouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged]) { [weak self] event in
+                globalMouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged, .rightMouseDragged, .scrollWheel]) { [weak self] event in
                     guard let self = self, let win = self.window else { return }
                     let screenPt = NSEvent.mouseLocation
                     let winLoc = win.convertPoint(fromScreen: screenPt)
@@ -2693,6 +2693,7 @@ class CaptureOverlayHostingView: NSView {
                         self.stateModel.currentLocation = winLoc
                         self.stateModel.quartzLocation = quartzPt
                         self.updateHover(quartzPt: quartzPt)
+                        self.updatePassthrough(quartzPt: quartzPt)
                     }
                 }
             }
@@ -2724,6 +2725,35 @@ class CaptureOverlayHostingView: NSView {
             }
         }
         stateModel.hoveredIndex = foundIdx
+    }
+    
+    // Dynamically toggle window.ignoresMouseEvents for full passthrough in edit mode
+    private func updatePassthrough(quartzPt: CGPoint) {
+        guard let win = self.window else { return }
+        guard stateModel.phase == .editing, stateModel.activeDraggingIndex == nil else {
+            win.ignoresMouseEvents = false
+            return
+        }
+        
+        // Check proximity to any pin
+        for p in stateModel.points {
+            if dist(quartzPt, p.point) <= 30 {
+                win.ignoresMouseEvents = false
+                return
+            }
+        }
+        
+        // Check HUD card
+        if stateModel.isHudVisible {
+            let hud = stateModel.lastHudCenter
+            if CGRect(x: hud.x - 80, y: hud.y - 35, width: 160, height: 70).contains(quartzPt) {
+                win.ignoresMouseEvents = false
+                return
+            }
+        }
+        
+        // Empty area: let all events pass through to the window underneath
+        win.ignoresMouseEvents = true
     }
     
     private func updateMouse(event: NSEvent) {
@@ -2823,6 +2853,7 @@ class CaptureOverlayHostingView: NSView {
             if let f = found {
                 stateModel.selectedPointIndex = f
                 stateModel.activeDraggingIndex = f
+                window?.ignoresMouseEvents = false  // Must receive drag events
             } else {
                 stateModel.selectedPointIndex = nil
                 stateModel.activeDraggingIndex = nil
@@ -2847,6 +2878,7 @@ class CaptureOverlayHostingView: NSView {
                 if stateModel.phase == .recording {
                     stateModel.phase = .editing
                     stateModel.selectedPointIndex = nil
+                    updatePassthrough(quartzPt: stateModel.quartzLocation)
                 } else {
                     cleanupMonitors()
                     stateModel.onConfirmAll?()
