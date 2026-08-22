@@ -1,0 +1,5 @@
+# ShortKing Macro Script
+TRIGGER: f2
+
+# Actions:
+ACTION: custom_action "~/brightness.sh up"
