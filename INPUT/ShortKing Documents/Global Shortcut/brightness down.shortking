@@ -5,7 +5,6 @@ TRIGGER: shift+f1
 ACTION: brightness_down
 ACTION: path 394,1111:move 500,971:move 680,929:move 835,842:move 901,744:move 911,922:move 1075,877:move 1186,877:move
 ACTION: path 394,1111:move 454,1011:move 564,1011:move
-ACTION: click 394 1113
 ACTION: click 906 738
 ACTION: drag 799 769 to 992 720
 ACTION: path 453,949:move
@@ -20,13 +19,8 @@ ACTION: path 493,1007:move
 ACTION: path 493,1007:move 627,982:move
 ACTION: path 493,1007:move 627,982:move 684,952:move
 ACTION: path 493,1007:move 627,982:move 684,952:move 628,1062:move
-ACTION: path 493,1007:move 627,982:move 684,952:move 628,1062:move 518,1058:move
-ACTION: path 493,1007:move 627,982:move 684,952:move 628,1062:move 591,1035:move 518,1058:move
 ACTION: click 1046 634
 ACTION: right_click 1467 651
 ACTION: drag 1384 563 to 1486 469
-ACTION: path 393,1109:move 427,1017:move 472,994:move 510,1045:move 595,954:move 628,1033:move 668,971:move 691,892:move 777,865:move
 ACTION: drag 466 1070 to 520 980
-ACTION: drag 799 904 to 935 761
-ACTION: click 779 709
 ACTION: path 962,598:move 817,754:move 722,670:move 808,536:move 990,928:move 351,747:move 867,471:move 770,737:move 592,879:move

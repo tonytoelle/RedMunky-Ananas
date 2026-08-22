@@ -1414,6 +1414,31 @@ class MacroStore: ObservableObject {
             lastSelectedActionID = itemID
         }
     }
+    
+    func deleteSelectedActions() {
+        guard !selectedActionIDs.isEmpty else { return }
+        guard let macro = selectedMacro,
+              let idx = macros.firstIndex(where: { $0.id == macro.id }) else { return }
+        
+        registerUndoState(for: macros[idx])
+        
+        let targetIDs = selectedActionIDs
+        func recursiveRemove(from list: inout [MacroActionItem]) {
+            list.removeAll { targetIDs.contains($0.id) }
+            for i in 0..<list.count {
+                if case .group(let name, var sub) = list[i].action {
+                    recursiveRemove(from: &sub)
+                    list[i].action = .group(name: name, actions: sub)
+                }
+            }
+        }
+        
+        recursiveRemove(from: &macros[idx].actionItems)
+        selectedActionIDs.removeAll()
+        lastSelectedActionID = nil
+        saveMacro(macros[idx])
+        objectWillChange.send()
+    }
 
     var selectedMacroID: UUID? {
         get { selectedMacro?.id }
@@ -4660,38 +4685,6 @@ struct MacroInspectorView: View {
             .onAppear {
                 tempName = macro.fileName.replacingOccurrences(of: ".shortking", with: "")
                 isEditingName = false
-                keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-                    if event.keyCode == 51 || event.keyCode == 117 {
-                        if let window = NSApp.keyWindow,
-                           let firstResponder = window.firstResponder,
-                           firstResponder.isKind(of: NSClassFromString("NSText")!) || firstResponder.isKind(of: NSClassFromString("NSTextView")!) {
-                            return event
-                        }
-                        if !store.selectedActionIDs.isEmpty {
-                            store.registerUndoState(for: macro)
-                            func recursiveRemove(from list: inout [MacroActionItem], targetIDs: Set<UUID>) {
-                                list.removeAll { targetIDs.contains($0.id) }
-                                for i in 0..<list.count {
-                                    if case .group(let name, var sub) = list[i].action {
-                                        recursiveRemove(from: &sub, targetIDs: targetIDs)
-                                        list[i].action = .group(name: name, actions: sub)
-                                    }
-                                }
-                            }
-                            recursiveRemove(from: &macro.actionItems, targetIDs: store.selectedActionIDs)
-                            store.selectedActionIDs.removeAll()
-                            store.saveMacro(macro)
-                            return nil
-                        }
-                    }
-                    return event
-                }
-            }
-            .onDisappear {
-                if let monitor = keyMonitor {
-                    NSEvent.removeMonitor(monitor)
-                    keyMonitor = nil
-                }
             }
             .onChange(of: macro.id) {
                 tempName = macro.fileName.replacingOccurrences(of: ".shortking", with: "")
@@ -7237,6 +7230,29 @@ struct MainEditorView: View {
 class EditorWindow: NSWindow {
     override var undoManager: UndoManager? {
         return MacroStore.shared.undoManager
+    }
+    
+    override func sendEvent(_ event: NSEvent) {
+        if event.type == .keyDown && (event.keyCode == 51 || event.keyCode == 117) {
+            // If user is currently typing in an editable text field, let it handle text deletion
+            if let responder = firstResponder {
+                if let tv = responder as? NSTextView, tv.isEditable {
+                    super.sendEvent(event)
+                    return
+                }
+                if let tf = responder as? NSTextField, tf.isEditable {
+                    super.sendEvent(event)
+                    return
+                }
+            }
+            
+            // If user has selected action(s), delete them instantly!
+            if !MacroStore.shared.selectedActionIDs.isEmpty {
+                MacroStore.shared.deleteSelectedActions()
+                return
+            }
+        }
+        super.sendEvent(event)
     }
 }
 
