@@ -1,5 +1,5 @@
 # ShortKing Macro Script
-TRIGGER: f2
+TRIGGER: shift+f2
 
 # Actions:
 ACTION: brightness_up

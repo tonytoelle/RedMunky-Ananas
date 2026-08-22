@@ -1,5 +1,5 @@
 # ShortKing Macro Script
-TRIGGER: f1
+TRIGGER: shift+f1
 
 # Actions:
 ACTION: brightness_down

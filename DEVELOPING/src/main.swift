@@ -3678,7 +3678,7 @@ struct MacroInspectorView: View {
                                 isNameFocused = true
                             }
                     } else {
-                        Text(tempName.isEmpty ? "Untitled Macro" : tempName)
+                        Text(tempName.isEmpty ? "Untitled Macro" : tempName.capitalized)
                             .font(.system(size: 15, weight: .bold))
                             .foregroundColor(.white)
                             .lineLimit(1)
