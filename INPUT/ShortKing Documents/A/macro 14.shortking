@@ -2,4 +2,4 @@
 TRIGGER: cmd+shift+k
 
 # Actions:
-ACTION: path 
+ACTION: path 392,1110:move 534,1032:drag 480,961:move

@@ -2377,7 +2377,7 @@ class CaptureOverlayState: ObservableObject {
     @Published var defaultPointType: SequencePointType = .move
     @Published var isHoveringHud: Bool = false
     @Published var lastHudCenter: CGPoint = .zero
-    @Published var hudDragOffset: CGSize = CGSize(width: 80, height: 40) // Default relative distance offset
+    @Published var hudDragOffset: CGSize = CGSize(width: 100, height: 100) // Default relative distance offset
     
     var isHudVisible: Bool {
         guard case .sequence = mode else { return false }
