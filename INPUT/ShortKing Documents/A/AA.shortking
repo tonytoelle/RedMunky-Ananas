@@ -3,3 +3,15 @@ TRIGGER: cmd+shift+k
 
 # Actions:
 ACTION: brightness_up
+ACTION: move 1202 598
+ACTION: move 881 507
+ACTION: move 966 677
+ACTION: path 844,780:move
+ACTION: path 844,780:move 941,710:move
+ACTION: path 844,780:move 941,710:move 1034,795:move
+ACTION: path 844,780:move 941,710:move 1034,795:move 1099,721:move
+ACTION: path 844,780:move 941,710:move 1034,795:move 1099,721:move
+ACTION: path 786,841:move
+ACTION: path 786,841:move 930,758:move
+ACTION: path 786,841:move 930,758:move 1041,709:move
+ACTION: path 786,841:move 930,758:move 988,851:move

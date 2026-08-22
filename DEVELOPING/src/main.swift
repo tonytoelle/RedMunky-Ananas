@@ -4141,38 +4141,52 @@ struct ActionCardView: View {
                                 )
                             }
                     case .path(let points):
-                        Button {
-                            CaptureOverlayWindow.shared = CaptureOverlayWindow(
-                                initialPoints: points,
-                                defaultType: .move,
-                                onSequenceCaptured: { newPts in
-                                    guard !newPts.isEmpty else { return }
-                                    onPreSave()
-                                    item.action = .path(points: newPts)
-                                    onSave()
-                                },
-                                onSequenceRealTime: { tempPts in
-                                    item.action = .path(points: tempPts)
+                        HStack(spacing: 8) {
+                            Text(item.action.parameterString)
+                                .font(.system(size: 12, weight: .medium, design: .monospaced))
+                                .foregroundColor(.secondary)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(isItemEditing ? Color(white: 0.12) : Color.clear)
+                                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                        .stroke(isItemEditing ? Color.white.opacity(0.1) : Color.clear, lineWidth: 1)
+                                )
+                            
+                            Button {
+                                CaptureOverlayWindow.shared = CaptureOverlayWindow(
+                                    initialPoints: points,
+                                    defaultType: .move,
+                                    onSequenceCaptured: { newPts in
+                                        guard !newPts.isEmpty else { return }
+                                        onPreSave()
+                                        item.action = .path(points: newPts)
+                                        onSave()
+                                    },
+                                    onSequenceRealTime: { tempPts in
+                                        item.action = .path(points: tempPts)
+                                    }
+                                )
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "pencil")
+                                        .font(.system(size: 10, weight: .bold))
+                                    Text("Edit")
+                                        .font(.system(size: 11, weight: .semibold))
                                 }
-                            )
-                        } label: {
-                            HStack(spacing: 4) {
-                                Image(systemName: "pencil")
-                                    .font(.system(size: 10, weight: .bold))
-                                Text("Edit")
-                                    .font(.system(size: 11, weight: .semibold))
+                                .foregroundColor(Color.purple)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 4)
+                                .background(Color.purple.opacity(0.15))
+                                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                        .stroke(Color.purple.opacity(0.3), lineWidth: 1)
+                                )
                             }
-                            .foregroundColor(Color.purple)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 4)
-                            .background(Color.purple.opacity(0.15))
-                            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                    .stroke(Color.purple.opacity(0.3), lineWidth: 1)
-                            )
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
                     case .moveCursor(let point):
                         Text(item.action.parameterString)
                             .font(.system(size: 12, weight: .medium, design: .monospaced))
