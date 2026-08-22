@@ -3401,11 +3401,23 @@ class ExecutionCursorOverlayWindow: NSPanel {
             let cocoaX = quartzPoint.x
             let cocoaY = screenFrame.maxY - quartzPoint.y
 
-            // Window size matches cursor image (typically 22×22, use 32×32 for safe padding)
-            let winSize: CGFloat = 36
-            let frame = NSRect(x: cocoaX, y: cocoaY - winSize, width: winSize, height: winSize)
+            // Fetch the system cursor scale factor (defaults to 1.0, e.g. normal size)
+            let scaleFactor: CGFloat = {
+                if let val = CFPreferencesCopyAppValue("mouseDriverCursorSize" as CFString, "com.apple.universalaccess" as CFString) as? Float {
+                    return CGFloat(val)
+                }
+                return 1.0
+            }()
 
-            let win = ExecutionCursorOverlayWindow(contentRect: frame)
+            let cursorImage = NSCursor.arrow.image
+            let baseSize = cursorImage.size
+            let targetW = baseSize.width * scaleFactor
+            let targetH = baseSize.height * scaleFactor
+
+            // Frame matches scaled size
+            let frame = NSRect(x: cocoaX, y: cocoaY - targetH, width: targetW, height: targetH)
+
+            let win = ExecutionCursorOverlayWindow(contentRect: frame, cursorImage: cursorImage)
             win.orderFrontRegardless()
             shared = win
         }
@@ -3418,7 +3430,7 @@ class ExecutionCursorOverlayWindow: NSPanel {
         }
     }
 
-    init(contentRect: NSRect) {
+    init(contentRect: NSRect, cursorImage: NSImage) {
         super.init(contentRect: contentRect,
                    styleMask: [.borderless, .nonactivatingPanel],
                    backing: .buffered,
@@ -3430,12 +3442,9 @@ class ExecutionCursorOverlayWindow: NSPanel {
         hasShadow = false
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
 
-        // Use the actual macOS arrow cursor image — authentic look
-        let cursorImage = NSCursor.arrow.image
         let imageView = NSImageView(frame: NSRect(x: 0, y: 0, width: contentRect.width, height: contentRect.height))
         imageView.image = cursorImage
         imageView.imageScaling = .scaleProportionallyUpOrDown
-        // Cursor hotspot is top-left, so we position the image in top-left of the window
         imageView.imageAlignment = .alignTopLeft
         contentView = imageView
     }
