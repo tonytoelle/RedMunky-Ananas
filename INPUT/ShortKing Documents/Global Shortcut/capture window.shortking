@@ -2,4 +2,4 @@
 TRIGGER: shift+f3
 
 # Actions:
-ACTION: custom_action "screencapture -i -W -c"
+ACTION: custom_action "screencapture -i -w"
