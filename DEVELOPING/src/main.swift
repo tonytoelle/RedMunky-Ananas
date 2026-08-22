@@ -2237,7 +2237,7 @@ class CaptureOverlayState: ObservableObject {
     @Published var activeDraggingIndex: Int? = nil
     @Published var hoveredIndex: Int? = nil
     @Published var selectedPointIndex: Int? = nil
-    @Published var defaultPointType: SequencePointType = .drag
+    @Published var defaultPointType: SequencePointType = .move
     
     var onConfirmAll: (() -> Void)? = nil
     var onCancelAction: (() -> Void)? = nil
@@ -2246,12 +2246,12 @@ class CaptureOverlayState: ObservableObject {
     func cycleType(at index: Int) {
         guard index >= 0 && index < points.count else { return }
         switch points[index].type {
-        case .drag:
-            points[index].type = .move
         case .move:
+            points[index].type = .drag
+        case .drag:
             points[index].type = .click
         case .click:
-            points[index].type = .drag
+            points[index].type = .move
         }
     }
     
@@ -2358,10 +2358,8 @@ struct CaptureOverlaySwiftUIView: View {
                             }
                     )
                     .onTapGesture {
+                        // Clicking a pin selects it without changing its mode!
                         state.selectedPointIndex = idx
-                        if state.phase == .editing {
-                            state.cycleType(at: idx)
-                        }
                     }
                 }
                 
@@ -2434,19 +2432,20 @@ struct CaptureOverlaySwiftUIView: View {
         }()
         
         HStack(spacing: 14) {
-            // Left: Squircle Action Type Icon Button
+            // Left: Squircle Action Type Icon Button (Only place where mode changes!)
             Button {
-                if state.phase == .editing {
-                    if let sel = state.selectedPointIndex, sel < state.points.count {
-                        state.cycleType(at: sel)
-                    } else if !state.points.isEmpty {
-                        state.cycleType(at: state.points.count - 1)
-                    }
+                if let sel = state.selectedPointIndex, sel < state.points.count {
+                    state.cycleType(at: sel)
+                    state.defaultPointType = state.points[sel].type
+                } else if !state.points.isEmpty {
+                    let lastIdx = state.points.count - 1
+                    state.cycleType(at: lastIdx)
+                    state.defaultPointType = state.points[lastIdx].type
                 } else {
                     switch state.defaultPointType {
-                    case .drag: state.defaultPointType = .move
-                    case .move: state.defaultPointType = .click
-                    case .click: state.defaultPointType = .drag
+                    case .move: state.defaultPointType = .drag
+                    case .drag: state.defaultPointType = .click
+                    case .click: state.defaultPointType = .move
                     }
                 }
             } label: {
@@ -2551,7 +2550,7 @@ class CaptureOverlayHostingView: NSView {
     
     init(mode: CaptureOverlayWindow.Mode,
          initialPoints: [SequencePoint] = [],
-         defaultType: SequencePointType = .drag,
+         defaultType: SequencePointType = .move,
          onFinishSequence: @escaping ([SequencePoint]) -> Void,
          onCancel: @escaping () -> Void) {
         self.mode = mode
@@ -2693,16 +2692,8 @@ class CaptureOverlayHostingView: NSView {
                 }
                 
             case .sequence:
-                let newType: SequencePointType
-                if stateModel.points.isEmpty {
-                    newType = stateModel.defaultPointType
-                } else if stateModel.points.count == 1 && stateModel.defaultPointType == .drag {
-                    newType = .drag
-                } else {
-                    newType = .move
-                }
-                
-                stateModel.points.append(SequencePoint(point: stateModel.quartzLocation, type: newType))
+                // New point always takes defaultPointType (.move by default)
+                stateModel.points.append(SequencePoint(point: stateModel.quartzLocation, type: stateModel.defaultPointType))
                 stateModel.selectedPointIndex = stateModel.points.count - 1
             }
         } else {
@@ -2825,7 +2816,7 @@ class CaptureOverlayWindow: NSWindow {
         setupWindow(initialPoints: initPoints, defaultType: .drag)
     }
     
-    init(initialPoints: [SequencePoint] = [], defaultType: SequencePointType = .drag, onSequenceCaptured: @escaping ([SequencePoint]) -> Void) {
+    init(initialPoints: [SequencePoint] = [], defaultType: SequencePointType = .move, onSequenceCaptured: @escaping ([SequencePoint]) -> Void) {
         self.mode = .sequence(initialPoints: initialPoints)
         self.onSequenceCaptured = onSequenceCaptured
         let screenRect = NSScreen.main?.frame ?? NSRect(x: 0, y: 0, width: 1920, height: 1080)
@@ -3647,7 +3638,7 @@ struct ActionCardView: View {
                             }
                     case .path(let points):
                         Button {
-                            CaptureOverlayWindow.shared = CaptureOverlayWindow(initialPoints: points, defaultType: .drag) { newPts in
+                            CaptureOverlayWindow.shared = CaptureOverlayWindow(initialPoints: points, defaultType: .move) { newPts in
                                 guard !newPts.isEmpty else { return }
                                 onPreSave()
                                 item.action = .path(points: newPts)
@@ -4514,7 +4505,7 @@ struct MacroInspectorView: View {
                     
                     switch newAction {
                     case .path:
-                        CaptureOverlayWindow.shared = CaptureOverlayWindow(initialPoints: [], defaultType: .drag) { pts in
+                        CaptureOverlayWindow.shared = CaptureOverlayWindow(initialPoints: [], defaultType: .move) { pts in
                             guard !pts.isEmpty else { return }
                             if let idx = macro.actionItems.firstIndex(where: { $0.id == newItem.id }) {
                                 store.registerUndoState(for: macro)
@@ -4588,7 +4579,7 @@ struct MacroInspectorView: View {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 32, maximum: 40), spacing: 8)], spacing: 8) {
                     // Path / Sequence (Multi-point cursor operation chain)
                     quickActionButton(title: "Path", icon: "point.topleft.down.to.point.bottomright.curvepath.fill", color: Color(red: 0.65, green: 0.25, blue: 0.85)) {
-                        CaptureOverlayWindow.shared = CaptureOverlayWindow(initialPoints: [], defaultType: .drag) { pts in
+                        CaptureOverlayWindow.shared = CaptureOverlayWindow(initialPoints: [], defaultType: .move) { pts in
                             guard !pts.isEmpty else { return }
                             store.registerUndoState(for: macro)
                             macro.actionItems.append(MacroActionItem(action: .path(points: pts)))
