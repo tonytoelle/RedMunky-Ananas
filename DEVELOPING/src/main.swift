@@ -1604,7 +1604,7 @@ class MacroStore: ObservableObject {
         print("👑 Event tap initialized successfully for hardware brightness keys")
     }
 
-    private func scanDirectory(at url: URL, loadedMacros: inout [MacroItem], parentConfig: FolderConfig? = nil) -> [FileSystemNode] {
+    private func scanDirectory(at url: URL, loadedMacros: inout [MacroItem], existingMacrosMap: [String: MacroItem], parentConfig: FolderConfig? = nil) -> [FileSystemNode] {
         guard let items = try? FileManager.default.contentsOfDirectory(at: url, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles]) else {
             return []
         }
@@ -1623,11 +1623,23 @@ class MacroStore: ObservableObject {
             let isDir = (try? item.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false
             if isDir {
                 let config = loadFolderConfig(at: item)
-                let children = scanDirectory(at: item, loadedMacros: &loadedMacros, parentConfig: config)
+                let children = scanDirectory(at: item, loadedMacros: &loadedMacros, existingMacrosMap: existingMacrosMap, parentConfig: config)
                 nodes.append(.folder(name: item.lastPathComponent, url: item, config: config, children: children))
             } else if item.pathExtension.lowercased() == "shortking" {
-                if let macro = ShortKingParser.parseFile(at: item) {
-                    macro.parentFolderConfig = parentConfig
+                if let parsed = ShortKingParser.parseFile(at: item) {
+                    let macro: MacroItem
+                    if let existing = existingMacrosMap[item.path] {
+                        existing.fileName = parsed.fileName
+                        existing.fileURL = parsed.fileURL
+                        existing.triggers = parsed.triggers
+                        existing.actionItems = parsed.actionItems
+                        existing.isEnabled = parsed.isEnabled
+                        existing.parentFolderConfig = parentConfig
+                        macro = existing
+                    } else {
+                        parsed.parentFolderConfig = parentConfig
+                        macro = parsed
+                    }
                     loadedMacros.append(macro)
                     nodes.append(.macro(item: macro))
                 }
@@ -1638,8 +1650,14 @@ class MacroStore: ObservableObject {
 
     func loadMacros() {
         try? FileManager.default.createDirectory(at: watchDirectoryURL, withIntermediateDirectories: true)
+        
+        var existingMap: [String: MacroItem] = [:]
+        for m in self.macros {
+            existingMap[m.fileURL.path] = m
+        }
+        
         var loaded: [MacroItem] = []
-        let tree = scanDirectory(at: watchDirectoryURL, loadedMacros: &loaded)
+        let tree = scanDirectory(at: watchDirectoryURL, loadedMacros: &loaded, existingMacrosMap: existingMap)
         
         DispatchQueue.main.async {
             self.treeNodes = tree
@@ -1716,6 +1734,7 @@ class MacroStore: ObservableObject {
     }
 
     private var isReloading = false
+    private var isSavingInternally = false
 
     func startWatching() {
         stopWatching()
@@ -1734,6 +1753,8 @@ class MacroStore: ObservableObject {
             guard let info = clientCallBackInfo else { return }
             let store = Unmanaged<MacroStore>.fromOpaque(info).takeUnretainedValue()
             
+            // If the app itself just wrote to disk, ignore the filesystem bounce
+            guard !store.isSavingInternally else { return }
             guard !store.isReloading else { return }
             store.isReloading = true
             
@@ -1765,12 +1786,18 @@ class MacroStore: ObservableObject {
         let fileURL = macro.fileURL
         let trigger = macro.trigger
         
+        self.isSavingInternally = true
+        
         DispatchQueue.global(qos: .userInitiated).async {
             try? content.write(to: fileURL, atomically: true, encoding: .utf8)
             updateMacroFinderIcon(for: fileURL, trigger: trigger)
             
             DispatchQueue.main.async {
                 self.registerAllCarbonHotKeys()
+                // Reset saving flag after disk latency window
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                    self.isSavingInternally = false
+                }
             }
         }
     }

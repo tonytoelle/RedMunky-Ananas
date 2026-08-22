@@ -2,3 +2,5 @@
 TRIGGER: cmd+shift+k
 
 # Actions:
+ACTION: delay 500
+ACTION: type "Hello ShortKing!"
