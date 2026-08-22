@@ -2634,6 +2634,7 @@ class CaptureOverlayHostingView: NSView {
     private var localKeyMonitor: Any?
     private var globalKeyMonitor: Any?
     private var globalMouseMonitor: Any?
+    private var localMouseMonitor: Any?
     private var stateModel = CaptureOverlayState()
     
     init(mode: CaptureOverlayWindow.Mode,
@@ -2692,6 +2693,7 @@ class CaptureOverlayHostingView: NSView {
         if let m = localKeyMonitor { NSEvent.removeMonitor(m); localKeyMonitor = nil }
         if let m = globalKeyMonitor { NSEvent.removeMonitor(m); globalKeyMonitor = nil }
         if let m = globalMouseMonitor { NSEvent.removeMonitor(m); globalMouseMonitor = nil }
+        if let m = localMouseMonitor { NSEvent.removeMonitor(m); localMouseMonitor = nil }
     }
 
     override func viewDidMoveToWindow() {
@@ -2736,6 +2738,23 @@ class CaptureOverlayHostingView: NSView {
                         self.updateHover(quartzPt: quartzPt)
                         self.updatePassthrough(quartzPt: quartzPt)
                     }
+                }
+            }
+            
+            if localMouseMonitor == nil {
+                localMouseMonitor = NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged, .rightMouseDragged, .scrollWheel]) { [weak self] event in
+                    guard let self = self, let win = self.window else { return event }
+                    let screenPt = NSEvent.mouseLocation
+                    let winLoc = win.convertPoint(fromScreen: screenPt)
+                    let screenHeight = win.screen?.frame.height ?? NSScreen.main?.frame.height ?? self.bounds.height
+                    let quartzPt = CGPoint(x: winLoc.x, y: screenHeight - winLoc.y)
+                    
+                    self.stateModel.currentLocation = winLoc
+                    self.stateModel.quartzLocation = quartzPt
+                    self.updateHover(quartzPt: quartzPt)
+                    self.updatePassthrough(quartzPt: quartzPt)
+                    
+                    return event
                 }
             }
         } else {
