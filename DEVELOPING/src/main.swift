@@ -3750,9 +3750,11 @@ struct MacroInspectorView: View {
                                             .font(.system(size: 15, weight: .semibold))
                                     }
 
-                                    Text("Key Press")
-                                        .font(.system(size: 13, weight: .medium))
-                                        .foregroundColor(.white)
+                                    if detailWidth > 320 {
+                                        Text("Key Press")
+                                            .font(.system(size: 13, weight: .medium))
+                                            .foregroundColor(.white)
+                                    }
 
                                     Spacer()
 
