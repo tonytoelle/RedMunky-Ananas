@@ -25,3 +25,8 @@ ACTION: path 493,1007:move 627,982:move 684,952:move 628,1062:move 591,1035:move
 ACTION: click 1046 634
 ACTION: right_click 1467 651
 ACTION: drag 1384 563 to 1486 469
+ACTION: path 393,1109:move 427,1017:move 472,994:move 510,1045:move 595,954:move 628,1033:move 668,971:move 691,892:move 777,865:move
+ACTION: click 640 977
+ACTION: drag 466 1070 to 520 980
+ACTION: drag 799 904 to 935 761
+ACTION: click 759 627

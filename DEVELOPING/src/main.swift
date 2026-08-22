@@ -2253,6 +2253,7 @@ class CaptureOverlayState: ObservableObject {
     @Published var lastHudCenter: CGPoint = .zero
     
     var isHudVisible: Bool {
+        guard case .sequence = mode else { return false }
         if isFollowingCursor { return true }
         if selectedPointIndex != nil || activeDraggingIndex != nil || isHoveringHud { return true }
         if hoveredIndex != nil { return true }
@@ -2481,17 +2482,19 @@ struct CaptureOverlaySwiftUIView: View {
                 }
                 
                 // ─────────────────────────────────────────────
-                // FLOATING COMPACT HUD CARD (Hover-based visibility)
+                // FLOATING COMPACT HUD CARD (Hover-based visibility, sequence only)
                 // ─────────────────────────────────────────────
-                let pos = hudPosition(in: geo.size)
-                floatingHUDCard
-                    .position(pos)
-                    .opacity(state.isHudVisible ? 1.0 : 0.0)
-                    .animation(.easeInOut(duration: 0.15), value: state.isHudVisible)
-                    .onAppear { state.lastHudCenter = pos }
-                    .onChange(of: pos) { _, newPos in state.lastHudCenter = newPos }
+                if case .sequence = state.mode {
+                    let pos = hudPosition(in: geo.size)
+                    floatingHUDCard
+                        .position(pos)
+                        .opacity(state.isHudVisible ? 1.0 : 0.0)
+                        .animation(.easeInOut(duration: 0.15), value: state.isHudVisible)
+                        .onAppear { state.lastHudCenter = pos }
+                        .onChange(of: pos) { _, newPos in state.lastHudCenter = newPos }
+                }
                 
-                if state.isFollowingCursor {
+                if case .sequence = state.mode, state.isFollowingCursor {
                     ZStack {
                         // Outer ring the size of a finger touch (diameter 32)
                         Circle()
@@ -2710,7 +2713,9 @@ class CaptureOverlayHostingView: NSView {
             guard let self = self else { return }
             self.window?.invalidateCursorRects(for: self)
             if following {
-                NSCursor.hide()
+                if case .sequence = self.stateModel.mode {
+                    NSCursor.hide()
+                }
                 self.window?.ignoresMouseEvents = false
                 
                 // Get current mouse location instantly
@@ -2771,7 +2776,7 @@ class CaptureOverlayHostingView: NSView {
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         if let win = window {
-            if stateModel.isFollowingCursor {
+            if case .sequence = stateModel.mode, stateModel.isFollowingCursor {
                 NSCursor.hide()
             }
             let screenPt = NSEvent.mouseLocation
