@@ -4984,104 +4984,101 @@ struct MacroInspectorView: View {
                 DraggableActionList(actionItems: $macro.actionItems, onSave: {
                     store.saveMacro(macro)
                 }, onInsertTemplate: { typeName, targetIndex in
-                    store.registerUndoState(for: macro)
-                    let newAction: MacroAction
                     switch typeName {
                     case "Path":
-                        newAction = .path(points: [])
-                    case "Left Click":
-                        newAction = .click(point: .zero, button: .left)
-                    case "Right Click":
-                        newAction = .click(point: .zero, button: .right)
-                    case "Drag":
-                        newAction = .drag(start: .zero, end: .zero)
-                    case "Delay":
-                        newAction = .delay(ms: 300)
-                    case "Text":
-                        newAction = .typeText(text: "Hello ShortKing")
-                    case "Key":
-                        newAction = .pressKey(keyCode: 36)
-                    case "Origin", "Do Again":
-                        newAction = .doAgain(target: .origin)
-                    case "Move Cursor":
-                        newAction = .moveCursor(point: .zero)
-                    default:
-                        newAction = .delay(ms: 300)
-                    }
-                    
-                    let newItem = MacroActionItem(action: newAction)
-                    if targetIndex >= macro.actionItems.count {
-                        macro.actionItems.append(newItem)
-                    } else {
-                        macro.actionItems.insert(newItem, at: targetIndex)
-                    }
-                    store.saveMacro(macro)
-                    
-                    switch newAction {
-                    case .path:
                         CaptureOverlayWindow.shared = CaptureOverlayWindow(
                             initialPoints: [],
                             defaultType: .move,
                             onSequenceCaptured: { pts in
                                 guard !pts.isEmpty else { return }
-                                if let idx = macro.actionItems.firstIndex(where: { $0.id == newItem.id }) {
-                                    macro.actionItems[idx].action = .path(points: pts)
-                                    store.saveMacro(macro)
+                                store.registerUndoState(for: macro)
+                                let item = MacroActionItem(action: .path(points: pts))
+                                if targetIndex >= macro.actionItems.count {
+                                    macro.actionItems.append(item)
+                                } else {
+                                    macro.actionItems.insert(item, at: targetIndex)
                                 }
+                                store.saveMacro(macro)
                             },
-                            onSequenceRealTime: { tempPts in
-                                if let idx = macro.actionItems.firstIndex(where: { $0.id == newItem.id }) {
-                                    macro.actionItems[idx].action = .path(points: tempPts)
-                                }
-                            }
+                            onSequenceRealTime: { tempPts in }
                         )
-                    case .click(_, let button):
+                    case "Left Click":
                         CaptureOverlayWindow.shared = CaptureOverlayWindow(
-                            mode: .click(button: button, initialPoint: nil),
-                            onClickCaptured: { newPoint in
-                                if let idx = macro.actionItems.firstIndex(where: { $0.id == newItem.id }) {
-                                    macro.actionItems[idx].action = .click(point: newPoint, button: button)
-                                    store.saveMacro(macro)
+                            mode: .click(button: .left, initialPoint: nil),
+                            onClickCaptured: { pt in
+                                store.registerUndoState(for: macro)
+                                let item = MacroActionItem(action: .click(point: pt, button: .left))
+                                if targetIndex >= macro.actionItems.count {
+                                    macro.actionItems.append(item)
+                                } else {
+                                    macro.actionItems.insert(item, at: targetIndex)
                                 }
+                                store.saveMacro(macro)
                             },
-                            onClickRealTime: { tempPoint in
-                                if let idx = macro.actionItems.firstIndex(where: { $0.id == newItem.id }) {
-                                    macro.actionItems[idx].action = .click(point: tempPoint, button: button)
-                                }
-                            }
+                            onClickRealTime: { tempPt in }
                         )
-                    case .drag:
+                    case "Right Click":
+                        CaptureOverlayWindow.shared = CaptureOverlayWindow(
+                            mode: .click(button: .right, initialPoint: nil),
+                            onClickCaptured: { pt in
+                                store.registerUndoState(for: macro)
+                                let item = MacroActionItem(action: .click(point: pt, button: .right))
+                                if targetIndex >= macro.actionItems.count {
+                                    macro.actionItems.append(item)
+                                } else {
+                                    macro.actionItems.insert(item, at: targetIndex)
+                                }
+                                store.saveMacro(macro)
+                            },
+                            onClickRealTime: { tempPt in }
+                        )
+                    case "Drag":
                         CaptureOverlayWindow.shared = CaptureOverlayWindow(
                             mode: .drag(initialStart: nil, initialEnd: nil),
                             onDragCaptured: { start, end in
-                                if let idx = macro.actionItems.firstIndex(where: { $0.id == newItem.id }) {
-                                    macro.actionItems[idx].action = .drag(start: start, end: end)
-                                    store.saveMacro(macro)
+                                store.registerUndoState(for: macro)
+                                let item = MacroActionItem(action: .drag(start: start, end: end))
+                                if targetIndex >= macro.actionItems.count {
+                                    macro.actionItems.append(item)
+                                } else {
+                                    macro.actionItems.insert(item, at: targetIndex)
                                 }
+                                store.saveMacro(macro)
                             },
-                            onDragRealTime: { tempStart, tempEnd in
-                                if let idx = macro.actionItems.firstIndex(where: { $0.id == newItem.id }) {
-                                    macro.actionItems[idx].action = .drag(start: tempStart, end: tempEnd)
-                                }
-                            }
+                            onDragRealTime: { tempStart, tempEnd in }
                         )
-                    case .moveCursor:
+                    case "Move Cursor":
                         CaptureOverlayWindow.shared = CaptureOverlayWindow(
                             mode: .click(button: .left, initialPoint: nil),
-                            onClickCaptured: { newPoint in
-                                if let idx = macro.actionItems.firstIndex(where: { $0.id == newItem.id }) {
-                                    macro.actionItems[idx].action = .moveCursor(point: newPoint)
-                                    store.saveMacro(macro)
+                            onClickCaptured: { pt in
+                                store.registerUndoState(for: macro)
+                                let item = MacroActionItem(action: .moveCursor(point: pt))
+                                if targetIndex >= macro.actionItems.count {
+                                    macro.actionItems.append(item)
+                                } else {
+                                    macro.actionItems.insert(item, at: targetIndex)
                                 }
+                                store.saveMacro(macro)
                             },
-                            onClickRealTime: { tempPoint in
-                                if let idx = macro.actionItems.firstIndex(where: { $0.id == newItem.id }) {
-                                    macro.actionItems[idx].action = .moveCursor(point: tempPoint)
-                                }
-                            }
+                            onClickRealTime: { tempPt in }
                         )
                     default:
-                        break
+                        let nonCoordAction: MacroAction
+                        switch typeName {
+                        case "Delay": nonCoordAction = .delay(ms: 300)
+                        case "Text":  nonCoordAction = .typeText(text: "Hello ShortKing")
+                        case "Key":   nonCoordAction = .pressKey(keyCode: 36)
+                        case "Origin", "Do Again": nonCoordAction = .doAgain(target: .origin)
+                        default:      nonCoordAction = .delay(ms: 300)
+                        }
+                        store.registerUndoState(for: macro)
+                        let item = MacroActionItem(action: nonCoordAction)
+                        if targetIndex >= macro.actionItems.count {
+                            macro.actionItems.append(item)
+                        } else {
+                            macro.actionItems.insert(item, at: targetIndex)
+                        }
+                        store.saveMacro(macro)
                     }
                 }, detailWidth: detailWidth)
             }
