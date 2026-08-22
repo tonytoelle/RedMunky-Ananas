@@ -2347,8 +2347,15 @@ class CaptureOverlayState: ObservableObject {
     }
     
     var onPassThroughChanged: ((Bool) -> Void)? = nil
+    @Published var lastPassthroughHUDLocation: CGPoint? = nil
     @Published var isPassThroughMode: Bool = false {
         didSet {
+            if isPassThroughMode {
+                // Lock current HUD position so it doesn't move during passthrough
+                lastPassthroughHUDLocation = lastHudCenter
+            } else {
+                lastPassthroughHUDLocation = nil
+            }
             onPassThroughChanged?(isPassThroughMode)
         }
     }
@@ -2768,6 +2775,11 @@ struct CaptureOverlaySwiftUIView: View {
     
     // MARK: - HUD Dynamic Position Following Cursor / Active Pin
     private func hudPosition(in size: CGSize) -> CGPoint {
+        // If in passthrough mode, use the locked HUD location so it doesn't run away from the cursor
+        if let lockedLoc = state.lastPassthroughHUDLocation {
+            return lockedLoc
+        }
+        
         let targetPt: CGPoint
         if !state.isFollowingCursor, let sel = state.selectedPointIndex, sel < state.points.count {
             targetPt = state.points[sel].point
