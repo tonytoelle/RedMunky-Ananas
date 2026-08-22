@@ -4498,6 +4498,32 @@ struct DraggableActionList: View {
 
     var body: some View {
         LazyVStack(spacing: 8) {
+            // Show implicit "Origin Recorded" indicator when a doAgain(.origin) action exists
+            if actionItems.contains(where: { if case .doAgain(let t) = $0.action, case .origin = t { return true }; return false }) {
+                HStack(spacing: 6) {
+                    Image(systemName: "smallcircle.filled.circle")
+                        .font(.system(size: 9))
+                        .foregroundColor(Color(red: 0.12, green: 0.58, blue: 0.65).opacity(0.7))
+                    Text("Cursor origin auto-recorded")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(.secondary.opacity(0.6))
+                    Spacer()
+                    Image(systemName: "eye.slash")
+                        .font(.system(size: 8))
+                        .foregroundColor(.secondary.opacity(0.35))
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 5)
+                .background(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(Color(red: 0.12, green: 0.58, blue: 0.65).opacity(0.06))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .strokeBorder(Color(red: 0.12, green: 0.58, blue: 0.65).opacity(0.12), lineWidth: 1, antialiased: true)
+                        )
+                )
+            }
+            
             ForEach(actionItems) { actionItem in
                 let itemID = actionItem.id
                 if let index = actionItems.firstIndex(where: { $0.id == itemID }) {
