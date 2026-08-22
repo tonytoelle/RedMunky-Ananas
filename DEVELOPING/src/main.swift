@@ -5830,7 +5830,7 @@ struct MacroInspectorView: View {
                         }
 
                         // ALTERNATE ACTIONS AREA
-                        if let switchTriggerIndex = macro.triggers.firstIndex(where: { $0.mode == .keySwitch }) {
+                        if macro.triggers.contains(where: { $0.mode == .keySwitch }) {
                             VStack(alignment: .leading, spacing: 8) {
                                 HStack(spacing: 6) {
                                     Image(systemName: "arrow.triangle.swap")
@@ -5842,10 +5842,17 @@ struct MacroInspectorView: View {
                                 }
                                 
                                 DraggableActionList(actionItems: Binding(
-                                    get: { macro.triggers[switchTriggerIndex].alternateActionItems },
+                                    get: {
+                                        if let idx = macro.triggers.firstIndex(where: { $0.mode == .keySwitch }) {
+                                            return macro.triggers[idx].alternateActionItems
+                                        }
+                                        return []
+                                    },
                                     set: { newValue in
-                                        macro.triggers[switchTriggerIndex].alternateActionItems = newValue
-                                        store.saveMacro(macro)
+                                        if let idx = macro.triggers.firstIndex(where: { $0.mode == .keySwitch }) {
+                                            macro.triggers[idx].alternateActionItems = newValue
+                                            store.saveMacro(macro)
+                                        }
                                     }
                                 ), onSave: {
                                     store.saveMacro(macro)
