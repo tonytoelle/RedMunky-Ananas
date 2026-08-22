@@ -2965,6 +2965,10 @@ class CaptureOverlayHostingView: NSView {
             cursorHideCount -= 1
         }
         NSCursor.unhide()
+        // Force Cocoa to set cursor back to arrow state
+        DispatchQueue.main.async {
+            NSCursor.arrow.set()
+        }
     }
 
     private func cleanupMonitors() {
