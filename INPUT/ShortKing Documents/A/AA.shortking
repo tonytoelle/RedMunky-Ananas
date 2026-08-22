@@ -2,5 +2,5 @@
 TRIGGER: cmd+shift+k
 
 # Actions:
-ACTION: delay 500
-ACTION: type "Hello ShortKing!"
+ACTION: do_again
+ACTION: click 828 743
