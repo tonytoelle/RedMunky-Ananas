@@ -1,5 +1,5 @@
 # ShortKing Macro Script
-TRIGGER: cmd+shift+k
+TRIGGER: cmd+l
 
 # Actions:
-ACTION: path 393,1111:move 533,1033:drag 480,961:drag
+ACTION: path 394,1110:click*2 533,1034:drag 476,955:drag

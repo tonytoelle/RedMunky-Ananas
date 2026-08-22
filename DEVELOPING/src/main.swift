@@ -870,6 +870,10 @@ class InputSimulator {
             return CGPoint(x: cocoaPt.x, y: screenH - cocoaPt.y)
         }()
         
+        // Show ghost cursor at origin position for the duration of execution
+        ExecutionCursorOverlayWindow.show(at: originQuartzPos)
+        defer { ExecutionCursorOverlayWindow.hide() }
+        
         // Initial delay allowing user to release physical hotkey combination
         usleep(60000) // 60ms
         releaseModifiers()
@@ -3362,6 +3366,71 @@ class CaptureOverlayHostingView: NSView {
         mouseDown(with: event)
     }
     
+}
+
+// ==========================================
+// MARK: - Execution Cursor Ghost Overlay
+// ==========================================
+/// Floating window that renders an exact clone of the macOS default arrow cursor
+/// at the resting origin coordinate while a macro is executing.
+class ExecutionCursorOverlayWindow: NSPanel {
+    static var shared: ExecutionCursorOverlayWindow?
+
+    // Show the ghost cursor at the given Quartz (top-left origin) point
+    static func show(at quartzPoint: CGPoint) {
+        DispatchQueue.main.async {
+            shared?.close()
+            shared = nil
+
+            // Find which screen contains this point
+            let screen = NSScreen.screens.first {
+                let f = $0.frame
+                return f.contains(CGPoint(x: quartzPoint.x, y: f.height - quartzPoint.y + f.minY))
+            } ?? NSScreen.main
+
+            let screenFrame = screen?.frame ?? NSRect(x: 0, y: 0, width: 1920, height: 1080)
+            // Convert Quartz top-left → Cocoa bottom-left
+            let cocoaX = quartzPoint.x
+            let cocoaY = screenFrame.maxY - quartzPoint.y
+
+            // Window size matches cursor image (typically 22×22, use 32×32 for safe padding)
+            let winSize: CGFloat = 36
+            let frame = NSRect(x: cocoaX, y: cocoaY - winSize, width: winSize, height: winSize)
+
+            let win = ExecutionCursorOverlayWindow(contentRect: frame)
+            win.orderFrontRegardless()
+            shared = win
+        }
+    }
+
+    static func hide() {
+        DispatchQueue.main.async {
+            shared?.close()
+            shared = nil
+        }
+    }
+
+    init(contentRect: NSRect) {
+        super.init(contentRect: contentRect,
+                   styleMask: [.borderless, .nonactivatingPanel],
+                   backing: .buffered,
+                   defer: false)
+        isOpaque = false
+        backgroundColor = .clear
+        level = .statusBar
+        ignoresMouseEvents = true
+        hasShadow = false
+        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+
+        // Use the actual macOS arrow cursor image — authentic look
+        let cursorImage = NSCursor.arrow.image
+        let imageView = NSImageView(frame: NSRect(x: 0, y: 0, width: contentRect.width, height: contentRect.height))
+        imageView.image = cursorImage
+        imageView.imageScaling = .scaleProportionallyUpOrDown
+        // Cursor hotspot is top-left, so we position the image in top-left of the window
+        imageView.imageAlignment = .alignTopLeft
+        contentView = imageView
+    }
 }
 
 // ==========================================
