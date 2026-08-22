@@ -2297,8 +2297,8 @@ struct CaptureOverlaySwiftUIView: View {
     var body: some View {
         GeometryReader { geo in
             ZStack {
-                // Completely transparent background in edit mode so underlying windows are crystal clear
-                Color.black.opacity(state.phase == .recording ? 0.12 : 0.001)
+                // Completely transparent background - no darkening at all!
+                Color.clear
                     .edgesIgnoringSafeArea(.all)
                 
                 // ─────────────────────────────────────────────
@@ -2680,16 +2680,21 @@ class CaptureOverlayHostingView: NSView {
             }
             
             if globalMouseMonitor == nil {
-                globalMouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged]) { [weak self] event in
+                globalMouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged, .leftMouseDown]) { [weak self] event in
                     guard let self = self, let win = self.window else { return }
                     let screenPt = NSEvent.mouseLocation
                     let winLoc = win.convertPoint(fromScreen: screenPt)
                     let screenHeight = win.screen?.frame.height ?? NSScreen.main?.frame.height ?? self.bounds.height
                     let quartzPt = CGPoint(x: winLoc.x, y: screenHeight - winLoc.y)
+                    
                     DispatchQueue.main.async {
                         self.stateModel.currentLocation = winLoc
                         self.stateModel.quartzLocation = quartzPt
                         self.updateHover(quartzPt: quartzPt)
+                        
+                        if event.type == .leftMouseDown {
+                            self.handleGlobalClick(quartzPt: quartzPt)
+                        }
                     }
                 }
             }
@@ -2742,12 +2747,7 @@ class CaptureOverlayHostingView: NSView {
         let screenHeight = window?.screen?.frame.height ?? NSScreen.main?.frame.height ?? bounds.height
         let quartzPt = CGPoint(x: point.x, y: screenHeight - point.y)
         
-        // During recording: capture all clicks
-        if stateModel.phase == .recording {
-            return super.hitTest(point)
-        }
-        
-        // During edit: capture clicks on/near pins
+        // Capture clicks on/near pins
         for p in stateModel.points {
             if dist(quartzPt, p.point) <= 24 {
                 return super.hitTest(point)
@@ -2757,7 +2757,7 @@ class CaptureOverlayHostingView: NSView {
         // Or clicks on the HUD card
         if stateModel.isHudVisible {
             let hudPos = stateModel.lastHudCenter
-            let hudRect = CGRect(x: hudPos.x - 70, y: hudPos.y - 25, width: 140, height: 50)
+            let hudRect = CGRect(x: hudPos.x - 75, y: hudPos.y - 30, width: 150, height: 60)
             if hudRect.contains(quartzPt) {
                 return super.hitTest(point)
             }
@@ -2782,30 +2782,44 @@ class CaptureOverlayHostingView: NSView {
         stateModel.activeDraggingIndex = nil
     }
     
+    private func handleGlobalClick(quartzPt: CGPoint) {
+        if stateModel.phase == .recording {
+            switch stateModel.mode {
+            case .click:
+                stateModel.points = [SequencePoint(point: quartzPt, type: .click)]
+                stateModel.onConfirmAll?()
+            case .drag:
+                if stateModel.points.isEmpty {
+                    stateModel.points.append(SequencePoint(point: quartzPt, type: .drag))
+                    stateModel.selectedPointIndex = 0
+                } else {
+                    stateModel.points.append(SequencePoint(point: quartzPt, type: .drag))
+                    stateModel.onConfirmAll?()
+                }
+            case .sequence:
+                stateModel.points.append(SequencePoint(point: quartzPt, type: stateModel.defaultPointType))
+                stateModel.selectedPointIndex = stateModel.points.count - 1
+            }
+        } else {
+            // Edit phase: check if clicked on background
+            var onPin = false
+            for p in stateModel.points {
+                if dist(quartzPt, p.point) <= 24 {
+                    onPin = true
+                    break
+                }
+            }
+            if !onPin {
+                stateModel.selectedPointIndex = nil
+            }
+        }
+    }
+    
     override func mouseDown(with event: NSEvent) {
         updateMouse(event: event)
         
         if stateModel.phase == .recording {
-            switch stateModel.mode {
-            case .click:
-                stateModel.points = [SequencePoint(point: stateModel.quartzLocation, type: .click)]
-                stateModel.onConfirmAll?()
-                return
-                
-            case .drag:
-                if stateModel.points.isEmpty {
-                    stateModel.points.append(SequencePoint(point: stateModel.quartzLocation, type: .drag))
-                    stateModel.selectedPointIndex = 0
-                } else {
-                    stateModel.points.append(SequencePoint(point: stateModel.quartzLocation, type: .drag))
-                    stateModel.onConfirmAll?()
-                    return
-                }
-                
-            case .sequence:
-                stateModel.points.append(SequencePoint(point: stateModel.quartzLocation, type: stateModel.defaultPointType))
-                stateModel.selectedPointIndex = stateModel.points.count - 1
-            }
+            handleGlobalClick(quartzPt: stateModel.quartzLocation)
         } else {
             // Edit phase
             if let h = stateModel.hoveredIndex {

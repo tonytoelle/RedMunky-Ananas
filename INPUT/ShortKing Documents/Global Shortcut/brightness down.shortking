@@ -3,5 +3,3 @@ TRIGGER: shift+f1
 
 # Actions:
 ACTION: brightness_down
-ACTION: path 539,844:move 637,792:click 736,716:move 810,780:move 874,728:drag 913,807:drag 979,692:move 994,815:click
-ACTION: path 708,691:move 799,654:move 743,553:move 637,613:move
