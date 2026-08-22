@@ -2480,10 +2480,10 @@ struct CaptureOverlaySwiftUIView: View {
                 
                 VStack(alignment: .leading, spacing: 1) {
                     if state.phase == .recording {
-                        Text("esc to edit")
+                        Text("enter to edit")
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundColor(Color(red: 0.85, green: 0.20, blue: 0.95))
-                        Text("enter to confirm")
+                        Text("esc to cancel")
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundColor(Color(red: 0.85, green: 0.20, blue: 0.95))
                     } else {
@@ -2564,7 +2564,7 @@ class CaptureOverlayHostingView: NSView {
         
         if !initialPoints.isEmpty {
             stateModel.phase = .editing
-            stateModel.selectedPointIndex = initialPoints.count - 1
+            stateModel.selectedPointIndex = nil
         } else {
             stateModel.phase = .recording
         }
@@ -2717,6 +2717,8 @@ class CaptureOverlayHostingView: NSView {
                     stateModel.selectedPointIndex = 0
                     stateModel.activeDraggingIndex = 0
                 } else {
+                    // Clicking empty canvas deselects selection cleanly
+                    stateModel.selectedPointIndex = nil
                     stateModel.activeDraggingIndex = nil
                 }
             }
@@ -2729,21 +2731,29 @@ class CaptureOverlayHostingView: NSView {
     
     private func handleKeyEvent(_ event: NSEvent) {
         if event.keyCode == 53 { // Esc
-            if stateModel.phase == .recording {
-                // Esc switches to Edit mode!
-                stateModel.phase = .editing
-                if !stateModel.points.isEmpty {
-                    stateModel.selectedPointIndex = stateModel.points.count - 1
-                }
+            if stateModel.selectedPointIndex != nil {
+                // Esc clears active selection!
+                stateModel.selectedPointIndex = nil
             } else {
-                // Esc in Edit mode closes/cancels
+                // If nothing is selected, Esc cancels and closes overlay
                 onCancel()
             }
         } else if event.keyCode == 36 || event.keyCode == 76 || event.keyCode == 49 { // Return / Enter / Space
-            stateModel.onConfirmAll?()
+            if case .sequence = stateModel.mode {
+                if stateModel.phase == .recording {
+                    // First Enter: Finish recording points and switch to Edit Mode (selection cleared)
+                    stateModel.phase = .editing
+                    stateModel.selectedPointIndex = nil
+                } else {
+                    // Second Enter: Final Confirm & Save
+                    stateModel.onConfirmAll?()
+                }
+            } else {
+                stateModel.onConfirmAll?()
+            }
         } else if event.keyCode == 48 { // Tab: cycle selected point
             if !stateModel.points.isEmpty {
-                let cur = stateModel.selectedPointIndex ?? 0
+                let cur = stateModel.selectedPointIndex ?? -1
                 stateModel.selectedPointIndex = (cur + 1) % stateModel.points.count
             }
         } else if event.keyCode == 51 || event.keyCode == 117 { // Backspace / Delete
