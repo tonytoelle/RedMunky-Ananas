@@ -91,9 +91,49 @@ enum DoAgainTarget: Equatable {
     }
 }
 
+// ==========================================
+// MARK: - Multi-Point Cursor Sequence & Path Models
+// ==========================================
+enum SequencePointType: String, CaseIterable, Identifiable, Codable {
+    case click = "Click"
+    case drag = "Drag"
+    case move = "Move"
+    
+    var id: String { rawValue }
+    
+    var icon: String {
+        switch self {
+        case .click: return "cursorarrow.click"
+        case .drag: return "hand.draw"
+        case .move: return "cursorarrow.motionlines"
+        }
+    }
+    
+    var color: Color {
+        switch self {
+        case .click: return Color(red: 0.08, green: 0.55, blue: 1.0)
+        case .drag: return Color.purple
+        case .move: return Color(red: 0.28, green: 0.72, blue: 0.52)
+        }
+    }
+}
+
+struct SequencePoint: Identifiable, Equatable, Codable {
+    let id: UUID
+    var point: CGPoint
+    var type: SequencePointType
+    
+    init(id: UUID = UUID(), point: CGPoint, type: SequencePointType) {
+        self.id = id
+        self.point = point
+        self.type = type
+    }
+}
+
 enum MacroAction: Equatable {
     case click(point: CGPoint, button: CGMouseButton)
     case drag(start: CGPoint, end: CGPoint)
+    case path(points: [SequencePoint])
     case delay(ms: UInt32)
     case typeText(text: String)
     case pasteText(text: String)
@@ -112,6 +152,7 @@ enum MacroAction: Equatable {
         switch self {
         case .click:        return "cursorarrow.click"
         case .drag:         return "hand.draw"
+        case .path:         return "point.topleft.down.to.point.bottomright.curvepath.fill"
         case .delay:        return "timer"
         case .typeText:     return "text.cursor"
         case .pasteText:    return "doc.on.clipboard"
@@ -130,6 +171,7 @@ enum MacroAction: Equatable {
         switch self {
         case .click(_, let button): return button == .left ? Color(red: 0.08, green: 0.45, blue: 0.82) : Color(red: 0.04, green: 0.52, blue: 0.54)
         case .drag:         return Color(red: 0.52, green: 0.22, blue: 0.75)
+        case .path:         return Color(red: 0.65, green: 0.25, blue: 0.85)
         case .delay:        return Color(red: 0.88, green: 0.42, blue: 0.04)
         case .typeText:     return Color(red: 0.12, green: 0.58, blue: 0.24)
         case .pasteText:    return Color(red: 0.04, green: 0.52, blue: 0.54)
@@ -146,6 +188,7 @@ enum MacroAction: Equatable {
         switch self {
         case .click(_, let b):      return "\(b == .left ? "Left" : "Right") Click"
         case .drag:                 return "Drag"
+        case .path:                 return "Path"
         case .delay:                return "Delay"
         case .typeText:             return "Type"
         case .pasteText:            return "Paste"
@@ -164,6 +207,7 @@ enum MacroAction: Equatable {
         switch self {
         case .click(let p, let b):  return "Click \(b == .left ? "Left Button" : "Right Button") at coordinates (\(Int(p.x)), \(Int(p.y)))"
         case .drag(let s, let e):   return "Drag cursor from (\(Int(s.x)), \(Int(s.y))) to (\(Int(e.x)), \(Int(e.y)))"
+        case .path(let pts):        return "\(pts.count) steps cursor sequence"
         case .delay(let ms):        return "Wait \(ms) milliseconds before next step"
         case .typeText(let t):      return "Type: \"\(t)\""
         case .pasteText(let t):     return "Paste: \"\(t)\""
@@ -200,6 +244,8 @@ enum MacroAction: Equatable {
             return "\(Int(point.x)), \(Int(point.y))"
         case .drag(let start, let end):
             return "(\(Int(start.x)), \(Int(start.y))) → (\(Int(end.x)), \(Int(end.y)))"
+        case .path(let pts):
+            return "\(pts.count) pts"
         case .delay(let ms):
             return "\(ms) ms"
         case .typeText(let text), .pasteText(let text):
@@ -237,6 +283,9 @@ enum MacroAction: Equatable {
         switch self {
         case .click(let p, let b):  return b == .left ? "ACTION: click \(Int(p.x)) \(Int(p.y))" : "ACTION: right_click \(Int(p.x)) \(Int(p.y))"
         case .drag(let s, let e):   return "ACTION: drag \(Int(s.x)) \(Int(s.y)) to \(Int(e.x)) \(Int(e.y))"
+        case .path(let pts):
+            let pStr = pts.map { "\(Int($0.point.x)),\(Int($0.point.y)):\($0.type.rawValue.lowercased())" }.joined(separator: " ")
+            return "ACTION: path \(pStr)"
         case .delay(let ms):        return "ACTION: delay \(ms)"
         case .typeText(let t):      return "ACTION: type \"\(t)\""
         case .pasteText(let t):     return "ACTION: paste \"\(t)\""
@@ -270,7 +319,7 @@ enum MacroAction: Equatable {
     
     var hasCoordinates: Bool {
         switch self {
-        case .click, .drag, .moveCursor:
+        case .click, .drag, .moveCursor, .path:
             return true
         default:
             return false
@@ -583,6 +632,28 @@ class ShortKingParser {
             if f.count >= 5, let x1=Double(f[1]),let y1=Double(f[2]),let x2=Double(f[3]),let y2=Double(f[4]) {
                 return .drag(start: CGPoint(x: x1, y: y1), end: CGPoint(x: x2, y: y2))
             }
+        case "path":
+            var pts: [SequencePoint] = []
+            for chunk in parts.dropFirst() {
+                let segs = chunk.split(separator: ":")
+                if segs.count >= 2 {
+                    let coords = segs[0].split(separator: ",")
+                    if coords.count >= 2, let x = Double(coords[0]), let y = Double(coords[1]) {
+                        let typeStr = String(segs[1]).lowercased()
+                        let type: SequencePointType
+                        switch typeStr {
+                        case "click": type = .click
+                        case "drag":  type = .drag
+                        case "move":  type = .move
+                        default:      type = .move
+                        }
+                        pts.append(SequencePoint(point: CGPoint(x: x, y: y), type: type))
+                    }
+                }
+            }
+            if !pts.isEmpty {
+                return .path(points: pts)
+            }
         case "type":
             var t = s.dropFirst(cmd.count).trimmingCharacters(in: .whitespaces)
             if t.hasPrefix("\"") && t.hasSuffix("\"") && t.count >= 2 { t = String(t.dropFirst().dropLast()) }
@@ -812,6 +883,58 @@ class InputSimulator {
                     u?.flags = []
                     u?.post(tap: .cghidEventTap)
                     usleep(30000)
+
+                case .path(let points):
+                    guard !points.isEmpty else { break }
+                    var lastPt = points[0].point
+                    CGWarpMouseCursorPosition(lastPt)
+                    usleep(30000)
+                    
+                    for i in 0..<points.count {
+                        guard !isEmergencyStopped else { return }
+                        let cur = points[i]
+                        switch cur.type {
+                        case .move:
+                            CGWarpMouseCursorPosition(cur.point)
+                            usleep(25000)
+                        case .click:
+                            CGWarpMouseCursorPosition(cur.point)
+                            usleep(20000)
+                            let d = CGEvent(mouseEventSource: source, mouseType: .leftMouseDown, mouseCursorPosition: cur.point, mouseButton: .left)
+                            let u = CGEvent(mouseEventSource: source, mouseType: .leftMouseUp, mouseCursorPosition: cur.point, mouseButton: .left)
+                            d?.flags = []
+                            u?.flags = []
+                            d?.post(tap: .cghidEventTap)
+                            usleep(20000)
+                            u?.post(tap: .cghidEventTap)
+                            usleep(25000)
+                        case .drag:
+                            if i > 0 {
+                                let start = lastPt
+                                let end = cur.point
+                                let d = CGEvent(mouseEventSource: source, mouseType: .leftMouseDown, mouseCursorPosition: start, mouseButton: .left)
+                                d?.flags = []
+                                d?.post(tap: .cghidEventTap)
+                                usleep(30000)
+                                for s in 1...12 {
+                                    guard !isEmergencyStopped else { return }
+                                    let p = CGFloat(s)/12
+                                    let pt = CGPoint(x: start.x + (end.x - start.x)*p, y: start.y + (end.y - start.y)*p)
+                                    let m = CGEvent(mouseEventSource: source, mouseType: .leftMouseDragged, mouseCursorPosition: pt, mouseButton: .left)
+                                    m?.flags = []
+                                    m?.post(tap: .cghidEventTap)
+                                    usleep(12000)
+                                }
+                                let u = CGEvent(mouseEventSource: source, mouseType: .leftMouseUp, mouseCursorPosition: end, mouseButton: .left)
+                                u?.flags = []
+                                u?.post(tap: .cghidEventTap)
+                                usleep(25000)
+                            } else {
+                                CGWarpMouseCursorPosition(cur.point)
+                            }
+                        }
+                        lastPt = cur.point
+                    }
 
                 case .delay(let ms):
                     var rem = ms
@@ -2098,43 +2221,6 @@ struct HotKeyRecorder: View {
 // ==========================================
 // MARK: - Interactive Coordinate Capture Overlay Window (HUD Style)
 // ==========================================
-// MARK: - Multi-Point Cursor Sequence & Capture Models
-// ==========================================
-enum SequencePointType: String, CaseIterable, Identifiable {
-    case click = "Click"
-    case drag = "Drag"
-    case move = "Move"
-    
-    var id: String { rawValue }
-    
-    var icon: String {
-        switch self {
-        case .click: return "cursorarrow.click"
-        case .drag: return "hand.draw"
-        case .move: return "cursorarrow.motionlines"
-        }
-    }
-    
-    var color: Color {
-        switch self {
-        case .click: return Color(red: 0.08, green: 0.55, blue: 1.0)
-        case .drag: return Color.purple
-        case .move: return Color(red: 0.28, green: 0.72, blue: 0.52)
-        }
-    }
-}
-
-struct SequencePoint: Identifiable, Equatable {
-    let id: UUID
-    var point: CGPoint
-    var type: SequencePointType
-    
-    init(id: UUID = UUID(), point: CGPoint, type: SequencePointType) {
-        self.id = id
-        self.point = point
-        self.type = type
-    }
-}
 
 class CaptureOverlayState: ObservableObject {
     enum Phase {
@@ -3734,6 +3820,32 @@ struct ActionCardView: View {
                                     onSave()
                                 }
                             }
+                    case .path(let points):
+                        Button {
+                            CaptureOverlayWindow.shared = CaptureOverlayWindow(initialPoints: points, defaultType: .drag) { newPts in
+                                guard !newPts.isEmpty else { return }
+                                onPreSave()
+                                item.action = .path(points: newPts)
+                                onSave()
+                            }
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "pencil")
+                                    .font(.system(size: 10, weight: .bold))
+                                Text("Edit")
+                                    .font(.system(size: 11, weight: .semibold))
+                            }
+                            .foregroundColor(Color.purple)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 4)
+                            .background(Color.purple.opacity(0.15))
+                            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                    .stroke(Color.purple.opacity(0.3), lineWidth: 1)
+                            )
+                        }
+                        .buttonStyle(.plain)
                     case .moveCursor(let point):
                         Text(item.action.parameterString)
                             .font(.system(size: 12, weight: .medium, design: .monospaced))
@@ -4545,6 +4657,8 @@ struct MacroInspectorView: View {
                     store.registerUndoState(for: macro)
                     let newAction: MacroAction
                     switch typeName {
+                    case "Path":
+                        newAction = .path(points: [])
                     case "Left Click":
                         newAction = .click(point: .zero, button: .left)
                     case "Right Click":
@@ -4574,6 +4688,15 @@ struct MacroInspectorView: View {
                     store.saveMacro(macro)
                     
                     switch newAction {
+                    case .path:
+                        CaptureOverlayWindow.shared = CaptureOverlayWindow(initialPoints: [], defaultType: .drag) { pts in
+                            guard !pts.isEmpty else { return }
+                            if let idx = macro.actionItems.firstIndex(where: { $0.id == newItem.id }) {
+                                store.registerUndoState(for: macro)
+                                macro.actionItems[idx].action = .path(points: pts)
+                                store.saveMacro(macro)
+                            }
+                        }
                     case .click(_, let button):
                         CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .click(button: button, initialPoint: nil)) { newPoint in
                             if let idx = macro.actionItems.firstIndex(where: { $0.id == newItem.id }) {
@@ -4643,26 +4766,7 @@ struct MacroInspectorView: View {
                         CaptureOverlayWindow.shared = CaptureOverlayWindow(initialPoints: [], defaultType: .drag) { pts in
                             guard !pts.isEmpty else { return }
                             store.registerUndoState(for: macro)
-                            var idx = 0
-                            while idx < pts.count {
-                                let cur = pts[idx]
-                                switch cur.type {
-                                case .drag:
-                                    if idx + 1 < pts.count && pts[idx + 1].type == .drag {
-                                        macro.actionItems.append(MacroActionItem(action: .drag(start: cur.point, end: pts[idx + 1].point)))
-                                        idx += 2
-                                    } else {
-                                        macro.actionItems.append(MacroActionItem(action: .moveCursor(point: cur.point)))
-                                        idx += 1
-                                    }
-                                case .move:
-                                    macro.actionItems.append(MacroActionItem(action: .moveCursor(point: cur.point)))
-                                    idx += 1
-                                case .click:
-                                    macro.actionItems.append(MacroActionItem(action: .click(point: cur.point, button: .left)))
-                                    idx += 1
-                                }
-                            }
+                            macro.actionItems.append(MacroActionItem(action: .path(points: pts)))
                             store.saveMacro(macro)
                         }
                     }
