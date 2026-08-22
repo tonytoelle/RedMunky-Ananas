@@ -2240,7 +2240,7 @@ struct CaptureOverlaySwiftUIView: View {
                 }
                 
                 // ─────────────────────────────────────────────
-                // PINS RENDERING
+                // PINS RENDERING (Interactive Draggable Handles)
                 // ─────────────────────────────────────────────
                 ForEach(Array(state.points.enumerated()), id: \.element.id) { idx, item in
                     let isHovered = state.hoveredIndex == idx
@@ -2254,6 +2254,20 @@ struct CaptureOverlaySwiftUIView: View {
                         isSelected: isSelected,
                         isHovered: isHovered,
                         isDragging: isDragging
+                    )
+                    .position(x: item.point.x, y: item.point.y - 14)
+                    .gesture(
+                        DragGesture(minimumDistance: 1, coordinateSpace: .global)
+                            .onChanged { val in
+                                state.activeDraggingIndex = idx
+                                state.selectedPointIndex = idx
+                                let newX = max(0, min(val.location.x, geo.size.width))
+                                let newY = max(0, min(val.location.y + 14, geo.size.height))
+                                state.points[idx].point = CGPoint(x: newX, y: newY)
+                            }
+                            .onEnded { _ in
+                                state.activeDraggingIndex = nil
+                            }
                     )
                     .onTapGesture {
                         state.selectedPointIndex = idx
@@ -2341,7 +2355,6 @@ struct CaptureOverlaySwiftUIView: View {
                     .foregroundColor(.white)
             }
         }
-        .position(x: point.x, y: point.y - 14)
     }
     
     // MARK: - Cursor Reticle & Tooltip for Recording Phase
