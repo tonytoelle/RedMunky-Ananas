@@ -1974,7 +1974,21 @@ class MacroStore: ObservableObject {
     }
 
     func createNewMacro(inFolder parentURL: URL? = nil) {
-        let targetDir = parentURL ?? watchDirectoryURL
+        var targetDir = watchDirectoryURL
+        
+        if let parent = parentURL {
+            targetDir = parent
+        } else if let selectedPath = selectedFilePath {
+            var isDir: ObjCBool = false
+            if FileManager.default.fileExists(atPath: selectedPath, isDirectory: &isDir) {
+                if isDir.boolValue {
+                    targetDir = URL(fileURLWithPath: selectedPath)
+                } else {
+                    targetDir = URL(fileURLWithPath: selectedPath).deletingLastPathComponent()
+                }
+            }
+        }
+        
         let count = macros.count + 1
         let fileName = "macro \(count).shortking"
         let url = targetDir.appendingPathComponent(fileName)
@@ -7297,9 +7311,13 @@ struct SidebarNodeView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(Rectangle())
                 .background(
-                    isSelected
-                        ? Color(red: 0.05, green: 0.45, blue: 0.95)
-                        : Color.clear
+                    isDropTarget
+                        ? Color.accentColor.opacity(0.3)
+                        : (isSelected ? Color(red: 0.05, green: 0.45, blue: 0.95) : Color.clear)
+                )
+                .overlay(
+                    Capsule()
+                        .stroke(isDropTarget ? Color.accentColor : Color.clear, lineWidth: 1.5)
                 )
                 .clipShape(Capsule())
             }
@@ -7307,6 +7325,19 @@ struct SidebarNodeView: View {
             .onDrag {
                 let pathsToDrag = selectedPaths.contains(macro.fileURL.path) ? Array(selectedPaths) : [macro.fileURL.path]
                 return NSItemProvider(object: pathsToDrag.joined(separator: "\n") as NSString)
+            }
+            .onDrop(of: [.plainText, .utf8PlainText, .fileURL], isTargeted: $isDropTarget) { providers in
+                for provider in providers {
+                    _ = provider.loadObject(ofClass: NSString.self) { string, _ in
+                        guard let str = string as? String else { return }
+                        let paths = str.components(separatedBy: "\n").filter { !$0.isEmpty }
+                        DispatchQueue.main.async {
+                            let parentFolderURL = macro.fileURL.deletingLastPathComponent()
+                            store.moveItems(paths: paths, toFolder: parentFolderURL)
+                        }
+                    }
+                }
+                return true
             }
             .contextMenu {
                 Button {
