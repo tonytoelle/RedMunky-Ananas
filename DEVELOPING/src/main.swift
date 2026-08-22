@@ -2295,6 +2295,24 @@ class CaptureOverlayState: ObservableObject {
     }
 }
 
+func blendColors(typeA: SequencePointType, typeB: SequencePointType) -> Color {
+    let r1, g1, b1: Double
+    switch typeA {
+    case .click: (r1, g1, b1) = (0.08, 0.55, 1.0)
+    case .drag: (r1, g1, b1) = (0.68, 0.32, 0.87)
+    case .move: (r1, g1, b1) = (0.28, 0.72, 0.52)
+    }
+    
+    let r2, g2, b2: Double
+    switch typeB {
+    case .click: (r2, g2, b2) = (0.08, 0.55, 1.0)
+    case .drag: (r2, g2, b2) = (0.68, 0.32, 0.87)
+    case .move: (r2, g2, b2) = (0.28, 0.72, 0.52)
+    }
+    
+    return Color(red: (r1 + r2) / 2.0, green: (g1 + g2) / 2.0, blue: (b1 + b2) / 2.0)
+}
+
 // ==========================================
 // MARK: - Capture Overlay SwiftUI View (Minimalist Compact HUD)
 // ==========================================
@@ -2322,12 +2340,14 @@ struct CaptureOverlaySwiftUIView: View {
                         let isLineBeingBypassed = state.isFollowingCursor && state.selectedPointIndex == idx
                         let lineOpacityMultiplier: Double = isLineBeingBypassed ? 0.20 : 1.0
                         
-                        let startColor = ptA.type.color.opacity(0.95 * lineOpacityMultiplier)
-                        // If moving from a .move point, line fades out to 0 opacity
-                        let endColor: Color = (ptA.type == .move) ? ptB.type.color.opacity(0.0) : ptB.type.color.opacity(0.95 * lineOpacityMultiplier)
+                        let midColor = blendColors(typeA: ptA.type, typeB: ptB.type)
                         
                         let grad = LinearGradient(
-                            gradient: Gradient(colors: [startColor, endColor]),
+                            gradient: Gradient(stops: [
+                                .init(color: ptA.type.color.opacity(0.0), location: 0.0),
+                                .init(color: midColor.opacity(0.95 * lineOpacityMultiplier), location: 0.5),
+                                .init(color: ptB.type.color.opacity(0.0), location: 1.0)
+                            ]),
                             startPoint: UnitPoint(x: start.x / max(1, geo.size.width), y: start.y / max(1, geo.size.height)),
                             endPoint: UnitPoint(x: end.x / max(1, geo.size.width), y: end.y / max(1, geo.size.height))
                         )
@@ -2364,10 +2384,13 @@ struct CaptureOverlaySwiftUIView: View {
                         let start = prevPt.point
                         let end = state.quartzLocation
                         
-                        let startColor = prevPt.type.color.opacity(0.95)
-                        let endColor: Color = (prevPt.type == .move) ? state.defaultPointType.color.opacity(0.0) : state.defaultPointType.color.opacity(0.95)
+                        let midColor = blendColors(typeA: prevPt.type, typeB: state.defaultPointType)
                         let activeGrad = LinearGradient(
-                            gradient: Gradient(colors: [startColor, endColor]),
+                            gradient: Gradient(stops: [
+                                .init(color: prevPt.type.color.opacity(0.0), location: 0.0),
+                                .init(color: midColor.opacity(0.95), location: 0.5),
+                                .init(color: state.defaultPointType.color.opacity(0.0), location: 1.0)
+                            ]),
                             startPoint: UnitPoint(x: start.x / max(1, geo.size.width), y: start.y / max(1, geo.size.height)),
                             endPoint: UnitPoint(x: end.x / max(1, geo.size.width), y: end.y / max(1, geo.size.height))
                         )
@@ -2386,11 +2409,14 @@ struct CaptureOverlaySwiftUIView: View {
                             let nextPt = state.points[sel + 1]
                             let nextStart = end
                             let nextEnd = nextPt.point
-                            let nextStartColor = state.defaultPointType.color.opacity(0.95)
-                            let nextEndColor: Color = (state.defaultPointType == .move) ? nextPt.type.color.opacity(0.0) : nextPt.type.color.opacity(0.95)
                             
+                            let midColor2 = blendColors(typeA: state.defaultPointType, typeB: nextPt.type)
                             let nextGrad = LinearGradient(
-                                gradient: Gradient(colors: [nextStartColor, nextEndColor]),
+                                gradient: Gradient(stops: [
+                                    .init(color: state.defaultPointType.color.opacity(0.0), location: 0.0),
+                                    .init(color: midColor2.opacity(0.95), location: 0.5),
+                                    .init(color: nextPt.type.color.opacity(0.0), location: 1.0)
+                                ]),
                                 startPoint: UnitPoint(x: nextStart.x / max(1, geo.size.width), y: nextStart.y / max(1, geo.size.height)),
                                 endPoint: UnitPoint(x: nextEnd.x / max(1, geo.size.width), y: nextEnd.y / max(1, geo.size.height))
                             )
@@ -2557,6 +2583,25 @@ struct CaptureOverlaySwiftUIView: View {
             .contentShape(Rectangle())
             .onTapGesture {
                 state.insertPoint()
+            }
+            
+            // Minus button to delete/remove the selected or last point
+            ZStack {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(Color.white.opacity(0.15))
+                    .frame(width: 44, height: 44)
+                
+                Image(systemName: "minus")
+                    .font(.system(size: 19, weight: .bold))
+                    .foregroundColor(.white)
+            }
+            .contentShape(Rectangle())
+            .onTapGesture {
+                if let sel = state.selectedPointIndex, sel < state.points.count {
+                    state.removePoint(at: sel)
+                } else if !state.points.isEmpty {
+                    state.removePoint(at: state.points.count - 1)
+                }
             }
             
             // Right: Coordinates and Subtitle
@@ -2820,7 +2865,7 @@ class CaptureOverlayHostingView: NSView {
         // Check HUD card
         if stateModel.isHudVisible {
             let hud = stateModel.lastHudCenter
-            if CGRect(x: hud.x - 110, y: hud.y - 45, width: 220, height: 90).contains(quartzPt) {
+            if CGRect(x: hud.x - 155, y: hud.y - 50, width: 310, height: 100).contains(quartzPt) {
                 win.ignoresMouseEvents = false
                 return
             }
@@ -2863,7 +2908,7 @@ class CaptureOverlayHostingView: NSView {
         // Or clicks directly on the HUD card
         if stateModel.isHudVisible {
             let hudPos = stateModel.lastHudCenter
-            let hudRect = CGRect(x: hudPos.x - 110, y: hudPos.y - 45, width: 220, height: 90)
+            let hudRect = CGRect(x: hudPos.x - 155, y: hudPos.y - 50, width: 310, height: 100)
             if hudRect.contains(quartzPt) {
                 return super.hitTest(point)
             }

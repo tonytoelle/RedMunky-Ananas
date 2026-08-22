@@ -6,3 +6,4 @@ ACTION: brightness_down
 ACTION: path 395,1113:move 535,1036:move 460,1000:move 815,883:move 673,960:move
 ACTION: path 698,649:move 586,709:move 509,614:move 427,734:move 443,831:move
 ACTION: path 585,802:move 691,708:click 506,660:click 581,532:move 669,632:move 709,558:move 802,531:move
+ACTION: path 456,905:move 638,780:move 756,951:move 918,815:move 925,921:move 778,786:move 904,595:move 954,727:move
