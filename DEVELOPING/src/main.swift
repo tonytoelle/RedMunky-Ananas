@@ -2239,11 +2239,16 @@ class CaptureOverlayState: ObservableObject {
         }
     }
     
-    var onPointsChanged: (([SequencePoint]) -> Void)? = nil
+    var onPointsCommitted: (([SequencePoint]) -> Void)? = nil
+    var onPointsRealtime: (([SequencePoint]) -> Void)? = nil
     @Published var points: [SequencePoint] = []
     
-    func notifyPointsChanged() {
-        onPointsChanged?(points)
+    func notifyPointsCommitted() {
+        onPointsCommitted?(points)
+    }
+    
+    func notifyPointsRealtime() {
+        onPointsRealtime?(points)
     }
     @Published var activeDraggingIndex: Int? = nil
     @Published var hoveredIndex: Int? = nil
@@ -2281,13 +2286,13 @@ class CaptureOverlayState: ObservableObject {
         case .click:
             points[index].type = .move
         }
-        notifyPointsChanged()
+        notifyPointsCommitted()
     }
     
     func setType(_ type: SequencePointType, at index: Int) {
         guard index >= 0 && index < points.count else { return }
         points[index].type = type
-        notifyPointsChanged()
+        notifyPointsCommitted()
     }
     
     func removePoint(at index: Int) {
@@ -2300,7 +2305,7 @@ class CaptureOverlayState: ObservableObject {
         } else {
             selectedPointIndex = min(index, points.count - 1)
         }
-        notifyPointsChanged()
+        notifyPointsCommitted()
     }
     
     func insertPoint() {
@@ -2685,16 +2690,16 @@ class CaptureOverlayHostingView: NSView {
          defaultType: SequencePointType = .move,
          onFinishSequence: @escaping ([SequencePoint]) -> Void,
          onCancel: @escaping () -> Void,
-         onPointsChanged: @escaping ([SequencePoint]) -> Void) {
+         onPointsCommitted: @escaping ([SequencePoint]) -> Void,
+         onPointsRealtime: @escaping ([SequencePoint]) -> Void) {
         self.mode = mode
         self.onFinishSequence = onFinishSequence
         self.onCancel = onCancel
-        self.onPointsChanged = onPointsChanged
+        self.onPointsChanged = onPointsCommitted
         super.init(frame: .zero)
         
-        stateModel.onPointsChanged = { points in
-            onPointsChanged(points)
-        }
+        stateModel.onPointsCommitted = onPointsCommitted
+        stateModel.onPointsRealtime = onPointsRealtime
         
         stateModel.mode = mode
         stateModel.defaultPointType = defaultType
@@ -2963,6 +2968,7 @@ class CaptureOverlayHostingView: NSView {
         updateMouse(event: event)
         if let idx = stateModel.activeDraggingIndex, idx < stateModel.points.count {
             stateModel.points[idx].point = stateModel.quartzLocation
+            stateModel.notifyPointsRealtime()
         }
     }
     
@@ -2970,7 +2976,7 @@ class CaptureOverlayHostingView: NSView {
         let wasDragging = (stateModel.activeDraggingIndex != nil)
         stateModel.activeDraggingIndex = nil
         if wasDragging {
-            stateModel.notifyPointsChanged()
+            stateModel.notifyPointsCommitted()
         }
     }
     
@@ -2991,7 +2997,7 @@ class CaptureOverlayHostingView: NSView {
                 if stateModel.points.isEmpty {
                     stateModel.points.append(newPt)
                     stateModel.selectedPointIndex = 0
-                    stateModel.notifyPointsChanged()
+                    stateModel.notifyPointsCommitted()
                 } else {
                     stateModel.points.append(newPt)
                     stateModel.isFollowingCursor = false
@@ -3019,7 +3025,7 @@ class CaptureOverlayHostingView: NSView {
                 
                 // Keep windows ignores mouse events updated
                 updatePassthrough(quartzPt: stateModel.quartzLocation)
-                stateModel.notifyPointsChanged()
+                stateModel.notifyPointsCommitted()
             }
         } else {
             // Edit phase: handled when clicking directly on a pin
@@ -3201,7 +3207,21 @@ class CaptureOverlayWindow: NSPanel {
         }, onCancel: { [weak self] in
             self?.close()
             CaptureOverlayWindow.shared = nil
-        }, onPointsChanged: { [weak self] currentPoints in
+        }, onPointsCommitted: { [weak self] currentPoints in
+            guard let self = self else { return }
+            switch self.mode {
+            case .click:
+                if let pt = currentPoints.first?.point {
+                    self.onClickCaptured?(pt)
+                }
+            case .drag:
+                if currentPoints.count >= 2 {
+                    self.onDragCaptured?(currentPoints[0].point, currentPoints[1].point)
+                }
+            case .sequence:
+                self.onSequenceCaptured?(currentPoints)
+            }
+        }, onPointsRealtime: { [weak self] currentPoints in
             guard let self = self else { return }
             switch self.mode {
             case .click:
