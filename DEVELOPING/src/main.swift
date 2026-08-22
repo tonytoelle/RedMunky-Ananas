@@ -5940,11 +5940,6 @@ struct MainEditorView: View {
                         Color.clear
                             .frame(width: 12)
                             .contentShape(Rectangle())
-                        
-                        Rectangle()
-                            .fill(Color(white: 0.18))
-                            .frame(width: 1)
-                            .padding(.top, 38)
                     }
                     .frame(width: 12)
                     .contentShape(Rectangle())
