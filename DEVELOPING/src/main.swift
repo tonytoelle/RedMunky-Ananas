@@ -5,6 +5,7 @@ import SwiftUI
 import Carbon
 import CoreImage
 import CoreImage.CIFilterBuiltins
+import ServiceManagement
 
 // ==========================================
 // MARK: - KeyCode Mapping Helper
@@ -1849,6 +1850,103 @@ class PermissionManager: ObservableObject {
         if let url = URL(string: urlString) {
             NSWorkspace.shared.open(url)
         }
+    }
+}
+
+// ==========================================
+// MARK: - Launch at Login Manager
+// ==========================================
+class LaunchAtLoginManager: ObservableObject {
+    static let shared = LaunchAtLoginManager()
+
+    @Published var isEnabled: Bool = false
+
+    private var isUpdating: Bool = false
+    private let launchAgentLabel = "com.redmunky.shortking"
+    private var launchAgentURL: URL {
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        return home.appendingPathComponent("Library/LaunchAgents/com.redmunky.shortking.plist")
+    }
+
+    init() {
+        refreshStatus()
+    }
+
+    func refreshStatus() {
+        isUpdating = true
+        var active = false
+        if #available(macOS 13.0, *) {
+            if SMAppService.mainApp.status == .enabled {
+                active = true
+            }
+        }
+        if !active {
+            active = FileManager.default.fileExists(atPath: launchAgentURL.path)
+        }
+        let result = active
+        DispatchQueue.main.async {
+            self.isEnabled = result
+            self.isUpdating = false
+        }
+    }
+
+    func setEnabled(_ enable: Bool) {
+        // 1. Try SMAppService (macOS 13+)
+        if #available(macOS 13.0, *) {
+            do {
+                if enable {
+                    if SMAppService.mainApp.status != .enabled {
+                        try SMAppService.mainApp.register()
+                    }
+                } else {
+                    if SMAppService.mainApp.status == .enabled {
+                        try SMAppService.mainApp.unregister()
+                    }
+                }
+            } catch {
+                print("SMAppService: \(error.localizedDescription)")
+            }
+        }
+
+        // 2. Dual fallback: User LaunchAgent plist in ~/Library/LaunchAgents
+        let appBundlePath = Bundle.main.bundlePath
+        if enable {
+            let plistContent = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+            <plist version="1.0">
+            <dict>
+                <key>Label</key>
+                <string>\(launchAgentLabel)</string>
+                <key>ProgramArguments</key>
+                <array>
+                    <string>/usr/bin/open</string>
+                    <string>-a</string>
+                    <string>\(appBundlePath)</string>
+                </array>
+                <key>RunAtLoad</key>
+                <true/>
+                <key>ProcessType</key>
+                <string>Interactive</string>
+            </dict>
+            </plist>
+            """
+            do {
+                let dir = launchAgentURL.deletingLastPathComponent()
+                try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+                try plistContent.write(to: launchAgentURL, atomically: true, encoding: .utf8)
+            } catch {
+                print("Failed to write LaunchAgent: \(error)")
+            }
+        } else {
+            try? FileManager.default.removeItem(at: launchAgentURL)
+        }
+
+        refreshStatus()
+    }
+
+    func enableAutoStart() {
+        setEnabled(true)
     }
 }
 
@@ -4337,6 +4435,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
 
 // Drill-down Sub-Pages
 enum SettingsSubpage: String, Identifiable {
+    case generalSubpage
     case wifiSubpage
     case firewallSubpage
     case thunderboltSubpage
@@ -4350,6 +4449,7 @@ enum SettingsSubpage: String, Identifiable {
 struct SettingsView: View {
     @ObservedObject var store = MacroStore.shared
     @ObservedObject var permissions = PermissionManager.shared
+    @ObservedObject var launchAtLogin = LaunchAtLoginManager.shared
 
     @State private var selectedCategory: SettingsCategory = .network
     @State private var searchText = ""
@@ -4527,6 +4627,7 @@ struct SettingsView: View {
     private var currentDetailTitle: String {
         if let sub = navigationStack.last {
             switch sub {
+            case .generalSubpage:      return "General & Login Items"
             case .wifiSubpage:         return "Wi-Fi"
             case .firewallSubpage:     return "Firewall"
             case .thunderboltSubpage:  return "Thunderbolt Bridge"
@@ -4577,6 +4678,47 @@ struct SettingsView: View {
     @ViewBuilder
     private func renderCategoryOverview() -> some View {
         switch selectedCategory {
+        case .general:
+            macOSCard(
+                icon: "power",
+                color: Color.blue,
+                title: "Launch at Login (Auto-Start)",
+                statusDotColor: launchAtLogin.isEnabled ? .green : Color(white: 0.5),
+                statusText: launchAtLogin.isEnabled ? "Enabled (Opens at macOS boot)" : "Disabled"
+            ) {
+                navigationStack.append(.generalSubpage)
+            }
+
+            macOSCard(
+                icon: "folder.fill",
+                color: Color(red: 0.05, green: 0.5, blue: 0.95),
+                title: "ShortKing Macro Watcher",
+                statusDotColor: .green,
+                statusText: "Active: \(store.watchDirectoryURL.lastPathComponent)"
+            ) {
+                navigationStack.append(.macroStorageSubpage)
+            }
+
+            macOSCard(
+                icon: "figure.arms.open",
+                color: Color.blue,
+                title: "Accessibility (Aksesibilitas)",
+                statusDotColor: permissions.isAccessibilityGranted ? .green : .red,
+                statusText: permissions.isAccessibilityGranted ? "Granted" : "Permission Required"
+            ) {
+                navigationStack.append(.accessibilitySubpage)
+            }
+
+            macOSCard(
+                icon: "xmark.octagon.fill",
+                color: Color.red,
+                title: "Emergency Panic Switch",
+                statusDotColor: .red,
+                statusText: "⌘ + ⌃ + ⇧ + X"
+            ) {
+                navigationStack.append(.emergencySubpage)
+            }
+
         case .network, .wifi:
             // 100% Match to the uploaded screenshot!
             macOSCard(
@@ -4724,6 +4866,45 @@ struct SettingsView: View {
     private func renderSubpage(_ subpage: SettingsSubpage) -> some View {
         VStack(alignment: .leading, spacing: 18) {
             switch subpage {
+            case .generalSubpage:
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("General & Login Items")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(.secondary)
+
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text("Open ShortKing automatically at Login")
+                                    .foregroundColor(.white)
+                                    .font(.system(size: 13, weight: .medium))
+                                Text("Starts the macro automation engine automatically whenever your Mac starts up or you log in.")
+                                    .font(.system(size: 11))
+                                    .foregroundColor(.secondary)
+                            }
+                            Spacer()
+                            Toggle("", isOn: Binding(
+                                get: { launchAtLogin.isEnabled },
+                                set: { launchAtLogin.setEnabled($0) }
+                            ))
+                            .toggleStyle(.switch)
+                        }
+                        .padding(14)
+                        .background(Color(white: 0.18))
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+
+                        HStack(spacing: 8) {
+                            Circle()
+                                .fill(launchAtLogin.isEnabled ? Color.green : Color(white: 0.5))
+                                .frame(width: 8, height: 8)
+                            Text(launchAtLogin.isEnabled ? "Auto-start is active (Registered in macOS Login Items & LaunchAgents)." : "Auto-start is currently turned off.")
+                                .font(.system(size: 11))
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.horizontal, 4)
+                    }
+                }
+
             case .wifiSubpage:
                 VStack(alignment: .leading, spacing: 10) {
                     Text("Wi-Fi Settings")
@@ -6137,6 +6318,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDele
         AppDelegate.shared = self
         CarbonHotKeyManager.shared.installHandlerIfNeeded()
         PermissionManager.shared.checkStatus()
+        LaunchAtLoginManager.shared.enableAutoStart()
         setupMainMenu()
         setupMenuBar()
         showEditorWindow()
@@ -6354,6 +6536,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDele
         alwaysOnTopItem.state = UserDefaults.standard.bool(forKey: "alwaysOnTop") ? .on : .off
         statusMenu.addItem(alwaysOnTopItem)
 
+        let launchAtLoginItem = NSMenuItem(title: "Launch at Login", action: #selector(toggleLaunchAtLoginFromMenu(_:)), keyEquivalent: "")
+        launchAtLoginItem.target = self
+        launchAtLoginItem.state = LaunchAtLoginManager.shared.isEnabled ? .on : .off
+        statusMenu.addItem(launchAtLoginItem)
+
         statusMenu.addItem(NSMenuItem.separator())
 
         // Macro list submenu
@@ -6453,6 +6640,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDele
                 item.state = newVal ? .on : .off
             }
         }
+    }
+
+    @objc func toggleLaunchAtLoginFromMenu(_ sender: NSMenuItem) {
+        let current = LaunchAtLoginManager.shared.isEnabled
+        let newVal = !current
+        LaunchAtLoginManager.shared.setEnabled(newVal)
+        sender.state = newVal ? .on : .off
     }
 
     @objc func showSettingsWindow() {
