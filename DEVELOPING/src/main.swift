@@ -7233,25 +7233,6 @@ class EditorWindow: NSWindow {
     }
     
     override func sendEvent(_ event: NSEvent) {
-        if event.type == .keyDown && (event.keyCode == 51 || event.keyCode == 117) {
-            // If user is currently typing in an editable text field, let it handle text deletion
-            if let responder = firstResponder {
-                if let tv = responder as? NSTextView, tv.isEditable {
-                    super.sendEvent(event)
-                    return
-                }
-                if let tf = responder as? NSTextField, tf.isEditable {
-                    super.sendEvent(event)
-                    return
-                }
-            }
-            
-            // If user has selected action(s), delete them instantly!
-            if !MacroStore.shared.selectedActionIDs.isEmpty {
-                MacroStore.shared.deleteSelectedActions()
-                return
-            }
-        }
         super.sendEvent(event)
     }
 }
@@ -7269,6 +7250,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDele
     
     private var lastModificationDate: Date? = nil
     private var binaryWatchTimer: Timer? = nil
+    private var deleteKeyMonitor: Any? = nil
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         AppDelegate.shared = self
@@ -7279,6 +7261,34 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDele
         setupMenuBar()
         showEditorWindow()
         startBinaryWatcher()
+        installDeleteKeyMonitor()
+    }
+    
+    private func installDeleteKeyMonitor() {
+        deleteKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            // keyCode 51 = Backspace, 117 = Forward Delete
+            guard event.keyCode == 51 || event.keyCode == 117 else { return event }
+            
+            // If focused on an editable text input, let it handle deletion normally
+            if let responder = NSApp.keyWindow?.firstResponder {
+                // Field editors are NSTextView; check if they're inside an editable NSTextField
+                if responder is NSTextView {
+                    // A field editor backing an NSTextField — always pass through
+                    return event
+                }
+                if let tf = responder as? NSTextField, tf.isEditable {
+                    return event
+                }
+            }
+            
+            // Delete selected actions if any are selected
+            if !MacroStore.shared.selectedActionIDs.isEmpty {
+                MacroStore.shared.deleteSelectedActions()
+                return nil   // Consume the event — don't pass to any view
+            }
+            
+            return event
+        }
     }
 
     @objc func relaunchApp() {
