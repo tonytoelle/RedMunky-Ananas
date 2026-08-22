@@ -5088,21 +5088,35 @@ struct MacroInspectorView: View {
                 }, onInsertTemplate: { typeName, targetIndex in
                     switch typeName {
                     case "Path":
+                        store.registerUndoState(for: macro)
+                        let newActionItem = MacroActionItem(action: .path(points: []))
+                        if targetIndex >= macro.actionItems.count {
+                            macro.actionItems.append(newActionItem)
+                        } else {
+                            macro.actionItems.insert(newActionItem, at: targetIndex)
+                        }
+                        store.saveMacro(macro)
+                        
                         CaptureOverlayWindow.shared = CaptureOverlayWindow(
                             initialPoints: [],
                             defaultType: .move,
                             onSequenceCaptured: { pts in
-                                guard !pts.isEmpty else { return }
-                                store.registerUndoState(for: macro)
-                                let item = MacroActionItem(action: .path(points: pts))
-                                if targetIndex >= macro.actionItems.count {
-                                    macro.actionItems.append(item)
+                                if pts.isEmpty {
+                                    macro.actionItems.removeAll(where: { $0.id == newActionItem.id })
+                                    store.saveMacro(macro)
                                 } else {
-                                    macro.actionItems.insert(item, at: targetIndex)
+                                    if let idx = macro.actionItems.firstIndex(where: { $0.id == newActionItem.id }) {
+                                        macro.actionItems[idx].action = .path(points: pts)
+                                        store.saveMacro(macro)
+                                    }
                                 }
-                                store.saveMacro(macro)
                             },
-                            onSequenceRealTime: { tempPts in }
+                            onSequenceRealTime: { tempPts in
+                                if let idx = macro.actionItems.firstIndex(where: { $0.id == newActionItem.id }) {
+                                    macro.actionItems[idx].action = .path(points: tempPts)
+                                    store.saveMacro(macro)
+                                }
+                            }
                         )
                     case "Left Click":
                         CaptureOverlayWindow.shared = CaptureOverlayWindow(
@@ -5221,18 +5235,31 @@ struct MacroInspectorView: View {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 32, maximum: 40), spacing: 8)], spacing: 8) {
                     // Path / Sequence (Multi-point cursor operation chain)
                     quickActionButton(title: "Path", icon: "point.topleft.down.to.point.bottomright.curvepath.fill", color: Color(red: 0.65, green: 0.25, blue: 0.85)) {
+                        store.registerUndoState(for: macro)
+                        let newActionItem = MacroActionItem(action: .path(points: []))
+                        macro.actionItems.append(newActionItem)
+                        store.saveMacro(macro)
+                        
                         CaptureOverlayWindow.shared = CaptureOverlayWindow(
                             initialPoints: [],
                             defaultType: .move,
                             onSequenceCaptured: { pts in
-                                guard !pts.isEmpty else { return }
-                                store.registerUndoState(for: macro)
-                                let item = MacroActionItem(action: .path(points: pts))
-                                macro.actionItems.append(item)
-                                store.saveMacro(macro)
+                                if pts.isEmpty {
+                                    // If confirmed empty, clean up the item
+                                    macro.actionItems.removeAll(where: { $0.id == newActionItem.id })
+                                    store.saveMacro(macro)
+                                } else {
+                                    if let idx = macro.actionItems.firstIndex(where: { $0.id == newActionItem.id }) {
+                                        macro.actionItems[idx].action = .path(points: pts)
+                                        store.saveMacro(macro)
+                                    }
+                                }
                             },
                             onSequenceRealTime: { tempPts in
-                                // Realtime updates ignored since action is not yet appended
+                                if let idx = macro.actionItems.firstIndex(where: { $0.id == newActionItem.id }) {
+                                    macro.actionItems[idx].action = .path(points: tempPts)
+                                    store.saveMacro(macro)
+                                }
                             }
                         )
                     }

@@ -2,5 +2,3 @@
 TRIGGER: cmd+shift+k
 
 # Actions:
-ACTION: path 393,1111:move 513,1046:move 397,812:move 638,834:move
-ACTION: do_again
