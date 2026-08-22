@@ -96,6 +96,7 @@ sleep 0.5
 # Reset TCC cache so macOS doesn't get confused by the new binary hash of the same Bundle ID
 tccutil reset Accessibility com.redmunky.shortking 2>/dev/null || true
 tccutil reset InputMonitoring com.redmunky.shortking 2>/dev/null || true
+tccutil reset ScreenCapture com.redmunky.shortking 2>/dev/null || true
 
 echo "🚀 Menjalankan ulang aplikasi $APP_NAME.app..."
 open "$APP_BUNDLE"
