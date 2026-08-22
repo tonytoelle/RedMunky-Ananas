@@ -3,4 +3,5 @@ TRIGGER: f6
 
 # Actions:
 ACTION: click 394 1111
-ACTION: drag 1408 430 to 1208 577
+ACTION: drag 792 707 to 1092 505
+ACTION: drag 555 721 to 716 493
