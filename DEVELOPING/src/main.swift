@@ -2286,6 +2286,31 @@ class CaptureOverlayState: ObservableObject {
             selectedPointIndex = min(index, points.count - 1)
         }
     }
+    
+    func insertPoint() {
+        let newPt: SequencePoint
+        let insertIndex: Int
+        
+        if let sel = selectedPointIndex, sel < points.count {
+            let basePt = points[sel]
+            let newX = basePt.point.x + 35
+            let newY = basePt.point.y + 35
+            newPt = SequencePoint(point: CGPoint(x: newX, y: newY), type: defaultPointType)
+            insertIndex = sel + 1
+        } else {
+            newPt = SequencePoint(point: quartzLocation, type: defaultPointType)
+            insertIndex = points.count
+        }
+        
+        if insertIndex >= points.count {
+            points.append(newPt)
+            selectedPointIndex = points.count - 1
+        } else {
+            points.insert(newPt, at: insertIndex)
+            selectedPointIndex = insertIndex
+        }
+        phase = .editing
+    }
 }
 
 // ==========================================
@@ -2502,6 +2527,22 @@ struct CaptureOverlaySwiftUIView: View {
                     
                     Image(systemName: currentType.icon == "hand.draw" ? "hand.tap.fill" : currentType.icon)
                         .font(.system(size: 17, weight: .semibold))
+                        .foregroundColor(.white)
+                }
+            }
+            .buttonStyle(.plain)
+            
+            // Plus button to insert/add a point
+            Button {
+                state.insertPoint()
+            } label: {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(Color.white.opacity(0.15))
+                        .frame(width: 36, height: 36)
+                    
+                    Image(systemName: "plus")
+                        .font(.system(size: 16, weight: .bold))
                         .foregroundColor(.white)
                 }
             }
