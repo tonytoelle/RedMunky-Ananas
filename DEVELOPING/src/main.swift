@@ -2658,27 +2658,38 @@ struct CaptureOverlaySwiftUIView: View {
         isDragging: Bool
     ) -> some View {
         ZStack {
+            // Outer highlight ring when active
             if isHovered || isDragging || isSelected {
                 Circle()
-                    .stroke(type.color.opacity(0.55), lineWidth: 3.5)
-                    .frame(width: 30, height: 30)
+                    .stroke(type.color.opacity(0.4), lineWidth: 3.5)
+                    .frame(width: 32, height: 32)
             }
             
+            // White outline circular ring (similar to cursor ring)
+            Circle()
+                .stroke(Color.white, lineWidth: isSelected ? 2.5 : 1.5)
+                .frame(width: 26, height: 26)
+                .shadow(color: Color.black.opacity(0.35), radius: 2)
+            
+            // Solid center action type dot
             Circle()
                 .fill(type.color)
-                .frame(width: 22, height: 22)
-                .shadow(color: type.color.opacity(0.6), radius: 4)
+                .frame(width: 8, height: 8)
+                .shadow(color: Color.black.opacity(0.2), radius: 1)
             
-            Circle()
-                .stroke(Color.white.opacity(isSelected ? 0.95 : 0.35), lineWidth: isSelected ? 1.5 : 1)
-                .frame(width: 22, height: 22)
-            
+            // Minimal text indicator above or below the circle to not block center dot
             Text(number)
-                .font(.system(size: 11, weight: .heavy, design: .rounded))
+                .font(.system(size: 8, weight: .heavy, design: .rounded))
                 .foregroundColor(.white)
+                .padding(.horizontal, 4)
+                .padding(.vertical, 1)
+                .background(Color.black.opacity(0.65))
+                .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
+                .offset(y: -18)
         }
         .frame(width: 32, height: 32)
         .contentShape(Circle())
+        .opacity(isSelected || isHovered || isDragging ? 1.0 : 0.5) // 50% opacity for inactive path points
     }
     
     // MARK: - Minimal Compact Floating Action HUD Card
