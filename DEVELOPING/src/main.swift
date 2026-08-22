@@ -3222,7 +3222,8 @@ class CaptureOverlayHostingView: NSView {
                     stateModel.points.insert(newPt, at: insertIndex)
                     stateModel.selectedPointIndex = insertIndex
                 }
-                stateModel.isFollowingCursor = false
+                // Keep placing mode active for sequential points, do NOT set isFollowingCursor = false
+                stateModel.isFollowingCursor = true
                 stateModel.phase = .editing
                 
                 // Keep windows ignores mouse events updated
