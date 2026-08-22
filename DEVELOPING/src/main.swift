@@ -2368,6 +2368,7 @@ class PermissionManager: ObservableObject {
 
     @Published var isAccessibilityGranted: Bool = false
     @Published var isInputMonitoringGranted: Bool = false
+    @Published var isScreenRecordingGranted: Bool = false
 
     private var timer: Timer?
 
@@ -2387,9 +2388,17 @@ class PermissionManager: ObservableObject {
             inputGranted = true
         }
 
+        let screenGranted: Bool
+        if #available(macOS 10.15, *) {
+            screenGranted = CGPreflightScreenCaptureAccess()
+        } else {
+            screenGranted = true
+        }
+
         DispatchQueue.main.async {
             self.isAccessibilityGranted = axGranted
             self.isInputMonitoringGranted = inputGranted
+            self.isScreenRecordingGranted = screenGranted
         }
     }
 
@@ -2413,9 +2422,17 @@ class PermissionManager: ObservableObject {
         checkStatus()
     }
 
+    func requestScreenRecordingPrompt() {
+        if #available(macOS 10.15, *) {
+            _ = CGRequestScreenCaptureAccess()
+        }
+        checkStatus()
+    }
+
     func requestAllPermissions() {
         requestAccessibilityPrompt()
         requestInputMonitoringPrompt()
+        requestScreenRecordingPrompt()
         // Buka setting jika belum diberikan
         if !isAccessibilityGranted {
             openAccessibilitySettings()
@@ -2431,6 +2448,13 @@ class PermissionManager: ObservableObject {
 
     func openInputMonitoringSettings() {
         let urlString = "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent"
+        if let url = URL(string: urlString) {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    func openScreenRecordingSettings() {
+        let urlString = "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"
         if let url = URL(string: urlString) {
             NSWorkspace.shared.open(url)
         }
@@ -6614,6 +6638,41 @@ struct SettingsView: View {
 
                         Button("Open Input Monitoring Settings") {
                             permissions.openInputMonitoringSettings()
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    }
+                }
+                .padding(.vertical, 10)
+
+                cardDivider()
+
+                // Screen Recording Row
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Screen Recording (Perekaman Layar)")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundColor(.white)
+                            Text("Required to capture screen coordinates, pixel colors, and drag-and-drop targets during macro execution.")
+                                .font(.system(size: 11))
+                                .foregroundColor(.secondary)
+                        }
+                        Spacer()
+                        statusBadge(isGranted: permissions.isScreenRecordingGranted)
+                    }
+
+                    HStack(spacing: 8) {
+                        if !permissions.isScreenRecordingGranted {
+                            Button("Request Permission Prompt") {
+                                permissions.requestScreenRecordingPrompt()
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.small)
+                        }
+
+                        Button("Open Screen Recording Settings") {
+                            permissions.openScreenRecordingSettings()
                         }
                         .buttonStyle(.bordered)
                         .controlSize(.small)
