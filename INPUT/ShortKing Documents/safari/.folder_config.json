@@ -1,1 +1,1 @@
-{"customAppIconBundleId":"com.apple.Safari","iconName":"folder.fill","isRestrictedToApps":true,"colorName":"blue","targetApps":[{"bundleId":"com.apple.Safari","name":"Safari"}]}
+{"colorName":"blue","isRestrictedToApps":true,"targetApps":[{"name":"Safari","bundleId":"com.apple.Safari"}],"customAppIconBundleId":"com.apple.Safari","iconName":"folder.fill"}

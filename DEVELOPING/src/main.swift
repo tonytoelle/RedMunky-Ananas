@@ -2163,12 +2163,7 @@ struct CaptureOverlaySwiftUIView: View {
     }
 
     private var shouldShowCrosshair: Bool {
-        switch state.mode {
-        case .click(let b):
-            return b != .left
-        case .drag:
-            return false
-        }
+        return false
     }
 }
 
