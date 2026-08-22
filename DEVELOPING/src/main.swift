@@ -2568,17 +2568,17 @@ struct CaptureOverlaySwiftUIView: View {
                 
                 if case .sequence = state.mode, state.isFollowingCursor && !state.isPassThroughMode {
                     ZStack {
-                        // Outer ring the size of a finger touch (diameter 32)
+                        // Outer circular outline
                         Circle()
                             .stroke(Color.white.opacity(0.85), lineWidth: 1.5)
-                            .frame(width: 32, height: 32)
-                            .shadow(color: Color.black.opacity(0.3), radius: 2)
+                            .frame(width: 28, height: 28)
+                            .shadow(color: Color.black.opacity(0.35), radius: 2)
                         
-                        // Solid small dot in the center (diameter 6)
+                        // Solid centered dot with action color
                         Circle()
                             .fill(state.defaultPointType.color)
-                            .frame(width: 6, height: 6)
-                            .shadow(color: Color.black.opacity(0.3), radius: 1)
+                            .frame(width: 8, height: 8)
+                            .shadow(color: Color.black.opacity(0.35), radius: 1.5)
                     }
                     .position(state.quartzLocation)
                     .allowsHitTesting(false)
