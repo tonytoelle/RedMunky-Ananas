@@ -2273,7 +2273,7 @@ class CaptureOverlayState: ObservableObject {
 }
 
 // ==========================================
-// MARK: - Capture Overlay SwiftUI View
+// MARK: - Capture Overlay SwiftUI View (Minimalist HUD)
 // ==========================================
 struct CaptureOverlaySwiftUIView: View {
     @ObservedObject var state: CaptureOverlayState
@@ -2282,7 +2282,7 @@ struct CaptureOverlaySwiftUIView: View {
         GeometryReader { geo in
             ZStack {
                 // Subtle dark transparent backdrop
-                Color.black.opacity(0.12)
+                Color.black.opacity(0.15)
                     .edgesIgnoringSafeArea(.all)
                 
                 // ─────────────────────────────────────────────
@@ -2292,28 +2292,19 @@ struct CaptureOverlaySwiftUIView: View {
                     ForEach(0..<(state.points.count - 1), id: \.self) { idx in
                         let start = state.points[idx].point
                         let end = state.points[idx + 1].point
-                        let segmentColor = state.points[idx + 1].type.color
                         
                         Path { path in
                             path.move(to: start)
                             path.addLine(to: end)
                         }
                         .stroke(
-                            segmentColor.opacity(0.85),
-                            style: StrokeStyle(lineWidth: 3, lineCap: .round, dash: [8, 5])
+                            Color(red: 0.65, green: 0.25, blue: 0.95).opacity(0.9),
+                            style: StrokeStyle(lineWidth: 3.5, lineCap: .round, dash: [5, 6])
                         )
-                        
-                        // Direction indicator arrow midway
-                        let midX = (start.x + end.x) / 2
-                        let midY = (start.y + end.y) / 2
-                        Circle()
-                            .fill(segmentColor)
-                            .frame(width: 8, height: 8)
-                            .position(x: midX, y: midY)
                     }
                 }
                 
-                // Active line during recording to follow cursor (ONLY for Sequence or Drag first point)
+                // Active dashed line during recording to follow cursor
                 let shouldShowCursorLine: Bool = {
                     guard state.phase == .recording, !state.points.isEmpty else { return false }
                     switch state.mode {
@@ -2332,13 +2323,13 @@ struct CaptureOverlaySwiftUIView: View {
                         path.addLine(to: state.quartzLocation)
                     }
                     .stroke(
-                        state.defaultPointType.color.opacity(0.75),
-                        style: StrokeStyle(lineWidth: 2.5, lineCap: .round, dash: [6, 4])
+                        Color(red: 0.65, green: 0.25, blue: 0.95).opacity(0.8),
+                        style: StrokeStyle(lineWidth: 3, lineCap: .round, dash: [5, 6])
                     )
                 }
                 
                 // ─────────────────────────────────────────────
-                // PINS RENDERING (Interactive Draggable Handles)
+                // PINS RENDERING (Clean Minimal Circles)
                 // ─────────────────────────────────────────────
                 ForEach(Array(state.points.enumerated()), id: \.element.id) { idx, item in
                     let isHovered = state.hoveredIndex == idx
@@ -2348,19 +2339,18 @@ struct CaptureOverlaySwiftUIView: View {
                     pinMarker(
                         number: "\(idx + 1)",
                         type: item.type,
-                        point: item.point,
                         isSelected: isSelected,
                         isHovered: isHovered,
                         isDragging: isDragging
                     )
-                    .position(x: item.point.x, y: item.point.y - 14)
+                    .position(x: item.point.x, y: item.point.y)
                     .gesture(
                         DragGesture(minimumDistance: 1, coordinateSpace: .global)
                             .onChanged { val in
                                 state.activeDraggingIndex = idx
                                 state.selectedPointIndex = idx
                                 let newX = max(0, min(val.location.x, geo.size.width))
-                                let newY = max(0, min(val.location.y + 14, geo.size.height))
+                                let newY = max(0, min(val.location.y, geo.size.height))
                                 state.points[idx].point = CGPoint(x: newX, y: newY)
                             }
                             .onEnded { _ in
@@ -2369,442 +2359,181 @@ struct CaptureOverlaySwiftUIView: View {
                     )
                     .onTapGesture {
                         state.selectedPointIndex = idx
-                        if case .sequence = state.mode {
+                        if state.phase == .editing {
                             state.cycleType(at: idx)
                         }
                     }
                 }
                 
                 // ─────────────────────────────────────────────
-                // FLOATING HUDs
+                // FLOATING COMPACT HUD CARD
                 // ─────────────────────────────────────────────
-                if state.phase == .recording {
-                    cursorReticle
-                        .position(x: state.quartzLocation.x, y: state.quartzLocation.y)
-                    
-                    cursorTooltip
-                        .position(cursorHudPosition(in: geo.size))
-                    
-                    if case .sequence = state.mode {
-                        recordingActionBar(in: geo.size)
-                            .position(x: geo.size.width / 2, y: max(50, geo.size.height - 70))
-                    }
-                } else {
-                    editModeHUD(in: geo.size)
-                        .position(editHudPosition(in: geo.size))
-                }
+                floatingHUDCard
+                    .position(hudPosition(in: geo.size))
             }
         }
     }
     
-    // MARK: - Pin Marker Component
+    // MARK: - Minimal Clean Pin Marker
     @ViewBuilder
     private func pinMarker(
         number: String,
         type: SequencePointType,
-        point: CGPoint,
         isSelected: Bool,
         isHovered: Bool,
         isDragging: Bool
     ) -> some View {
-        let labelText: String = {
-            switch state.mode {
-            case .click:
-                return "Click"
-            case .drag:
-                return number == "1" ? "Start" : "End"
-            case .sequence:
-                return type.rawValue
-            }
-        }()
-        
-        VStack(spacing: 4) {
-            // Coordinate tooltip badge above the pin
-            HStack(spacing: 4) {
-                Image(systemName: type.icon)
-                    .font(.system(size: 9, weight: .bold))
-                    .foregroundColor(type.color)
-                
-                Text("#\(number) \(labelText):")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundColor(type.color)
-                
-                Text("\(Int(point.x)), \(Int(point.y))")
-                    .font(.system(size: 10, weight: .bold, design: .monospaced))
-                    .foregroundColor(.white)
-            }
-            .padding(.horizontal, 7)
-            .padding(.vertical, 3)
-            .background(Color.black.opacity(0.88))
-            .clipShape(Capsule())
-            .overlay(
-                Capsule()
-                    .stroke(isSelected ? Color.white : type.color.opacity(0.4), lineWidth: isSelected ? 1.5 : 1)
-            )
-            .shadow(color: .black.opacity(0.4), radius: 4)
-            
-            // Pin Head Icon
-            ZStack {
-                if isHovered || isDragging || isSelected {
-                    Circle()
-                        .stroke(type.color.opacity(0.6), lineWidth: 4)
-                        .frame(width: 38, height: 38)
-                }
-                
-                Circle()
-                    .fill(type.color)
-                    .frame(width: 28, height: 28)
-                    .shadow(color: type.color.opacity(0.6), radius: 6)
-                
-                Circle()
-                    .stroke(Color.white, lineWidth: isSelected ? 2.5 : 1.5)
-                    .frame(width: 28, height: 28)
-                
-                Text(number)
-                    .font(.system(size: 12, weight: .heavy))
-                    .foregroundColor(.white)
-            }
-        }
-    }
-    
-    // MARK: - Cursor Reticle & Tooltip for Recording Phase
-    @ViewBuilder
-    private var cursorReticle: some View {
         ZStack {
-            Circle()
-                .stroke(Color.white, lineWidth: 1.5)
-                .frame(width: 28, height: 28)
-                .shadow(color: .black.opacity(0.5), radius: 2)
+            if isHovered || isDragging || isSelected {
+                Circle()
+                    .stroke(type.color.opacity(0.55), lineWidth: 5)
+                    .frame(width: 42, height: 42)
+            }
             
             Circle()
-                .fill(state.defaultPointType.color)
-                .frame(width: 6, height: 6)
+                .fill(type.color)
+                .frame(width: 32, height: 32)
+                .shadow(color: type.color.opacity(0.6), radius: 6)
+            
+            Circle()
+                .stroke(Color.white.opacity(isSelected ? 0.95 : 0.35), lineWidth: isSelected ? 2 : 1)
+                .frame(width: 32, height: 32)
+            
+            Text(number)
+                .font(.system(size: 14, weight: .heavy, design: .rounded))
+                .foregroundColor(.white)
         }
+        .frame(width: 44, height: 44)
+        .contentShape(Circle())
     }
     
+    // MARK: - Floating HUD Card (Matching User Screenshot)
     @ViewBuilder
-    private var cursorTooltip: some View {
-        let helpText: String = {
-            switch state.mode {
-            case .click:
-                return "Click anywhere to capture point (1 click) • Esc to cancel"
-            case .drag:
-                if state.points.isEmpty {
-                    return "Click Point 1 (Start) • Esc to cancel"
-                } else {
-                    return "Click Point 2 (End) to finish drag • Esc to cancel"
-                }
-            case .sequence:
-                return "Click to add point #\(state.points.count + 1) • Press ↵ Enter to review"
+    private var floatingHUDCard: some View {
+        let currentType: SequencePointType = {
+            if let sel = state.selectedPointIndex, sel < state.points.count {
+                return state.points[sel].type
+            } else if let last = state.points.last {
+                return last.type
             }
+            return state.defaultPointType
         }()
         
-        HStack(spacing: 8) {
-            ZStack {
-                Circle()
-                    .fill(state.defaultPointType.color)
-                    .frame(width: 22, height: 22)
-                Text("\(state.points.count + 1)")
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundColor(.white)
+        let displayX: Int = {
+            if state.phase == .editing, let sel = state.selectedPointIndex, sel < state.points.count {
+                return Int(state.points[sel].point.x)
             }
-            
-            VStack(alignment: .leading, spacing: 1) {
-                HStack(spacing: 6) {
-                    Text("X: \(Int(state.quartzLocation.x))")
-                        .font(.system(size: 12, weight: .bold, design: .monospaced))
-                        .foregroundColor(.white)
-                    Text("Y: \(Int(state.quartzLocation.y))")
-                        .font(.system(size: 12, weight: .bold, design: .monospaced))
-                        .foregroundColor(.white)
-                }
-                Text(helpText)
-                    .font(.system(size: 9, weight: .medium))
-                    .foregroundColor(Color(white: 0.8))
+            return Int(state.quartzLocation.x)
+        }()
+        
+        let displayY: Int = {
+            if state.phase == .editing, let sel = state.selectedPointIndex, sel < state.points.count {
+                return Int(state.points[sel].point.y)
             }
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .background(RoundedRectangle(cornerRadius: 8).fill(Color.black.opacity(0.88)))
-        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.white.opacity(0.2), lineWidth: 1))
-        .shadow(color: Color.black.opacity(0.5), radius: 6, x: 0, y: 3)
-    }
-    
-    // MARK: - Recording Action Bar
-    @ViewBuilder
-    private func recordingActionBar(in size: CGSize) -> some View {
-        HStack(spacing: 10) {
-            Text("📍 Placed: \(state.points.count) points")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(.white)
-            
-            if !state.points.isEmpty {
-                Button {
-                    state.phase = .editing
-                    state.selectedPointIndex = state.points.count - 1
-                } label: {
-                    HStack(spacing: 5) {
-                        Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: 12, weight: .bold))
-                        Text("Done Adding / Review (↵ Enter)")
-                            .font(.system(size: 12, weight: .bold))
-                    }
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 7)
-                    .background(Color.blue)
-                    .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
-                }
-                .buttonStyle(.plain)
-            }
-            
+            return Int(state.quartzLocation.y)
+        }()
+        
+        HStack(spacing: 14) {
+            // Left: Squircle Action Type Icon Button
             Button {
-                state.onCancelAction?()
-            } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 10, weight: .bold))
-                    Text("Cancel (Esc)")
-                        .font(.system(size: 11, weight: .medium))
+                if state.phase == .editing {
+                    if let sel = state.selectedPointIndex, sel < state.points.count {
+                        state.cycleType(at: sel)
+                    } else if !state.points.isEmpty {
+                        state.cycleType(at: state.points.count - 1)
+                    }
+                } else {
+                    switch state.defaultPointType {
+                    case .drag: state.defaultPointType = .move
+                    case .move: state.defaultPointType = .click
+                    case .click: state.defaultPointType = .drag
+                    }
                 }
-                .foregroundColor(Color(white: 0.85))
-                .padding(.horizontal, 10)
-                .padding(.vertical, 7)
-                .background(Color(white: 0.22))
-                .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+            } label: {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(currentType.color)
+                        .frame(width: 52, height: 52)
+                        .shadow(color: currentType.color.opacity(0.4), radius: 6)
+                    
+                    Image(systemName: currentType.icon == "hand.draw" ? "hand.tap.fill" : currentType.icon)
+                        .font(.system(size: 24, weight: .medium))
+                        .foregroundColor(.white)
+                }
             }
             .buttonStyle(.plain)
-        }
-        .padding(10)
-        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.black.opacity(0.9)))
-        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Color.white.opacity(0.2), lineWidth: 1))
-        .shadow(color: Color.black.opacity(0.6), radius: 10, y: 4)
-    }
-    
-    // MARK: - Review & Edit Mode HUD
-    @ViewBuilder
-    private func editModeHUD(in size: CGSize) -> some View {
-        if case .sequence = state.mode {
-            VStack(spacing: 8) {
-                // Row 1: Action Controls
+            
+            // Right: Coordinates and Subtitle
+            VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 8) {
-                    // Confirm / OK Button (Second Enter)
-                    Button {
-                        state.onConfirmAll?()
-                    } label: {
-                        HStack(spacing: 5) {
-                            Image(systemName: "checkmark.circle.fill")
-                                .font(.system(size: 12, weight: .bold))
-                            Text("OK / Save (↵ Enter)")
-                                .font(.system(size: 12, weight: .bold))
-                        }
+                    Text("\(displayX)")
+                        .font(.system(size: 22, weight: .bold, design: .rounded))
                         .foregroundColor(.white)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 8)
-                        .background(Color.green)
-                        .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
-                    }
-                    .buttonStyle(.plain)
                     
-                    // Add more points
-                    Button {
-                        state.phase = .recording
-                    } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "plus.circle.fill")
-                                .font(.system(size: 11, weight: .bold))
-                            Text("Add More Points (+)")
-                                .font(.system(size: 11, weight: .semibold))
-                        }
+                    Text("•")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(.white.opacity(0.8))
+                    
+                    Text("\(displayY)")
+                        .font(.system(size: 22, weight: .bold, design: .rounded))
                         .foregroundColor(.white)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 8)
-                        .background(Color(red: 0.35, green: 0.35, blue: 0.9))
-                        .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
-                    }
-                    .buttonStyle(.plain)
-                    
-                    // Reset Button
-                    Button {
-                        state.onResetAction?()
-                    } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "arrow.counterclockwise")
-                                .font(.system(size: 10, weight: .bold))
-                            Text("Reset (R)")
-                                .font(.system(size: 11, weight: .medium))
-                        }
-                        .foregroundColor(Color(white: 0.85))
-                        .padding(.horizontal, 9)
-                        .padding(.vertical, 8)
-                        .background(Color(white: 0.22))
-                        .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
-                    }
-                    .buttonStyle(.plain)
-                    
-                    // Cancel Button
-                    Button {
-                        state.onCancelAction?()
-                    } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "xmark")
-                                .font(.system(size: 10, weight: .bold))
-                            Text("Cancel (Esc)")
-                                .font(.system(size: 11, weight: .medium))
-                        }
-                        .foregroundColor(Color(white: 0.85))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 8)
-                        .background(Color(white: 0.22))
-                        .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
-                    }
-                    .buttonStyle(.plain)
                 }
                 
-                // Row 2: Selected Point Mode Switcher
-                if let selectedIdx = state.selectedPointIndex, selectedIdx < state.points.count {
-                    let currentItem = state.points[selectedIdx]
-                    HStack(spacing: 6) {
-                        Text("Point #\(selectedIdx + 1) Mode:")
-                            .font(.system(size: 11, weight: .bold))
-                            .foregroundColor(.secondary)
-                        
-                        ForEach(SequencePointType.allCases) { type in
-                            Button {
-                                state.setType(type, at: selectedIdx)
-                            } label: {
-                                HStack(spacing: 4) {
-                                    Image(systemName: type.icon)
-                                        .font(.system(size: 10, weight: .bold))
-                                    Text(type.rawValue)
-                                        .font(.system(size: 11, weight: .semibold))
-                                }
-                                .foregroundColor(.white)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(currentItem.type == type ? type.color : Color(white: 0.25))
-                                .clipShape(Capsule())
-                                .overlay(Capsule().stroke(currentItem.type == type ? Color.white : Color.clear, lineWidth: 1))
-                            }
-                            .buttonStyle(.plain)
-                        }
-                        
-                        if state.points.count > 1 {
-                            Button {
-                                state.removePoint(at: selectedIdx)
-                            } label: {
-                                Image(systemName: "trash")
-                                    .font(.system(size: 10, weight: .bold))
-                                    .foregroundColor(.red)
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 4)
-                                    .background(Color.red.opacity(0.15))
-                                    .clipShape(Capsule())
-                            }
-                            .buttonStyle(.plain)
-                            .help("Delete this point")
-                        }
+                VStack(alignment: .leading, spacing: 1) {
+                    if state.phase == .recording {
+                        Text("esc to edit")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(Color(red: 0.85, green: 0.20, blue: 0.95))
+                        Text("enter to confirm")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(Color(red: 0.85, green: 0.20, blue: 0.95))
+                    } else {
+                        Text("click to change action")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(Color(red: 0.85, green: 0.20, blue: 0.95))
+                        Text("enter to confirm")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(Color(red: 0.85, green: 0.20, blue: 0.95))
                     }
-                    .padding(.top, 2)
                 }
-                
-                // Row 3: Help / Tip text
-                Text("💡 Geser pin untuk ubah posisi • Klik pin untuk ganti mode • Tekan ↵ Enter untuk simpan")
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundColor(Color(white: 0.7))
             }
-            .padding(12)
-            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.black.opacity(0.92)))
-            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Color.white.opacity(0.2), lineWidth: 1))
-            .shadow(color: Color.black.opacity(0.7), radius: 12, y: 5)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color(white: 0.05).opacity(0.96))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(Color.white.opacity(0.12), lineWidth: 1)
+        )
+        .shadow(color: Color.black.opacity(0.65), radius: 14, y: 6)
+    }
+    
+    // MARK: - HUD Dynamic Position Following Cursor / Active Pin
+    private func hudPosition(in size: CGSize) -> CGPoint {
+        let targetPt: CGPoint
+        if state.phase == .editing, let sel = state.selectedPointIndex, sel < state.points.count {
+            targetPt = state.points[sel].point
         } else {
-            // Minimal HUD for Click and Drag editing
-            HStack(spacing: 12) {
-                Text(state.modeText)
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(.white)
-                
-                Button {
-                    state.onConfirmAll?()
-                } label: {
-                    HStack(spacing: 5) {
-                        Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: 12, weight: .bold))
-                        Text("OK / Save (↵ Enter)")
-                            .font(.system(size: 12, weight: .bold))
-                    }
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 7)
-                    .background(Color.green)
-                    .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
-                }
-                .buttonStyle(.plain)
-                
-                Button {
-                    state.onCancelAction?()
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 10, weight: .bold))
-                        Text("Cancel (Esc)")
-                            .font(.system(size: 11, weight: .medium))
-                    }
-                    .foregroundColor(Color(white: 0.85))
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 7)
-                    .background(Color(white: 0.22))
-                    .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
-                }
-                .buttonStyle(.plain)
-            }
-            .padding(10)
-            .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.black.opacity(0.92)))
-            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Color.white.opacity(0.2), lineWidth: 1))
-            .shadow(color: Color.black.opacity(0.7), radius: 10, y: 4)
+            targetPt = state.quartzLocation
         }
-    }
-    
-    // MARK: - Position Helpers
-    private func editHudPosition(in size: CGSize) -> CGPoint {
-        guard !state.points.isEmpty else {
-            return CGPoint(x: size.width / 2, y: max(60, size.height - 70))
+        
+        var x = targetPt.x + 130
+        var y = targetPt.y + 60
+        
+        // Prevent HUD going off screen
+        if x + 120 > size.width {
+            x = targetPt.x - 130
         }
-        let avgX = state.points.reduce(0.0) { $0 + $1.point.x } / Double(state.points.count)
-        let minY = state.points.reduce(Double.infinity) { min($0, $1.point.y) }
-        var y = minY - 80
-        if y < 80 {
-            let maxY = state.points.reduce(0.0) { max($0, $1.point.y) }
-            y = maxY + 80
+        if y + 60 > size.height {
+            y = targetPt.y - 60
         }
-        let x = max(240, min(avgX, size.width - 240))
-        y = max(70, min(y, size.height - 70))
+        if x < 120 { x = 130 }
+        if y < 50 { y = 60 }
+        
         return CGPoint(x: x, y: y)
-    }
-    
-    private func cursorHudPosition(in size: CGSize) -> CGPoint {
-        var x = state.quartzLocation.x + 95
-        var y = state.quartzLocation.y - 38
-        if x + 100 > size.width {
-            x = state.quartzLocation.x - 95
-        }
-        if y - 30 < 0 {
-            y = state.quartzLocation.y + 45
-        }
-        return CGPoint(x: x, y: y)
-    }
-}
-
-extension CaptureOverlayState {
-    var modeText: String {
-        switch mode {
-        case .click:
-            return "🎯 Click Position (Drag pin to adjust)"
-        case .drag:
-            return "✋ Drag: Pin 1 = Start, Pin 2 = End (Drag to adjust)"
-        case .sequence:
-            return "⚡ Path Sequence"
-        }
     }
 }
 
@@ -2836,7 +2565,7 @@ class CaptureOverlayHostingView: NSView {
         
         if !initialPoints.isEmpty {
             stateModel.phase = .editing
-            stateModel.selectedPointIndex = 0
+            stateModel.selectedPointIndex = initialPoints.count - 1
         } else {
             stateModel.phase = .recording
         }
@@ -2920,7 +2649,7 @@ class CaptureOverlayHostingView: NSView {
         // Hover detection
         var foundIdx: Int? = nil
         for (i, p) in stateModel.points.enumerated() {
-            if dist(quartzPt, p.point) < 30 {
+            if dist(quartzPt, p.point) < 26 {
                 foundIdx = i
                 break
             }
@@ -2949,7 +2678,6 @@ class CaptureOverlayHostingView: NSView {
         if stateModel.phase == .recording {
             switch stateModel.mode {
             case .click:
-                // Single click immediately captures and finishes
                 stateModel.points = [SequencePoint(point: stateModel.quartzLocation, type: .click)]
                 stateModel.onConfirmAll?()
                 return
@@ -2959,7 +2687,6 @@ class CaptureOverlayHostingView: NSView {
                     stateModel.points.append(SequencePoint(point: stateModel.quartzLocation, type: .drag))
                     stateModel.selectedPointIndex = 0
                 } else {
-                    // 2nd click: finish drag immediately!
                     stateModel.points.append(SequencePoint(point: stateModel.quartzLocation, type: .drag))
                     stateModel.onConfirmAll?()
                     return
@@ -2979,14 +2706,14 @@ class CaptureOverlayHostingView: NSView {
                 stateModel.selectedPointIndex = stateModel.points.count - 1
             }
         } else {
-            // Edit phase: only grab a pin if clicked on/near it
+            // Edit phase
             if let h = stateModel.hoveredIndex {
                 stateModel.activeDraggingIndex = h
                 stateModel.selectedPointIndex = h
             } else {
                 var found: Int? = nil
                 for (i, p) in stateModel.points.enumerated() {
-                    if dist(stateModel.quartzLocation, p.point) <= 32 {
+                    if dist(stateModel.quartzLocation, p.point) <= 30 {
                         found = i
                         break
                     }
@@ -2995,7 +2722,6 @@ class CaptureOverlayHostingView: NSView {
                     stateModel.selectedPointIndex = f
                     stateModel.activeDraggingIndex = f
                 } else if case .click = stateModel.mode, !stateModel.points.isEmpty {
-                    // Clicking empty canvas in click edit mode relocates the point
                     stateModel.points[0].point = stateModel.quartzLocation
                     stateModel.selectedPointIndex = 0
                     stateModel.activeDraggingIndex = 0
@@ -3012,48 +2738,27 @@ class CaptureOverlayHostingView: NSView {
     
     private func handleKeyEvent(_ event: NSEvent) {
         if event.keyCode == 53 { // Esc
-            onCancel()
-        } else if event.keyCode == 36 || event.keyCode == 76 || event.keyCode == 49 { // Return / Enter / Space
-            if case .sequence = stateModel.mode {
-                if stateModel.phase == .recording {
-                    if !stateModel.points.isEmpty {
-                        stateModel.phase = .editing
-                        stateModel.selectedPointIndex = stateModel.points.count - 1
-                    } else {
-                        stateModel.points.append(SequencePoint(point: stateModel.quartzLocation, type: stateModel.defaultPointType))
-                        stateModel.phase = .editing
-                        stateModel.selectedPointIndex = 0
-                    }
-                } else {
-                    stateModel.onConfirmAll?()
+            if stateModel.phase == .recording {
+                // Esc switches to Edit mode!
+                stateModel.phase = .editing
+                if !stateModel.points.isEmpty {
+                    stateModel.selectedPointIndex = stateModel.points.count - 1
                 }
             } else {
-                // In Click or Drag mode, Enter immediately confirms
-                stateModel.onConfirmAll?()
+                // Esc in Edit mode closes/cancels
+                onCancel()
             }
-        } else if event.keyCode == 15 { // 'R' key for Reset
-            if case .sequence = stateModel.mode {
-                stateModel.onResetAction?()
-            }
-        } else if event.keyCode == 24 || event.keyCode == 0 { // '+' or 'A' to Add more points
-            if case .sequence = stateModel.mode {
-                stateModel.phase = .recording
-            }
-        } else if event.keyCode == 51 || event.keyCode == 117 { // Backspace / Delete
-            if case .sequence = stateModel.mode, let sel = stateModel.selectedPointIndex {
-                stateModel.removePoint(at: sel)
-            }
+        } else if event.keyCode == 36 || event.keyCode == 76 || event.keyCode == 49 { // Return / Enter / Space
+            stateModel.onConfirmAll?()
         } else if event.keyCode == 48 { // Tab: cycle selected point
             if !stateModel.points.isEmpty {
                 let cur = stateModel.selectedPointIndex ?? 0
                 stateModel.selectedPointIndex = (cur + 1) % stateModel.points.count
             }
-        } else if event.keyCode == 18 { // '1' key: Click
-            if case .sequence = stateModel.mode, let sel = stateModel.selectedPointIndex { stateModel.setType(.click, at: sel) }
-        } else if event.keyCode == 19 { // '2' key: Drag
-            if case .sequence = stateModel.mode, let sel = stateModel.selectedPointIndex { stateModel.setType(.drag, at: sel) }
-        } else if event.keyCode == 20 { // '3' key: Move
-            if case .sequence = stateModel.mode, let sel = stateModel.selectedPointIndex { stateModel.setType(.move, at: sel) }
+        } else if event.keyCode == 51 || event.keyCode == 117 { // Backspace / Delete
+            if case .sequence = stateModel.mode, let sel = stateModel.selectedPointIndex {
+                stateModel.removePoint(at: sel)
+            }
         }
     }
     
