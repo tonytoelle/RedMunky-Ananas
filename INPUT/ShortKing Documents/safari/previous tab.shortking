@@ -1,4 +1,5 @@
-# Safari Previous Tab Macro
+# ShortKing Macro Script
 TRIGGER: shift+left
 
-ACTION: press_shortcut ctrl+shift+tab
+# Actions:
+ACTION: press_shortcut shift+ctrl+tab

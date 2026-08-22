@@ -4454,13 +4454,13 @@ struct InlineKeyRecorder: View {
                     }
                 }
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(isRecording ? Color.red.opacity(0.12) : Color(white: 0.12))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(isRecording ? Color.red.opacity(0.12) : Color(white: 0.22))
             .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .stroke(isRecording ? Color.red : Color.white.opacity(0.1), lineWidth: 1)
+                    .stroke(isRecording ? Color.red : Color.white.opacity(0.08), lineWidth: 1)
             )
         }
         .buttonStyle(.plain)
