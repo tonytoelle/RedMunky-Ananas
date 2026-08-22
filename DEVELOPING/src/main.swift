@@ -2319,9 +2319,12 @@ struct CaptureOverlaySwiftUIView: View {
                         let ptA = state.points[idx]
                         let ptB = state.points[idx + 1]
                         
-                        let startColor = ptA.type.color.opacity(0.95)
+                        let isLineBeingBypassed = state.isFollowingCursor && state.selectedPointIndex == idx
+                        let lineOpacityMultiplier: Double = isLineBeingBypassed ? 0.20 : 1.0
+                        
+                        let startColor = ptA.type.color.opacity(0.95 * lineOpacityMultiplier)
                         // If moving from a .move point, line fades out to 0 opacity
-                        let endColor: Color = (ptA.type == .move) ? ptB.type.color.opacity(0.0) : ptB.type.color.opacity(0.95)
+                        let endColor: Color = (ptA.type == .move) ? ptB.type.color.opacity(0.0) : ptB.type.color.opacity(0.95 * lineOpacityMultiplier)
                         
                         let grad = LinearGradient(
                             gradient: Gradient(colors: [startColor, endColor]),
