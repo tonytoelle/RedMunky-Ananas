@@ -5473,7 +5473,7 @@ struct SidebarNodeView: View {
                     }
                     .buttonStyle(.plain)
                 }
-                .padding(.leading, CGFloat(depth * 18 + 4))
+                .padding(.leading, CGFloat(depth * 12 + 4))
                 .padding(.trailing, 8)
                 .padding(.vertical, 4)
                 .background(
@@ -5552,7 +5552,7 @@ struct SidebarNodeView: View {
                     ForEach(children) { child in
                         SidebarNodeView(
                             node: child,
-                            depth: depth,
+                            depth: depth + 1,
                             expandedFolders: $expandedFolders,
                             selectedPaths: $selectedPaths,
                             onSelect: onSelect,
@@ -5600,7 +5600,7 @@ struct SidebarNodeView: View {
                     ShortcutBadgeView(trigger: macro.trigger, isDimmedMini: true, isSelected: isSelected)
                         .opacity(isSelected ? 0.3 : 1.0)
                 }
-                .padding(.leading, CGFloat(depth * 18 + 4))
+                .padding(.leading, CGFloat(depth * 12 + 4))
                 .padding(.trailing, 8)
                 .padding(.vertical, 6)
                 .frame(maxWidth: .infinity, alignment: .leading)
