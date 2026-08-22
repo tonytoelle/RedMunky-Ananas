@@ -2298,8 +2298,9 @@ struct CaptureOverlaySwiftUIView: View {
         GeometryReader { geo in
             ZStack {
                 // Subtle dark tint only during recording so pins stand out; transparent during edit
-                Color.black.opacity(state.phase == .recording ? 0.12 : 0.001)
+                Color.black.opacity(state.phase == .recording ? 0.12 : 0.0)
                     .edgesIgnoringSafeArea(.all)
+                    .allowsHitTesting(state.phase == .recording)
                 
                 // ─────────────────────────────────────────────
                 // CONNECTING PATH LINES BETWEEN PINS (Color Gradient)
@@ -2329,6 +2330,7 @@ struct CaptureOverlaySwiftUIView: View {
                             grad,
                             style: StrokeStyle(lineWidth: 2.5, lineCap: .round, dash: [4, 5])
                         )
+                        .allowsHitTesting(false)
                     }
                 }
                 
@@ -2738,65 +2740,50 @@ class CaptureOverlayHostingView: NSView {
         return true
     }
     
-    // MARK: - Hit Testing
+    // MARK: - Hit Testing (Native macOS Click-Through)
     override func hitTest(_ point: NSPoint) -> NSView? {
-        // Always receive events in this view so we can route them appropriately
-        return super.hitTest(point)
+        let screenHeight = window?.screen?.frame.height ?? NSScreen.main?.frame.height ?? bounds.height
+        let quartzPt = CGPoint(x: point.x, y: screenHeight - point.y)
+        
+        // During recording: capture all clicks to drop points!
+        if stateModel.phase == .recording {
+            return super.hitTest(point)
+        }
+        
+        // During edit: only capture clicks directly on/near pins
+        for p in stateModel.points {
+            if dist(quartzPt, p.point) <= 26 {
+                return super.hitTest(point)
+            }
+        }
+        
+        // Or clicks directly on the HUD card
+        if stateModel.isHudVisible {
+            let hudPos = stateModel.lastHudCenter
+            let hudRect = CGRect(x: hudPos.x - 75, y: hudPos.y - 30, width: 150, height: 60)
+            if hudRect.contains(quartzPt) {
+                return super.hitTest(point)
+            }
+        }
+        
+        // Return nil on empty background so macOS WindowServer natively delivers
+        // all clicks, scrolls, drags, right-clicks to the window underneath!
+        return nil
     }
     
     override func mouseMoved(with event: NSEvent) {
         updateMouse(event: event)
     }
     
-    private func isNearPinOrHud(quartzPt: CGPoint) -> Bool {
-        for p in stateModel.points {
-            if dist(quartzPt, p.point) <= 26 {
-                return true
-            }
-        }
-        if stateModel.isHudVisible {
-            let hudPos = stateModel.lastHudCenter
-            let hudRect = CGRect(x: hudPos.x - 75, y: hudPos.y - 30, width: 150, height: 60)
-            if hudRect.contains(quartzPt) {
-                return true
-            }
-        }
-        return false
-    }
-    
-    private func forwardEventToBackground(_ event: NSEvent) {
-        guard let win = self.window else { return }
-        win.ignoresMouseEvents = true
-        if let cg = event.cgEvent {
-            cg.post(tap: .cghidEventTap)
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { [weak self] in
-            self?.window?.ignoresMouseEvents = false
-        }
-    }
-    
-    override func scrollWheel(with event: NSEvent) {
-        updateMouse(event: event)
-        if stateModel.phase == .editing && !isNearPinOrHud(quartzPt: stateModel.quartzLocation) {
-            forwardEventToBackground(event)
-        }
-    }
-    
     override func mouseDragged(with event: NSEvent) {
         updateMouse(event: event)
         if let idx = stateModel.activeDraggingIndex, idx < stateModel.points.count {
             stateModel.points[idx].point = stateModel.quartzLocation
-        } else if stateModel.phase == .editing {
-            forwardEventToBackground(event)
         }
     }
     
     override func mouseUp(with event: NSEvent) {
-        if stateModel.activeDraggingIndex != nil {
-            stateModel.activeDraggingIndex = nil
-        } else if stateModel.phase == .editing && !isNearPinOrHud(quartzPt: stateModel.quartzLocation) {
-            forwardEventToBackground(event)
-        }
+        stateModel.activeDraggingIndex = nil
     }
     
     override func mouseDown(with event: NSEvent) {
@@ -2824,7 +2811,7 @@ class CaptureOverlayHostingView: NSView {
                 stateModel.selectedPointIndex = stateModel.points.count - 1
             }
         } else {
-            // Edit phase
+            // Edit phase: handled when clicking directly on a pin
             var found: Int? = nil
             for (i, p) in stateModel.points.enumerated() {
                 if dist(stateModel.quartzLocation, p.point) <= 26 {
@@ -2836,59 +2823,15 @@ class CaptureOverlayHostingView: NSView {
             if let f = found {
                 stateModel.selectedPointIndex = f
                 stateModel.activeDraggingIndex = f
-            } else if stateModel.isHudVisible && CGRect(x: stateModel.lastHudCenter.x - 75, y: stateModel.lastHudCenter.y - 30, width: 150, height: 60).contains(stateModel.quartzLocation) {
-                // Click on HUD card handled by SwiftUI button
             } else {
-                // Click on empty background: deselect active pin and forward click to window underneath!
                 stateModel.selectedPointIndex = nil
                 stateModel.activeDraggingIndex = nil
-                forwardEventToBackground(event)
             }
         }
     }
     
     override func rightMouseDown(with event: NSEvent) {
-        updateMouse(event: event)
-        if stateModel.phase == .editing && !isNearPinOrHud(quartzPt: stateModel.quartzLocation) {
-            forwardEventToBackground(event)
-        } else {
-            mouseDown(with: event)
-        }
-    }
-    
-    override func rightMouseDragged(with event: NSEvent) {
-        updateMouse(event: event)
-        if stateModel.phase == .editing && !isNearPinOrHud(quartzPt: stateModel.quartzLocation) {
-            forwardEventToBackground(event)
-        }
-    }
-    
-    override func rightMouseUp(with event: NSEvent) {
-        updateMouse(event: event)
-        if stateModel.phase == .editing && !isNearPinOrHud(quartzPt: stateModel.quartzLocation) {
-            forwardEventToBackground(event)
-        }
-    }
-    
-    override func otherMouseDown(with event: NSEvent) {
-        updateMouse(event: event)
-        if stateModel.phase == .editing && !isNearPinOrHud(quartzPt: stateModel.quartzLocation) {
-            forwardEventToBackground(event)
-        }
-    }
-    
-    override func otherMouseDragged(with event: NSEvent) {
-        updateMouse(event: event)
-        if stateModel.phase == .editing && !isNearPinOrHud(quartzPt: stateModel.quartzLocation) {
-            forwardEventToBackground(event)
-        }
-    }
-    
-    override func otherMouseUp(with event: NSEvent) {
-        updateMouse(event: event)
-        if stateModel.phase == .editing && !isNearPinOrHud(quartzPt: stateModel.quartzLocation) {
-            forwardEventToBackground(event)
-        }
+        mouseDown(with: event)
     }
     
     private func handleKeyEvent(_ event: NSEvent) {
