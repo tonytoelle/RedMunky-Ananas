@@ -6,9 +6,7 @@ ACTION: brightness_up
 ACTION: path 1115,782:move
 ACTION: drag 0 0 to 0 0
 ACTION: drag 1066 871 to 863 782
-ACTION: move 1132 880
-ACTION: click 0 0
-ACTION: click 1254 596
-ACTION: click 776 807
-ACTION: path 743,860:move
-ACTION: path 694,933:move
+ACTION: move 825 852
+ACTION: move 845 809
+ACTION: click 1021 832
+ACTION: path 

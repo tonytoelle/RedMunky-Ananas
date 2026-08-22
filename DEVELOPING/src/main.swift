@@ -2800,9 +2800,6 @@ class CaptureOverlayHostingView: NSView {
             guard let self = self else { return }
             self.window?.invalidateCursorRects(for: self)
             if following && !self.stateModel.isPassThroughMode {
-                if case .sequence = self.stateModel.mode {
-                    NSCursor.hide()
-                }
                 self.window?.ignoresMouseEvents = false
                 
                 // Get current mouse location instantly
@@ -2818,13 +2815,7 @@ class CaptureOverlayHostingView: NSView {
         stateModel.onPassThroughChanged = { [weak self] isPassThrough in
             guard let self = self else { return }
             self.window?.invalidateCursorRects(for: self)
-            if isPassThrough {
-                NSCursor.unhide()
-            } else if self.stateModel.isFollowingCursor {
-                if case .sequence = self.stateModel.mode {
-                    NSCursor.hide()
-                }
-            }
+            NSCursor.unhide()
         }
         
         stateModel.onConfirmAll = { [weak self] in
@@ -3031,13 +3022,7 @@ class CaptureOverlayHostingView: NSView {
     
     override func resetCursorRects() {
         super.resetCursorRects()
-        if stateModel.isPassThroughMode {
-            addCursorRect(bounds, cursor: .arrow)
-        } else if stateModel.isFollowingCursor {
-            addCursorRect(bounds, cursor: .crosshair)
-        } else {
-            addCursorRect(bounds, cursor: .arrow)
-        }
+        addCursorRect(bounds, cursor: .arrow)
     }
     
     // MARK: - Hit Testing (Native macOS Click-Through)
