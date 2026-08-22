@@ -2501,16 +2501,16 @@ struct CaptureOverlaySwiftUIView: View {
             return Int(state.quartzLocation.y)
         }()
         
-        HStack(spacing: 10) {
+        HStack(spacing: 12) {
             // Left: Squircle Action Type Icon Button
             ZStack {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .fill(currentType.color)
-                    .frame(width: 36, height: 36)
+                    .frame(width: 44, height: 44)
                     .shadow(color: currentType.color.opacity(0.4), radius: 4)
                 
                 Image(systemName: currentType.icon == "hand.draw" ? "hand.tap.fill" : currentType.icon)
-                    .font(.system(size: 17, weight: .semibold))
+                    .font(.system(size: 20, weight: .semibold))
                     .foregroundColor(.white)
             }
             .contentShape(Rectangle())
@@ -2533,12 +2533,12 @@ struct CaptureOverlaySwiftUIView: View {
             
             // Plus button to insert/add a point
             ZStack {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .fill(Color.white.opacity(0.15))
-                    .frame(width: 36, height: 36)
+                    .frame(width: 44, height: 44)
                 
                 Image(systemName: "plus")
-                    .font(.system(size: 16, weight: .bold))
+                    .font(.system(size: 19, weight: .bold))
                     .foregroundColor(.white)
             }
             .contentShape(Rectangle())
@@ -2567,28 +2567,22 @@ struct CaptureOverlaySwiftUIView: View {
                         Text("enter to edit")
                             .font(.system(size: 9.5, weight: .semibold))
                             .foregroundColor(Color(red: 0.85, green: 0.20, blue: 0.95))
-                        Text("esc to cancel")
-                            .font(.system(size: 9.5, weight: .semibold))
-                            .foregroundColor(Color(red: 0.85, green: 0.20, blue: 0.95))
                     } else {
                         Text("click to change action")
-                            .font(.system(size: 9.5, weight: .semibold))
-                            .foregroundColor(Color(red: 0.85, green: 0.20, blue: 0.95))
-                        Text("enter to confirm")
                             .font(.system(size: 9.5, weight: .semibold))
                             .foregroundColor(Color(red: 0.85, green: 0.20, blue: 0.95))
                     }
                 }
             }
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 7)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
         .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(Color(white: 0.05).opacity(0.96))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .stroke(Color.white.opacity(0.12), lineWidth: 1)
         )
         .shadow(color: Color.black.opacity(0.65), radius: 10, y: 4)
@@ -2603,18 +2597,18 @@ struct CaptureOverlaySwiftUIView: View {
             targetPt = state.quartzLocation
         }
         
-        var x = targetPt.x + 95
-        var y = targetPt.y + 40
+        var x = targetPt.x + 130
+        var y = targetPt.y + 60
         
         // Prevent HUD going off screen
-        if x + 85 > size.width {
-            x = targetPt.x - 95
+        if x + 110 > size.width {
+            x = targetPt.x - 130
         }
-        if y + 40 > size.height {
-            y = targetPt.y - 40
+        if y + 45 > size.height {
+            y = targetPt.y - 60
         }
-        if x < 90 { x = 95 }
-        if y < 35 { y = 40 }
+        if x < 110 { x = 110 }
+        if y < 45 { y = 45 }
         
         return CGPoint(x: x, y: y)
     }
