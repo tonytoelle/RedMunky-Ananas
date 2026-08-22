@@ -122,11 +122,13 @@ struct SequencePoint: Identifiable, Equatable, Codable {
     let id: UUID
     var point: CGPoint
     var type: SequencePointType
+    var repeatCount: Int = 1
     
-    init(id: UUID = UUID(), point: CGPoint, type: SequencePointType) {
+    init(id: UUID = UUID(), point: CGPoint, type: SequencePointType, repeatCount: Int = 1) {
         self.id = id
         self.point = point
         self.type = type
+        self.repeatCount = repeatCount
     }
 }
 
@@ -284,7 +286,10 @@ enum MacroAction: Equatable {
         case .click(let p, let b):  return b == .left ? "ACTION: click \(Int(p.x)) \(Int(p.y))" : "ACTION: right_click \(Int(p.x)) \(Int(p.y))"
         case .drag(let s, let e):   return "ACTION: drag \(Int(s.x)) \(Int(s.y)) to \(Int(e.x)) \(Int(e.y))"
         case .path(let pts):
-            let pStr = pts.map { "\(Int($0.point.x)),\(Int($0.point.y)):\($0.type.rawValue.lowercased())" }.joined(separator: " ")
+            let pStr = pts.map { pt -> String in
+                let base = "\(Int(pt.point.x)),\(Int(pt.point.y)):\(pt.type.rawValue.lowercased())"
+                return pt.repeatCount > 1 ? "\(base)*\(pt.repeatCount)" : base
+            }.joined(separator: " ")
             return "ACTION: path \(pStr)"
         case .delay(let ms):        return "ACTION: delay \(ms)"
         case .typeText(let t):      return "ACTION: type \"\(t)\""
@@ -650,7 +655,14 @@ class ShortKingParser {
                 if segs.count >= 2 {
                     let coords = segs[0].split(separator: ",")
                     if coords.count >= 2, let x = Double(coords[0]), let y = Double(coords[1]) {
-                        let typeStr = String(segs[1]).lowercased()
+                        let typeWithRepeat = String(segs[1]).lowercased()
+                        let subSegs = typeWithRepeat.split(separator: "*")
+                        let typeStr = String(subSegs[0])
+                        var repeatVal = 1
+                        if subSegs.count >= 2, let r = Int(subSegs[1]) {
+                            repeatVal = r
+                        }
+                        
                         let type: SequencePointType
                         switch typeStr {
                         case "click": type = .click
@@ -658,7 +670,7 @@ class ShortKingParser {
                         case "move":  type = .move
                         default:      type = .move
                         }
-                        pts.append(SequencePoint(point: CGPoint(x: x, y: y), type: type))
+                        pts.append(SequencePoint(point: CGPoint(x: x, y: y), type: type, repeatCount: repeatVal))
                     }
                 }
             }
@@ -916,61 +928,69 @@ class InputSimulator {
                     for i in 0..<points.count {
                         guard !isEmergencyStopped else { return }
                         let cur = points[i]
+                        let reps = max(1, cur.repeatCount)
                         
-                        switch cur.type {
-                        case .move:
-                            if isMouseDown {
-                                let u = CGEvent(mouseEventSource: source, mouseType: .leftMouseUp, mouseCursorPosition: lastPt, mouseButton: .left)
-                                u?.flags = []
-                                u?.post(tap: .cghidEventTap)
-                                usleep(20000)
-                                isMouseDown = false
-                            }
-                            CGWarpMouseCursorPosition(cur.point)
-                            usleep(25000)
+                        for rIdx in 0..<reps {
+                            guard !isEmergencyStopped else { return }
                             
-                        case .click:
-                            if isMouseDown {
-                                let u = CGEvent(mouseEventSource: source, mouseType: .leftMouseUp, mouseCursorPosition: lastPt, mouseButton: .left)
-                                u?.flags = []
-                                u?.post(tap: .cghidEventTap)
-                                usleep(20000)
-                                isMouseDown = false
-                            }
-                            CGWarpMouseCursorPosition(cur.point)
-                            usleep(20000)
-                            let d = CGEvent(mouseEventSource: source, mouseType: .leftMouseDown, mouseCursorPosition: cur.point, mouseButton: .left)
-                            let u = CGEvent(mouseEventSource: source, mouseType: .leftMouseUp, mouseCursorPosition: cur.point, mouseButton: .left)
-                            d?.flags = []
-                            u?.flags = []
-                            d?.post(tap: .cghidEventTap)
-                            usleep(20000)
-                            u?.post(tap: .cghidEventTap)
-                            usleep(25000)
-                            
-                        case .drag:
-                            if !isMouseDown {
-                                // Start dragging: move to this position, and press down mouse button
+                            switch cur.type {
+                            case .move:
+                                if isMouseDown {
+                                    let u = CGEvent(mouseEventSource: source, mouseType: .leftMouseUp, mouseCursorPosition: lastPt, mouseButton: .left)
+                                    u?.flags = []
+                                    u?.post(tap: .cghidEventTap)
+                                    usleep(20000)
+                                    isMouseDown = false
+                                }
+                                CGWarpMouseCursorPosition(cur.point)
+                                usleep(25000)
+                                
+                            case .click:
+                                if isMouseDown {
+                                    let u = CGEvent(mouseEventSource: source, mouseType: .leftMouseUp, mouseCursorPosition: lastPt, mouseButton: .left)
+                                    u?.flags = []
+                                    u?.post(tap: .cghidEventTap)
+                                    usleep(20000)
+                                    isMouseDown = false
+                                }
                                 CGWarpMouseCursorPosition(cur.point)
                                 usleep(20000)
                                 let d = CGEvent(mouseEventSource: source, mouseType: .leftMouseDown, mouseCursorPosition: cur.point, mouseButton: .left)
+                                let u = CGEvent(mouseEventSource: source, mouseType: .leftMouseUp, mouseCursorPosition: cur.point, mouseButton: .left)
                                 d?.flags = []
+                                u?.flags = []
                                 d?.post(tap: .cghidEventTap)
-                                usleep(30000)
-                                isMouseDown = true
-                            } else {
-                                // Drag continuation: drag from lastPt to cur.point smoothly
-                                let start = lastPt
-                                let end = cur.point
-                                for s in 1...12 {
-                                    guard !isEmergencyStopped else { return }
-                                    let p = CGFloat(s)/12
-                                    let pt = CGPoint(x: start.x + (end.x - start.x)*p, y: start.y + (end.y - start.y)*p)
-                                    let m = CGEvent(mouseEventSource: source, mouseType: .leftMouseDragged, mouseCursorPosition: pt, mouseButton: .left)
-                                    m?.flags = []
-                                    m?.post(tap: .cghidEventTap)
-                                    usleep(12000)
+                                usleep(20000)
+                                u?.post(tap: .cghidEventTap)
+                                usleep(25000)
+                                
+                            case .drag:
+                                if !isMouseDown {
+                                    // Start dragging: move to this position, and press down mouse button
+                                    CGWarpMouseCursorPosition(cur.point)
+                                    usleep(20000)
+                                    let d = CGEvent(mouseEventSource: source, mouseType: .leftMouseDown, mouseCursorPosition: cur.point, mouseButton: .left)
+                                    d?.flags = []
+                                    d?.post(tap: .cghidEventTap)
+                                    usleep(30000)
+                                    isMouseDown = true
+                                } else {
+                                    // Drag continuation: drag from lastPt to cur.point smoothly
+                                    let start = lastPt
+                                    let end = cur.point
+                                    for s in 1...12 {
+                                        guard !isEmergencyStopped else { return }
+                                        let p = CGFloat(s)/12
+                                        let pt = CGPoint(x: start.x + (end.x - start.x)*p, y: start.y + (end.y - start.y)*p)
+                                        let m = CGEvent(mouseEventSource: source, mouseType: .leftMouseDragged, mouseCursorPosition: pt, mouseButton: .left)
+                                        m?.flags = []
+                                        m?.post(tap: .cghidEventTap)
+                                        usleep(12000)
+                                    }
                                 }
+                            }
+                            if reps > 1 && rIdx < reps - 1 {
+                                usleep(30000) // Brief delay between internal point repetitions
                             }
                         }
                         lastPt = cur.point
@@ -2602,7 +2622,8 @@ struct CaptureOverlaySwiftUIView: View {
                         type: item.type,
                         isSelected: isSelected,
                         isHovered: isHovered,
-                        isDragging: isDragging
+                        isDragging: isDragging,
+                        repeatCount: item.repeatCount
                     )
                     .position(x: item.point.x, y: item.point.y)
                     .opacity(state.isPassThroughMode ? 0.35 : 1.0)
@@ -2689,7 +2710,8 @@ struct CaptureOverlaySwiftUIView: View {
         type: SequencePointType,
         isSelected: Bool,
         isHovered: Bool,
-        isDragging: Bool
+        isDragging: Bool,
+        repeatCount: Int = 1
     ) -> some View {
         ZStack {
             // Outer highlight ring when active
@@ -2712,7 +2734,7 @@ struct CaptureOverlaySwiftUIView: View {
                 .shadow(color: Color.black.opacity(0.2), radius: 1)
             
             // Minimal text indicator above or below the circle to not block center dot
-            Text(number)
+            Text(repeatCount > 1 ? "\(number) (x\(repeatCount))" : number)
                 .font(.system(size: 8, weight: .heavy, design: .rounded))
                 .foregroundColor(.white)
                 .padding(.horizontal, 4)
@@ -2823,6 +2845,38 @@ struct CaptureOverlaySwiftUIView: View {
             .onTapGesture {
                 state.isPassThroughMode.toggle()
             }
+            
+            // Repeat Point Dropdown Menu
+            let selectedPointRepeat: Int = {
+                if let sel = state.selectedPointIndex, sel < state.points.count {
+                    return state.points[sel].repeatCount
+                }
+                return 1
+            }()
+            
+            Menu {
+                ForEach([1, 2, 3, 5, 10], id: \.self) { r in
+                    Button(r == 1 ? "1x (No Repeat)" : "Repeat \(r)x") {
+                        if let sel = state.selectedPointIndex, sel < state.points.count {
+                            state.points[sel].repeatCount = r
+                            state.notifyPointsRealtime()
+                        }
+                    }
+                }
+            } label: {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(selectedPointRepeat > 1 ? Color.purple : Color.white.opacity(0.15))
+                        .frame(width: 44, height: 34)
+                    
+                    Text("\(selectedPointRepeat)x")
+                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                        .foregroundColor(.white)
+                }
+            }
+            .menuStyle(.borderlessButton)
+            .opacity(state.selectedPointIndex != nil && !state.isPassThroughMode ? 1.0 : 0.35)
+            .disabled(state.selectedPointIndex == nil || state.isPassThroughMode)
             
             // Green Confirm/Save Checkmark Button
             ZStack {
@@ -3182,7 +3236,7 @@ class CaptureOverlayHostingView: NSView {
         if stateModel.isPassThroughMode {
             if stateModel.isHudVisible {
                 let hudPos = stateModel.lastHudCenter
-                let hudRect = CGRect(x: hudPos.x - 130, y: hudPos.y - 30, width: 260, height: 60)
+                let hudRect = CGRect(x: hudPos.x - 160, y: hudPos.y - 30, width: 320, height: 60)
                 if hudRect.contains(quartzPt) {
                     return super.hitTest(point)
                 }
@@ -3204,7 +3258,7 @@ class CaptureOverlayHostingView: NSView {
         // Or clicks directly on the HUD card
         if stateModel.isHudVisible {
             let hudPos = stateModel.lastHudCenter
-            let hudRect = CGRect(x: hudPos.x - 130, y: hudPos.y - 30, width: 260, height: 60)
+            let hudRect = CGRect(x: hudPos.x - 160, y: hudPos.y - 30, width: 320, height: 60)
             if hudRect.contains(quartzPt) {
                 return super.hitTest(point)
             }
