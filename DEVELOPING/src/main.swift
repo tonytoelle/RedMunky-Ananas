@@ -5929,6 +5929,7 @@ struct MainEditorView: View {
                     .padding(.horizontal, 14)
                     .padding(.vertical, 8)
                 }
+                .padding(.horizontal, 6)
                 .frame(width: store.isSidebarVisible ? sidebarWidth : 0)
                 .frame(maxHeight: .infinity)
                 .background(Color(white: 0.12))
