@@ -870,11 +870,15 @@ class InputSimulator {
             return CGPoint(x: cocoaPt.x, y: screenH - cocoaPt.y)
         }()
         
-        // Hide real cursor + show ghost at origin for the duration of execution
-        CGDisplayHideCursor(CGMainDisplayID())
+        // Show ghost cursor at origin position for the duration of execution
         ExecutionCursorOverlayWindow.show(at: originQuartzPos)
+        
+        // Warp real cursor off-screen to make it look invisible during execution
+        CGWarpMouseCursorPosition(CGPoint(x: 99999, y: 99999))
+        
         defer {
-            CGDisplayShowCursor(CGMainDisplayID())
+            // Restore real cursor back to its original position
+            CGWarpMouseCursorPosition(originQuartzPos)
             ExecutionCursorOverlayWindow.hide()
         }
         
