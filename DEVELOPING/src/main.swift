@@ -2264,6 +2264,13 @@ class CaptureOverlayState: ObservableObject {
         }
     }
     
+    var onPassThroughChanged: ((Bool) -> Void)? = nil
+    @Published var isPassThroughMode: Bool = false {
+        didSet {
+            onPassThroughChanged?(isPassThroughMode)
+        }
+    }
+    
     var onPointsCommitted: (([SequencePoint]) -> Void)? = nil
     var onPointsRealtime: (([SequencePoint]) -> Void)? = nil
     @Published var points: [SequencePoint] = []
@@ -2284,6 +2291,7 @@ class CaptureOverlayState: ObservableObject {
     
     var isHudVisible: Bool {
         guard case .sequence = mode else { return false }
+        if isPassThroughMode { return true }
         if isFollowingCursor { return true }
         if selectedPointIndex != nil || activeDraggingIndex != nil || isHoveringHud { return true }
         if hoveredIndex != nil { return true }
@@ -2369,7 +2377,6 @@ struct CaptureOverlaySwiftUIView: View {
                 // Completely transparent background with no dimming in any phase
                 Color.clear
                     .edgesIgnoringSafeArea(.all)
-                    .allowsHitTesting(state.isFollowingCursor)
                 
                 // ─────────────────────────────────────────────
                 // CONNECTING PATH LINES BETWEEN PINS (Color Gradient)
@@ -2382,7 +2389,7 @@ struct CaptureOverlaySwiftUIView: View {
                         let ptB = state.points[idx + 1]
                         
                         let isLineBeingBypassed = state.isFollowingCursor && state.selectedPointIndex == idx
-                        let lineOpacityMultiplier: Double = isLineBeingBypassed ? 0.0 : 1.0
+                        let lineOpacityMultiplier: Double = isLineBeingBypassed ? 0.0 : (state.isPassThroughMode ? 0.20 : 1.0)
                         
                         let midColor = blendColors(typeA: ptA.type, typeB: ptB.type)
                         
@@ -2408,72 +2415,58 @@ struct CaptureOverlaySwiftUIView: View {
                     }
                 }
                 
-                // Active dashed line during recording to follow cursor
-                let shouldShowCursorLine: Bool = {
-                    guard state.isFollowingCursor, !state.points.isEmpty else { return false }
-                    switch state.mode {
-                    case .click:
-                        return false
-                    case .drag:
-                        return state.points.count == 1
-                    case .sequence:
-                        return true
+                // Active cursor preview lines (if inserting a point in between existing points)
+                if state.isFollowingCursor, let sel = state.selectedPointIndex, sel < state.points.count {
+                    let start = state.points[sel].point
+                    let end = state.quartzLocation
+                    let ptA = state.points[sel]
+                    
+                    let lineOpacityMultiplier: Double = state.isPassThroughMode ? 0.20 : 1.0
+                    let midColor = blendColors(typeA: ptA.type, typeB: state.defaultPointType)
+                    let grad = LinearGradient(
+                        gradient: Gradient(stops: [
+                            .init(color: ptA.type.color.opacity(0.0), location: 0.0),
+                            .init(color: midColor.opacity(0.95 * lineOpacityMultiplier), location: 0.5),
+                            .init(color: state.defaultPointType.color.opacity(0.0), location: 1.0)
+                        ]),
+                        startPoint: UnitPoint(x: start.x / max(1, geo.size.width), y: start.y / max(1, geo.size.height)),
+                        endPoint: UnitPoint(x: end.x / max(1, geo.size.width), y: end.y / max(1, geo.size.height))
+                    )
+                    
+                    Path { path in
+                        path.move(to: start)
+                        path.addLine(to: end)
                     }
-                }()
-                
-                if shouldShowCursorLine {
-                    let sel = state.selectedPointIndex ?? (state.points.count - 1)
-                    if sel >= 0 && sel < state.points.count {
-                        let prevPt = state.points[sel]
-                        let start = prevPt.point
-                        let end = state.quartzLocation
+                    .stroke(
+                        grad,
+                        style: StrokeStyle(lineWidth: 2.5, lineCap: .round, dash: [4, 5])
+                    )
+                    
+                    // If not at the very end, also draw line from cursor to the next point
+                    if sel + 1 < state.points.count {
+                        let nextPt = state.points[sel + 1]
+                        let nextStart = end
+                        let nextEnd = nextPt.point
                         
-                        let midColor = blendColors(typeA: prevPt.type, typeB: state.defaultPointType)
-                        let activeGrad = LinearGradient(
+                        let midColor2 = blendColors(typeA: state.defaultPointType, typeB: nextPt.type)
+                        let nextGrad = LinearGradient(
                             gradient: Gradient(stops: [
-                                .init(color: prevPt.type.color.opacity(0.0), location: 0.0),
-                                .init(color: midColor.opacity(0.95), location: 0.5),
-                                .init(color: state.defaultPointType.color.opacity(0.0), location: 1.0)
+                                .init(color: state.defaultPointType.color.opacity(0.0), location: 0.0),
+                                .init(color: midColor2.opacity(0.95 * lineOpacityMultiplier), location: 0.5),
+                                .init(color: nextPt.type.color.opacity(0.0), location: 1.0)
                             ]),
-                            startPoint: UnitPoint(x: start.x / max(1, geo.size.width), y: start.y / max(1, geo.size.height)),
-                            endPoint: UnitPoint(x: end.x / max(1, geo.size.width), y: end.y / max(1, geo.size.height))
+                            startPoint: UnitPoint(x: nextStart.x / max(1, geo.size.width), y: nextStart.y / max(1, geo.size.height)),
+                            endPoint: UnitPoint(x: nextEnd.x / max(1, geo.size.width), y: nextEnd.y / max(1, geo.size.height))
                         )
                         
                         Path { path in
-                            path.move(to: start)
-                            path.addLine(to: end)
+                            path.move(to: nextStart)
+                            path.addLine(to: nextEnd)
                         }
                         .stroke(
-                            activeGrad,
+                            nextGrad,
                             style: StrokeStyle(lineWidth: 2.5, lineCap: .round, dash: [4, 5])
                         )
-                        
-                        // If inserting in between, show preview connecting cursor to next point
-                        if sel + 1 < state.points.count {
-                            let nextPt = state.points[sel + 1]
-                            let nextStart = end
-                            let nextEnd = nextPt.point
-                            
-                            let midColor2 = blendColors(typeA: state.defaultPointType, typeB: nextPt.type)
-                            let nextGrad = LinearGradient(
-                                gradient: Gradient(stops: [
-                                    .init(color: state.defaultPointType.color.opacity(0.0), location: 0.0),
-                                    .init(color: midColor2.opacity(0.95), location: 0.5),
-                                    .init(color: nextPt.type.color.opacity(0.0), location: 1.0)
-                                ]),
-                                startPoint: UnitPoint(x: nextStart.x / max(1, geo.size.width), y: nextStart.y / max(1, geo.size.height)),
-                                endPoint: UnitPoint(x: nextEnd.x / max(1, geo.size.width), y: nextEnd.y / max(1, geo.size.height))
-                            )
-                            
-                            Path { path in
-                                path.move(to: nextStart)
-                                path.addLine(to: nextEnd)
-                            }
-                            .stroke(
-                                nextGrad,
-                                style: StrokeStyle(lineWidth: 2.5, lineCap: .round, dash: [4, 5])
-                            )
-                        }
                     }
                 }
                 
@@ -2493,6 +2486,8 @@ struct CaptureOverlaySwiftUIView: View {
                         isDragging: isDragging
                     )
                     .position(x: item.point.x, y: item.point.y)
+                    .opacity(state.isPassThroughMode ? 0.20 : 1.0)
+                    .allowsHitTesting(!state.isPassThroughMode)
                     .gesture(
                         DragGesture(minimumDistance: 1, coordinateSpace: .global)
                             .onChanged { val in
@@ -2524,7 +2519,7 @@ struct CaptureOverlaySwiftUIView: View {
                         .onChange(of: pos) { _, newPos in state.lastHudCenter = newPos }
                 }
                 
-                if case .sequence = state.mode, state.isFollowingCursor {
+                if case .sequence = state.mode, state.isFollowingCursor && !state.isPassThroughMode {
                     ZStack {
                         // Outer ring the size of a finger touch (diameter 32)
                         Circle()
@@ -2654,6 +2649,21 @@ struct CaptureOverlaySwiftUIView: View {
                     state.removePoint(at: state.points.count - 1)
                 }
             }
+            
+            // Pass-Through Toggle Button (Allows clicking apps underneath while seeing 20% opacity pins)
+            ZStack {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(state.isPassThroughMode ? Color.accentColor : Color.white.opacity(0.15))
+                    .frame(width: 34, height: 34)
+                
+                Image(systemName: state.isPassThroughMode ? "cursorarrow.slash" : "cursorarrow.and.square.on.square.dashed")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundColor(.white)
+            }
+            .contentShape(Rectangle())
+            .onTapGesture {
+                state.isPassThroughMode.toggle()
+            }
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
@@ -2663,7 +2673,7 @@ struct CaptureOverlaySwiftUIView: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(Color.white.opacity(0.15), lineWidth: 1)
+                .stroke(state.isPassThroughMode ? Color.accentColor.opacity(0.8) : Color.white.opacity(0.15), lineWidth: 1)
         )
         .shadow(color: Color.black.opacity(0.65), radius: 8, y: 3)
     }
@@ -2742,7 +2752,7 @@ class CaptureOverlayHostingView: NSView {
         stateModel.onIsFollowingCursorChanged = { [weak self] following in
             guard let self = self else { return }
             self.window?.invalidateCursorRects(for: self)
-            if following {
+            if following && !self.stateModel.isPassThroughMode {
                 if case .sequence = self.stateModel.mode {
                     NSCursor.hide()
                 }
@@ -2755,6 +2765,18 @@ class CaptureOverlayHostingView: NSView {
                 self.stateModel.quartzLocation = quartzPt
             } else {
                 NSCursor.unhide()
+            }
+        }
+        
+        stateModel.onPassThroughChanged = { [weak self] isPassThrough in
+            guard let self = self else { return }
+            self.window?.invalidateCursorRects(for: self)
+            if isPassThrough {
+                NSCursor.unhide()
+            } else if self.stateModel.isFollowingCursor {
+                if case .sequence = self.stateModel.mode {
+                    NSCursor.hide()
+                }
             }
         }
         
@@ -2900,6 +2922,20 @@ class CaptureOverlayHostingView: NSView {
     // Dynamically toggle window.ignoresMouseEvents for full passthrough in edit mode
     private func updatePassthrough(quartzPt: CGPoint) {
         guard let win = self.window else { return }
+        
+        // In pass-through mode: ONLY HUD card can be clicked, everything else clicks through to apps underneath!
+        if stateModel.isPassThroughMode {
+            if stateModel.isHudVisible {
+                let hud = stateModel.lastHudCenter
+                if CGRect(x: hud.x - 110, y: hud.y - 30, width: 220, height: 60).contains(quartzPt) {
+                    win.ignoresMouseEvents = false
+                    return
+                }
+            }
+            win.ignoresMouseEvents = true
+            return
+        }
+        
         // If we are actively placing a point (following cursor), we must capture clicks!
         guard !stateModel.isFollowingCursor else {
             win.ignoresMouseEvents = false
@@ -2922,7 +2958,7 @@ class CaptureOverlayHostingView: NSView {
         // Check HUD card
         if stateModel.isHudVisible {
             let hud = stateModel.lastHudCenter
-            if CGRect(x: hud.x - 85, y: hud.y - 30, width: 170, height: 60).contains(quartzPt) {
+            if CGRect(x: hud.x - 110, y: hud.y - 30, width: 220, height: 60).contains(quartzPt) {
                 win.ignoresMouseEvents = false
                 return
             }
@@ -2948,7 +2984,9 @@ class CaptureOverlayHostingView: NSView {
     
     override func resetCursorRects() {
         super.resetCursorRects()
-        if stateModel.isFollowingCursor {
+        if stateModel.isPassThroughMode {
+            addCursorRect(bounds, cursor: .arrow)
+        } else if stateModel.isFollowingCursor {
             addCursorRect(bounds, cursor: .crosshair)
         } else {
             addCursorRect(bounds, cursor: .arrow)
@@ -2957,12 +2995,24 @@ class CaptureOverlayHostingView: NSView {
     
     // MARK: - Hit Testing (Native macOS Click-Through)
     override func hitTest(_ point: NSPoint) -> NSView? {
+        let screenHeight = window?.screen?.frame.height ?? NSScreen.main?.frame.height ?? bounds.height
+        let quartzPt = CGPoint(x: point.x, y: screenHeight - point.y)
+        
+        // In pass-through mode: ONLY HUD card can be clicked!
+        if stateModel.isPassThroughMode {
+            if stateModel.isHudVisible {
+                let hudPos = stateModel.lastHudCenter
+                let hudRect = CGRect(x: hudPos.x - 110, y: hudPos.y - 30, width: 220, height: 60)
+                if hudRect.contains(quartzPt) {
+                    return super.hitTest(point)
+                }
+            }
+            return nil
+        }
+        
         if stateModel.isFollowingCursor {
             return super.hitTest(point)
         }
-        
-        let screenHeight = window?.screen?.frame.height ?? NSScreen.main?.frame.height ?? bounds.height
-        let quartzPt = CGPoint(x: point.x, y: screenHeight - point.y)
         
         // During edit: only capture clicks directly on/near pins
         for p in stateModel.points {
@@ -2974,7 +3024,7 @@ class CaptureOverlayHostingView: NSView {
         // Or clicks directly on the HUD card
         if stateModel.isHudVisible {
             let hudPos = stateModel.lastHudCenter
-            let hudRect = CGRect(x: hudPos.x - 85, y: hudPos.y - 30, width: 170, height: 60)
+            let hudRect = CGRect(x: hudPos.x - 110, y: hudPos.y - 30, width: 220, height: 60)
             if hudRect.contains(quartzPt) {
                 return super.hitTest(point)
             }
