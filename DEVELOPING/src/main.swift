@@ -2619,12 +2619,16 @@ struct CaptureOverlaySwiftUIView: View {
 // ==========================================
 // MARK: - Capture Overlay NSView Host
 // ==========================================
+// ==========================================
+// MARK: - Capture Overlay NSView Host
+// ==========================================
 class CaptureOverlayHostingView: NSView {
     var mode: CaptureOverlayWindow.Mode
     var onFinishSequence: ([SequencePoint]) -> Void
     var onCancel: () -> Void
     
     private var trackingArea: NSTrackingArea?
+    private var localKeyMonitor: Any?
     private var stateModel = CaptureOverlayState()
     
     init(mode: CaptureOverlayWindow.Mode,
@@ -2686,6 +2690,20 @@ class CaptureOverlayHostingView: NSView {
             let quartzPt = CGPoint(x: winLoc.x, y: screenHeight - winLoc.y)
             stateModel.currentLocation = winLoc
             stateModel.quartzLocation = quartzPt
+            win.makeFirstResponder(self)
+            
+            if localKeyMonitor == nil {
+                localKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+                    guard let self = self, self.window != nil else { return event }
+                    self.handleKeyEvent(event)
+                    return nil
+                }
+            }
+        } else {
+            if let monitor = localKeyMonitor {
+                NSEvent.removeMonitor(monitor)
+                localKeyMonitor = nil
+            }
         }
     }
     
@@ -2713,7 +2731,7 @@ class CaptureOverlayHostingView: NSView {
         // Hover detection
         var foundIdx: Int? = nil
         for (i, p) in stateModel.points.enumerated() {
-            if dist(quartzPt, p.point) < 28 {
+            if dist(quartzPt, p.point) < 30 {
                 foundIdx = i
                 break
             }
@@ -2753,24 +2771,24 @@ class CaptureOverlayHostingView: NSView {
             stateModel.points.append(SequencePoint(point: stateModel.quartzLocation, type: newType))
             stateModel.selectedPointIndex = stateModel.points.count - 1
         } else {
-            // Edit phase
+            // Edit phase: only grab a pin if clicked on/near it
             if let h = stateModel.hoveredIndex {
                 stateModel.activeDraggingIndex = h
                 stateModel.selectedPointIndex = h
-            } else if !stateModel.points.isEmpty {
-                // Clicked canvas: find closest point to select or adjust
-                var closestIdx = 0
-                var minDist = dist(stateModel.quartzLocation, stateModel.points[0].point)
-                for i in 1..<stateModel.points.count {
-                    let d = dist(stateModel.quartzLocation, stateModel.points[i].point)
-                    if d < minDist {
-                        minDist = d
-                        closestIdx = i
+            } else {
+                var found: Int? = nil
+                for (i, p) in stateModel.points.enumerated() {
+                    if dist(stateModel.quartzLocation, p.point) <= 32 {
+                        found = i
+                        break
                     }
                 }
-                stateModel.selectedPointIndex = closestIdx
-                stateModel.points[closestIdx].point = stateModel.quartzLocation
-                stateModel.activeDraggingIndex = closestIdx
+                if let f = found {
+                    stateModel.selectedPointIndex = f
+                    stateModel.activeDraggingIndex = f
+                } else {
+                    stateModel.activeDraggingIndex = nil
+                }
             }
         }
     }
@@ -2779,13 +2797,13 @@ class CaptureOverlayHostingView: NSView {
         mouseDown(with: event)
     }
     
-    override func keyDown(with event: NSEvent) {
+    private func handleKeyEvent(_ event: NSEvent) {
         if event.keyCode == 53 { // Esc
             onCancel()
         } else if event.keyCode == 36 || event.keyCode == 76 || event.keyCode == 49 { // Return / Enter / Space
             if stateModel.phase == .recording {
                 if !stateModel.points.isEmpty {
-                    // First Enter: Switch to Review & Edit mode! (Belum OK, bisa diedit dulu)
+                    // First Enter: Switch to Review & Edit mode!
                     stateModel.phase = .editing
                     stateModel.selectedPointIndex = stateModel.points.count - 1
                 } else {
@@ -2795,7 +2813,7 @@ class CaptureOverlayHostingView: NSView {
                     stateModel.selectedPointIndex = 0
                 }
             } else {
-                // Second Enter: Final Confirm & Save! (Baru jadi)
+                // Second Enter: Final Confirm & Save!
                 stateModel.onConfirmAll?()
             }
         } else if event.keyCode == 15 { // 'R' key for Reset
@@ -2820,6 +2838,10 @@ class CaptureOverlayHostingView: NSView {
         }
     }
     
+    override func keyDown(with event: NSEvent) {
+        handleKeyEvent(event)
+    }
+    
     override var acceptsFirstResponder: Bool { true }
 }
 
@@ -2828,6 +2850,9 @@ class CaptureOverlayHostingView: NSView {
 // ==========================================
 class CaptureOverlayWindow: NSWindow {
     static var shared: CaptureOverlayWindow?
+    
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { true }
     
     enum Mode {
         case click(button: CGMouseButton = .left, initialPoint: CGPoint? = nil)
@@ -2921,6 +2946,7 @@ class CaptureOverlayWindow: NSWindow {
         
         self.contentView = overlayView
         self.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
     }
     
     func closeWindow() {
