@@ -658,9 +658,7 @@ class ShortKingParser {
                     }
                 }
             }
-            if !pts.isEmpty {
-                return .path(points: pts)
-            }
+            return .path(points: pts)
         case "type":
             var t = s.dropFirst(cmd.count).trimmingCharacters(in: .whitespaces)
             if t.hasPrefix("\"") && t.hasSuffix("\"") && t.count >= 2 { t = String(t.dropFirst().dropLast()) }
