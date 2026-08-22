@@ -5016,7 +5016,7 @@ struct FolderInspectorView: View {
                                 isFolderNameFocused = true
                             }
                     } else {
-                        Text(folderName)
+                        Text(folderName.toTitleCase())
                             .font(.system(size: 20, weight: .bold))
                             .foregroundColor(.white)
                             .lineLimit(1)
