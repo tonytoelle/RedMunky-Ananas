@@ -143,6 +143,7 @@ enum MacroAction: Equatable {
     case pressShortcut(trigger: Trigger)
     case doAgain(target: DoAgainTarget)
     case moveCursor(point: CGPoint)
+    case openFile(path: String)
     case customAction(script: String)
     case volumeUp
     case volumeDown
@@ -161,6 +162,7 @@ enum MacroAction: Equatable {
         case .pressKey, .pressShortcut: return "keyboard"
         case .doAgain:      return "arrow.counterclockwise"
         case .moveCursor:   return "cursorarrow.motionlines"
+        case .openFile:     return "arrow.up.forward.app"
         case .customAction: return "terminal"
         case .volumeUp:     return "speaker.wave.3.fill"
         case .volumeDown:   return "speaker.wave.1.fill"
@@ -180,6 +182,7 @@ enum MacroAction: Equatable {
         case .pressKey, .pressShortcut: return Color(red: 0.32, green: 0.28, blue: 0.72)
         case .doAgain:      return Color(red: 0.12, green: 0.58, blue: 0.65)
         case .moveCursor:   return Color(red: 0.28, green: 0.52, blue: 0.92)
+        case .openFile:     return Color(red: 0.1, green: 0.65, blue: 0.6)
         case .customAction: return Color.pink
         case .volumeUp, .volumeDown: return Color.blue
         case .brightnessUp, .brightnessDown: return Color.orange
@@ -197,6 +200,7 @@ enum MacroAction: Equatable {
         case .pressKey, .pressShortcut: return "Key Press"
         case .doAgain:              return "Do Again"
         case .moveCursor:           return "Move Cursor"
+        case .openFile:             return "Open File"
         case .customAction:         return "Custom Action"
         case .volumeUp:             return "Volume Up"
         case .volumeDown:           return "Volume Down"
@@ -226,6 +230,8 @@ enum MacroAction: Equatable {
             }
         case .moveCursor(let p):
             return "Move cursor to coordinates (\(Int(p.x)), \(Int(p.y)))"
+        case .openFile(let path):
+            return "Open file or app at: \(path)"
         case .customAction(let script):
             return "Run command: \(script)"
         case .volumeUp:
@@ -267,6 +273,8 @@ enum MacroAction: Equatable {
             }
         case .moveCursor(let point):
             return "\(Int(point.x)), \(Int(point.y))"
+        case .openFile(let path):
+            return path.isEmpty ? "Choose file..." : URL(fileURLWithPath: path).lastPathComponent
         case .customAction(let script):
             return script
         case .volumeUp:
@@ -307,6 +315,8 @@ enum MacroAction: Equatable {
             }
         case .moveCursor(let p):
             return "ACTION: move \(Int(p.x)) \(Int(p.y))"
+        case .openFile(let path):
+            return "ACTION: open_file \"\(path)\""
         case .customAction(let script):
             return "ACTION: custom_action \"\(script)\""
         case .volumeUp:
@@ -695,6 +705,10 @@ class ShortKingParser {
                 }
             }
             return .doAgain(target: .origin)
+        case "open_file":
+            var t = s.dropFirst(cmd.count).trimmingCharacters(in: .whitespaces)
+            if t.hasPrefix("\"") && t.hasSuffix("\"") && t.count >= 2 { t = String(t.dropFirst().dropLast()) }
+            return .openFile(path: t)
         case "custom_action":
             var t = s.dropFirst(cmd.count).trimmingCharacters(in: .whitespaces)
             if t.hasPrefix("\"") && t.hasSuffix("\"") && t.count >= 2 { t = String(t.dropFirst().dropLast()) }
@@ -1127,6 +1141,14 @@ class InputSimulator {
                     moveEvent?.flags = []
                     moveEvent?.post(tap: .cghidEventTap)
                     usleep(30000)
+                    
+                case .openFile(let path):
+                    guard !isEmergencyStopped else { return }
+                    if !path.isEmpty {
+                        let url = URL(fileURLWithPath: path)
+                        NSWorkspace.shared.open(url)
+                    }
+                    usleep(150000)
                     
                 case .customAction(let script):
                     guard !isEmergencyStopped else { return }
@@ -3996,6 +4018,76 @@ struct InlineCustomActionEditView: View {
     }
 }
 
+struct InlineOpenFileEditView: View {
+    @Binding var action: MacroAction
+    var onPreSave: () -> Void
+    var onSave: () -> Void
+    let detailWidth: CGFloat
+    
+    @State private var pathValue: String = ""
+    
+    var body: some View {
+        HStack(spacing: 6) {
+            Button(action: {
+                selectFile()
+            }) {
+                HStack(spacing: 4) {
+                    Image(systemName: "folder.badge.plus")
+                        .font(.system(size: 11))
+                    Text(pathValue.isEmpty ? "Choose File..." : URL(fileURLWithPath: pathValue).lastPathComponent)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                .foregroundColor(.white)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color.white.opacity(0.12))
+                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .help(pathValue.isEmpty ? "No file selected" : pathValue)
+        }
+        .onAppear {
+            if case .openFile(let path) = action {
+                pathValue = path
+            }
+        }
+        .onChange(of: action) { _, newValue in
+            if case .openFile(let path) = newValue {
+                pathValue = path
+            }
+        }
+    }
+    
+    private func selectFile() {
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = true
+        panel.title = "Select File or Application to Open"
+        
+        // Force the modal to run on main thread to avoid threading issues
+        if Thread.isMainThread {
+            if panel.runModal() == .OK, let url = panel.url {
+                onPreSave()
+                pathValue = url.path
+                action = .openFile(path: url.path)
+                onSave()
+            }
+        } else {
+            DispatchQueue.main.sync {
+                if panel.runModal() == .OK, let url = panel.url {
+                    onPreSave()
+                    pathValue = url.path
+                    action = .openFile(path: url.path)
+                    onSave()
+                }
+            }
+        }
+    }
+}
+
 struct InlineDelayEditView: View {
     @Binding var action: MacroAction
     var onPreSave: () -> Void
@@ -4460,6 +4552,8 @@ struct ActionCardView: View {
                             }
                     case .typeText, .pasteText:
                         InlineTextEditView(action: $item.action, onPreSave: onPreSave, onSave: onSave, detailWidth: detailWidth)
+                    case .openFile:
+                        InlineOpenFileEditView(action: $item.action, onPreSave: onPreSave, onSave: onSave, detailWidth: detailWidth)
                     case .customAction:
                         InlineCustomActionEditView(action: $item.action, onPreSave: onPreSave, onSave: onSave, detailWidth: detailWidth)
                     case .delay:
@@ -5533,6 +5627,12 @@ struct MacroInspectorView: View {
                     quickActionButton(title: "Custom", icon: "terminal", color: Color.pink) {
                         store.registerUndoState(for: macro)
                         macro.actionItems.append(MacroActionItem(action: .customAction(script: "osascript -e 'set volume output volume (output volume of (get volume settings) + 6)'")))
+                        store.saveMacro(macro)
+                    }
+
+                    quickActionButton(title: "Open File", icon: "arrow.up.forward.app", color: Color(red: 0.1, green: 0.65, blue: 0.6)) {
+                        store.registerUndoState(for: macro)
+                        macro.actionItems.append(MacroActionItem(action: .openFile(path: "")))
                         store.saveMacro(macro)
                     }
 
