@@ -3414,8 +3414,8 @@ class ExecutionCursorOverlayWindow: NSPanel {
             let targetW = baseSize.width * scaleFactor
             let targetH = baseSize.height * scaleFactor
 
-            // Offset the window slightly (3px left, 4px up) to align the cursor arrow's tip/hotspot with the target coordinate
-            let offsetLeft = 3.0 * scaleFactor
+            // Offset the window slightly (5px left, 4px up) to align the cursor arrow's tip/hotspot with the target coordinate
+            let offsetLeft = 5.0 * scaleFactor
             let offsetTop = 4.0 * scaleFactor
             let frame = NSRect(x: cocoaX - offsetLeft, y: (cocoaY - targetH) + offsetTop, width: targetW, height: targetH)
 
