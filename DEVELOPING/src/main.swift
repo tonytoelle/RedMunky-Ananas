@@ -5944,6 +5944,7 @@ struct MainEditorView: View {
                         Rectangle()
                             .fill(Color(white: 0.18))
                             .frame(width: 1)
+                            .padding(.top, 38)
                     }
                     .frame(width: 12)
                     .contentShape(Rectangle())
