@@ -870,12 +870,12 @@ class InputSimulator {
             return CGPoint(x: cocoaPt.x, y: screenH - cocoaPt.y)
         }()
         
-        // Show ghost cursor at origin + hide real cursor for the duration of execution
+        // Hide real cursor + show ghost at origin for the duration of execution
+        CGDisplayHideCursor(CGMainDisplayID())
         ExecutionCursorOverlayWindow.show(at: originQuartzPos)
-        DispatchQueue.main.async { NSCursor.hide() }
         defer {
+            CGDisplayShowCursor(CGMainDisplayID())
             ExecutionCursorOverlayWindow.hide()
-            DispatchQueue.main.async { NSCursor.unhide() }
         }
         
         // Initial delay allowing user to release physical hotkey combination
