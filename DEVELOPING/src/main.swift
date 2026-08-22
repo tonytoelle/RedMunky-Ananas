@@ -6091,7 +6091,7 @@ class EditorWindow: NSWindow {
 // ==========================================
 // MARK: - App Delegate with Complete Standard Menu Bar & Settings Window
 // ==========================================
-class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
+class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDelegate {
     static var shared: AppDelegate?
 
     var statusItem: NSStatusItem!
@@ -6369,6 +6369,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     // MARK: - Actions
     @objc func showEditorWindow() {
+        NSApp.setActivationPolicy(.regular)
         if window == nil {
             let win = EditorWindow(
                 contentRect: NSRect(x: 0, y: 0, width: 1000, height: 710),
@@ -6382,6 +6383,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             win.titleVisibility = .hidden
             win.contentViewController = NSHostingController(rootView: MainEditorView())
             win.isReleasedWhenClosed = false
+            win.delegate = self
             window = win
             
             let alwaysOnTop = UserDefaults.standard.bool(forKey: "alwaysOnTop")
@@ -6419,6 +6421,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc func showSettingsWindow() {
+        NSApp.setActivationPolicy(.regular)
         if settingsWindow == nil {
             let win = NSWindow(
                 contentRect: NSRect(x: 0, y: 0, width: 720, height: 480),
@@ -6430,10 +6433,24 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             win.titleVisibility = .hidden
             win.contentViewController = NSHostingController(rootView: SettingsView())
             win.isReleasedWhenClosed = false
+            win.delegate = self
             settingsWindow = win
         }
         NSApp.activate(ignoringOtherApps: true)
         settingsWindow?.makeKeyAndOrderFront(nil)
+    }
+
+    // MARK: - NSWindowDelegate
+    func windowShouldClose(_ sender: NSWindow) -> Bool {
+        sender.orderOut(nil)
+        
+        let isEditorVisible = window?.isVisible == true && sender != window
+        let isSettingsVisible = settingsWindow?.isVisible == true && sender != settingsWindow
+        
+        if !isEditorVisible && !isSettingsVisible {
+            NSApp.setActivationPolicy(.accessory)
+        }
+        return false
     }
 
     @objc func newMacro() {
