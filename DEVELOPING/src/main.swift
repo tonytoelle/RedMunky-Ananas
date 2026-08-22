@@ -2322,10 +2322,10 @@ struct CaptureOverlaySwiftUIView: View {
     var body: some View {
         GeometryReader { geo in
             ZStack {
-                // Subtle dark tint only during recording so pins stand out; transparent during edit
-                Color.black.opacity(state.phase == .recording ? 0.12 : 0.0)
+                // Completely transparent background with no dimming in any phase
+                Color.clear
                     .edgesIgnoringSafeArea(.all)
-                    .allowsHitTesting(state.phase == .recording)
+                    .allowsHitTesting(false)
                 
                 // ─────────────────────────────────────────────
                 // CONNECTING PATH LINES BETWEEN PINS (Color Gradient)
@@ -3994,6 +3994,40 @@ struct ActionCardView: View {
             let modifiers = NSEvent.modifierFlags
             if let selected = MacroStore.shared.selectedMacro {
                 store.handleActionSelect(item.id, items: selected.actionItems, modifiers: modifiers)
+                
+                // Automatically show overlay pins on selection
+                if store.selectedActionIDs.contains(item.id) {
+                    switch item.action {
+                    case .click(let point, let button):
+                        CaptureOverlayWindow.shared?.orderOut(nil)
+                        CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .click(button: button, initialPoint: point)) { newPoint in
+                            onPreSave()
+                            item.action = .click(point: newPoint, button: button)
+                            onSave()
+                        }
+                    case .drag(let start, let end):
+                        CaptureOverlayWindow.shared?.orderOut(nil)
+                        CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .drag(initialStart: start, initialEnd: end)) { newStart, newEnd in
+                            onPreSave()
+                            item.action = .drag(start: newStart, end: newEnd)
+                            onSave()
+                        }
+                    case .path(let points):
+                        CaptureOverlayWindow.shared?.orderOut(nil)
+                        CaptureOverlayWindow.shared = CaptureOverlayWindow(initialPoints: points, defaultType: .move) { newPts in
+                            guard !newPts.isEmpty else { return }
+                            onPreSave()
+                            item.action = .path(points: newPts)
+                            onSave()
+                        }
+                    default:
+                        CaptureOverlayWindow.shared?.orderOut(nil)
+                        CaptureOverlayWindow.shared = nil
+                    }
+                } else {
+                    CaptureOverlayWindow.shared?.orderOut(nil)
+                    CaptureOverlayWindow.shared = nil
+                }
             }
         }
         .contextMenu {
