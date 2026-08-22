@@ -2232,7 +2232,12 @@ class CaptureOverlayState: ObservableObject {
     @Published var mode: CaptureOverlayWindow.Mode = .click(button: .left, initialPoint: nil)
     @Published var currentLocation: CGPoint = .zero       // In Cocoa window coordinates (bottom-left origin)
     @Published var quartzLocation: CGPoint = .zero        // In Quartz display coordinates (top-left origin)
-    @Published var isFollowingCursor: Bool = true         // New flag for intuitive UX flow
+    var onIsFollowingCursorChanged: ((Bool) -> Void)? = nil
+    @Published var isFollowingCursor: Bool = true {
+        didSet {
+            onIsFollowingCursorChanged?(isFollowingCursor)
+        }
+    }
     
     @Published var points: [SequencePoint] = []
     @Published var activeDraggingIndex: Int? = nil
@@ -2708,6 +2713,19 @@ class CaptureOverlayHostingView: NSView {
         } else {
             stateModel.phase = .recording
             stateModel.isFollowingCursor = true
+        }
+        
+        stateModel.onIsFollowingCursorChanged = { [weak self] following in
+            guard let self = self else { return }
+            if following {
+                self.window?.ignoresMouseEvents = false
+                
+                // Get current mouse location instantly
+                let mouseLoc = NSEvent.mouseLocation
+                let screenHeight = self.window?.screen?.frame.height ?? NSScreen.main?.frame.height ?? 1080
+                let quartzPt = CGPoint(x: mouseLoc.x, y: screenHeight - mouseLoc.y)
+                self.stateModel.quartzLocation = quartzPt
+            }
         }
         
         stateModel.onConfirmAll = { [weak self] in
