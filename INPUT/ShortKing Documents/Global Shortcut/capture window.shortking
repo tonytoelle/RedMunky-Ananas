@@ -2,4 +2,9 @@
 TRIGGER: shift+f3
 
 # Actions:
-ACTION: custom_action "screencapture -i -w"
+# 1. Press Cmd+Shift+4 to open interactive screenshot cursor
+ACTION: press_shortcut cmd+shift+4
+# 2. Delay slightly for the overlay to appear
+ACTION: delay 150
+# 3. Press Spacebar to toggle camera (window capture) mode
+ACTION: press space
