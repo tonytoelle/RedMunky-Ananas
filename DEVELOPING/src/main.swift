@@ -1994,7 +1994,7 @@ class MacroStore: ObservableObject {
         let url = targetDir.appendingPathComponent(fileName)
         self.selectedFilePath = url.path
         let t = Trigger(keyCode: 40, requireCmd: true, requireShift: true, requireOption: false, requireControl: false)
-        let a: [MacroAction] = [.delay(ms: 500), .typeText(text: "Hello ShortKing!")]
+        let a: [MacroAction] = []
         try? ShortKingParser.generateScript(triggers: [t], actions: a).write(to: url, atomically: true, encoding: .utf8)
         loadMacros()
     }
@@ -4820,6 +4820,25 @@ struct DraggableActionList: View {
 
     var body: some View {
         LazyVStack(spacing: 8) {
+            if actionItems.isEmpty {
+                VStack(spacing: 8) {
+                    Image(systemName: "plus.circle")
+                        .font(.system(size: 16))
+                        .foregroundColor(.secondary.opacity(0.8))
+                    
+                    Text("Add action from below")
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .foregroundColor(.secondary.opacity(0.8))
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 24)
+                .background(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(Color.white.opacity(0.08), style: StrokeStyle(lineWidth: 1.2, lineCap: .round, dash: [4, 4]))
+                )
+                .padding(.vertical, 4)
+            }
+            
             // Show implicit "Origin Recorded" indicator when a doAgain(.origin) action exists
             if actionItems.contains(where: { if case .doAgain(let t) = $0.action, case .origin = t { return true }; return false }) {
                 HStack(spacing: 6) {
