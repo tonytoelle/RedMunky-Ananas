@@ -4372,78 +4372,37 @@ struct PermissionBannerView: View {
 }
 
 // ==========================================
-// MARK: - Main 3-Column Editor View
-// ==========================================
-// ==========================================
-// ==========================================
-// MARK: - macOS System Settings 100% Authentic Replica
+// MARK: - ShortKing Native Settings
 // ==========================================
 
 enum SettingsCategory: String, CaseIterable, Identifiable {
-    case network = "Network"
-    case wifi = "Wi-Fi"
-    case bluetooth = "Bluetooth"
-    case battery = "Battery"
     case general = "General"
-    case accessibility = "Accessibility"
-    case appearance = "Appearance"
-    case siri = "Apple Intelligence & Siri"
-    case desktop = "Desktop & Dock"
-    case displays = "Displays"
-    case menubar = "Menu Bar"
-    case spotlight = "Spotlight"
-    case emergency = "Emergency Stop"
+    case permissions = "Permissions & Security"
+    case engine = "Macro Engine"
+    case appearance = "Appearance & Editor"
+    case about = "About ShortKing"
 
     var id: String { rawValue }
 
     var iconName: String {
         switch self {
-        case .network:       return "globe"
-        case .wifi:          return "wifi"
-        case .bluetooth:     return "dot.radiowaves.left.and.right"
-        case .battery:       return "battery.100.bolt"
-        case .general:       return "gearshape.fill"
-        case .accessibility: return "figure.arms.open"
-        case .appearance:    return "circle.lefthalf.filled"
-        case .siri:          return "sparkles"
-        case .desktop:       return "macwindow.dock.rectangle"
-        case .displays:      return "sun.max.fill"
-        case .menubar:       return "switch.2"
-        case .spotlight:     return "magnifyingglass"
-        case .emergency:     return "xmark.octagon.fill"
+        case .general:     return "gearshape.fill"
+        case .permissions: return "lock.shield.fill"
+        case .engine:      return "bolt.fill"
+        case .appearance:  return "paintbrush.fill"
+        case .about:       return "info.circle.fill"
         }
     }
 
     var iconColor: Color {
         switch self {
-        case .network:       return Color(red: 0.05, green: 0.5, blue: 0.95)
-        case .wifi:          return Color.blue
-        case .bluetooth:     return Color(red: 0.1, green: 0.65, blue: 0.95)
-        case .battery:       return Color.green
-        case .general:       return Color.gray
-        case .accessibility: return Color(red: 0.1, green: 0.55, blue: 0.95)
-        case .appearance:    return Color(white: 0.3)
-        case .siri:          return Color(red: 0.95, green: 0.45, blue: 0.5)
-        case .desktop:       return Color.gray
-        case .displays:      return Color.blue
-        case .menubar:       return Color.gray
-        case .spotlight:     return Color.blue
-        case .emergency:     return Color.red
+        case .general:     return Color(red: 0.15, green: 0.55, blue: 0.98)
+        case .permissions: return Color(red: 0.20, green: 0.78, blue: 0.35)
+        case .engine:      return Color(red: 1.00, green: 0.58, blue: 0.00)
+        case .appearance:  return Color(red: 0.70, green: 0.35, blue: 0.95)
+        case .about:       return Color(red: 0.30, green: 0.65, blue: 0.98)
         }
     }
-}
-
-// Drill-down Sub-Pages
-enum SettingsSubpage: String, Identifiable {
-    case generalSubpage
-    case wifiSubpage
-    case firewallSubpage
-    case thunderboltSubpage
-    case macroStorageSubpage
-    case accessibilitySubpage
-    case emergencySubpage
-
-    var id: String { rawValue }
 }
 
 struct SettingsView: View {
@@ -4451,222 +4410,177 @@ struct SettingsView: View {
     @ObservedObject var permissions = PermissionManager.shared
     @ObservedObject var launchAtLogin = LaunchAtLoginManager.shared
 
-    @State private var selectedCategory: SettingsCategory = .network
+    @State private var selectedCategory: SettingsCategory = .general
     @State private var searchText = ""
-    @State private var navigationStack: [SettingsSubpage] = []
     @FocusState private var isSearchFocused: Bool
 
-    @AppStorage("soundOnEmergency") private var soundOnEmergency: Bool = true
-    @AppStorage("defaultTextMode") private var defaultTextMode: Int = 0
-    @AppStorage("firewallEnabled") private var firewallEnabled: Bool = false
-    @AppStorage("wifiEnabled") private var wifiEnabled: Bool = true
+    // General Settings
+    @AppStorage("alwaysOnTop") private var alwaysOnTop: Bool = false
+    @AppStorage("showInMenuBar") private var showInMenuBar: Bool = true
+    @AppStorage("showInDock") private var showInDock: Bool = true
 
-    var canGoBack: Bool { !navigationStack.isEmpty }
+    // Emergency & Feedback Settings
+    @AppStorage("soundOnEmergency") private var soundOnEmergency: Bool = true
+    @AppStorage("soundOnComplete") private var soundOnComplete: Bool = true
+    @AppStorage("soundOnError") private var soundOnError: Bool = true
+    @AppStorage("showOSDFeedback") private var showOSDFeedback: Bool = true
+
+    // Engine Delays & Safety Limits
+    @AppStorage("defaultStepDelay") private var defaultStepDelay: Double = 0.05
+    @AppStorage("maxLoopIterations") private var maxLoopIterations: Int = 1000
+
+    // Appearance & Editor
+    @AppStorage("showActionIndices") private var showActionIndices: Bool = true
+    @AppStorage("compactActionCards") private var compactActionCards: Bool = false
+    @AppStorage("showTriggerBadgesInSidebar") private var showTriggerBadgesInSidebar: Bool = true
+
+    var filteredCategories: [SettingsCategory] {
+        if searchText.trimmingCharacters(in: .whitespaces).isEmpty {
+            return SettingsCategory.allCases
+        }
+        let query = searchText.lowercased()
+        return SettingsCategory.allCases.filter { category in
+            if category.rawValue.lowercased().contains(query) { return true }
+            switch category {
+            case .general:
+                return "login startup boot dock menubar always on top folder watch directory document path".contains(query)
+            case .permissions:
+                return "accessibility input monitoring permission privacy security panic emergency stop shortcut cmd control shift x".contains(query)
+            case .engine:
+                return "delay timing speed loop safety iterations sound feedback audio display brightness".contains(query)
+            case .appearance:
+                return "editor appearance theme index badge compact cards numbers layout".contains(query)
+            case .about:
+                return "about version documentation learn help reset defaults".contains(query)
+            }
+        }
+    }
 
     var body: some View {
         HSplitView {
             // ═══════════════════════════════════════════════════
-            // LEFT SIDEBAR (Exact macOS System Settings Layout)
+            // LEFT SIDEBAR (Clean Dark Navigation)
             // ═══════════════════════════════════════════════════
             VStack(alignment: .leading, spacing: 0) {
-                // Search Capsule Pill
+                // Search Pill Field
                 HStack(spacing: 6) {
                     Image(systemName: "magnifyingglass")
                         .foregroundColor(.secondary)
-                        .font(.system(size: 13))
-                    TextField("Search", text: $searchText)
+                        .font(.system(size: 12))
+                    TextField("Search Settings…", text: $searchText)
                         .textFieldStyle(.plain)
-                        .font(.system(size: 13))
+                        .font(.system(size: 12))
                         .focused($isSearchFocused)
-                        .onSubmit {
-                            isSearchFocused = false
-                        }
                     if !searchText.isEmpty {
                         Button { searchText = "" } label: {
                             Image(systemName: "xmark.circle.fill")
                                 .foregroundColor(.secondary)
+                                .font(.system(size: 12))
                         }
                         .buttonStyle(.plain)
                     }
                 }
-                .padding(.horizontal, 9)
-                .padding(.vertical, 6)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 5)
                 .background(Color(white: 0.20))
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                .padding(.horizontal, 12)
-                .padding(.top, 14)
-                .padding(.bottom, 10)
+                .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                .padding(.horizontal, 10)
+                .padding(.top, 12)
+                .padding(.bottom, 8)
 
-                // Categories ScrollView
+                // Category List
                 ScrollView(showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        // Connectivity Group
-                        sidebarRow(category: .wifi)
-                        sidebarRow(category: .bluetooth)
-                        sidebarRow(category: .network)
-                        sidebarRow(category: .battery)
-
-                        Divider()
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 6)
-
-                        // System Group
-                        sidebarRow(category: .general)
-                        sidebarRow(category: .accessibility)
-                        sidebarRow(category: .appearance)
-                        sidebarRow(category: .siri)
-                        sidebarRow(category: .desktop)
-                        sidebarRow(category: .displays)
-                        sidebarRow(category: .menubar)
-                        sidebarRow(category: .spotlight)
-                        sidebarRow(category: .emergency)
+                    VStack(alignment: .leading, spacing: 3) {
+                        ForEach(filteredCategories) { category in
+                            sidebarButton(category: category)
+                        }
                     }
                     .padding(.horizontal, 8)
-                    .padding(.bottom, 12)
+                    .padding(.bottom, 10)
                 }
             }
             .frame(width: 220)
             .background(Color(white: 0.12))
 
             // ═══════════════════════════════════════════════════
-            // RIGHT DETAIL CANVAS (Cards, Navigation, Drilldown)
+            // RIGHT DETAIL CANVAS
             // ═══════════════════════════════════════════════════
             VStack(spacing: 0) {
-                // Header Bar (< > Navigation + Page Title)
-                HStack(spacing: 12) {
-                    HStack(spacing: 0) {
-                        Button {
-                            if !navigationStack.isEmpty {
-                                navigationStack.removeLast()
-                            }
-                        } label: {
-                            Image(systemName: "chevron.left")
-                                .font(.system(size: 12, weight: .semibold))
-                                .frame(width: 28, height: 24)
-                                .foregroundColor(canGoBack ? .white : .secondary.opacity(0.3))
-                        }
-                        .disabled(!canGoBack)
-                        .buttonStyle(.plain)
-
-                        Divider().frame(height: 14)
-
-                        Button { } label: {
-                            Image(systemName: "chevron.right")
-                                .font(.system(size: 12, weight: .semibold))
-                                .frame(width: 28, height: 24)
-                                .foregroundColor(.secondary.opacity(0.3))
-                        }
-                        .disabled(true)
-                        .buttonStyle(.plain)
+                // Title Bar Header
+                HStack(spacing: 10) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .fill(selectedCategory.iconColor.opacity(0.2))
+                            .frame(width: 28, height: 28)
+                        Image(systemName: selectedCategory.iconName)
+                            .foregroundColor(selectedCategory.iconColor)
+                            .font(.system(size: 14, weight: .semibold))
                     }
-                    .background(Color(white: 0.22))
-                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
 
-                    Text(currentDetailTitle)
-                        .font(.system(size: 15, weight: .semibold))
+                    Text(selectedCategory.rawValue)
+                        .font(.system(size: 16, weight: .bold))
                         .foregroundColor(.white)
 
                     Spacer()
                 }
                 .padding(.horizontal, 22)
-                .padding(.top, 14)
-                .padding(.bottom, 14)
+                .padding(.top, 16)
+                .padding(.bottom, 12)
+                .background(Color(white: 0.14))
+                .overlay(Rectangle().frame(height: 1).foregroundColor(Color.white.opacity(0.06)), alignment: .bottom)
 
-                Divider()
-
-                // Content View (Overview Cards or Sub-pages)
-                ScrollView(showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 14) {
-                        if let subpage = navigationStack.last {
-                            renderSubpage(subpage)
-                        } else {
-                            renderCategoryOverview()
+                // Scrollable Content
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        switch selectedCategory {
+                        case .general:
+                            renderGeneralSettings()
+                        case .permissions:
+                            renderPermissionsSettings()
+                        case .engine:
+                            renderEngineSettings()
+                        case .appearance:
+                            renderAppearanceSettings()
+                        case .about:
+                            renderAboutSettings()
                         }
                     }
                     .padding(22)
                 }
-
-                // Footer (••• ⌄ and ?)
-                HStack {
-                    Spacer()
-                    Button { } label: {
-                        HStack(spacing: 4) {
-                            Text("•••")
-                            Image(systemName: "chevron.down").font(.system(size: 8))
-                        }
-                        .font(.system(size: 11))
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 9).padding(.vertical, 5)
-                        .background(Color(white: 0.22))
-                        .cornerRadius(6)
-                    }
-                    .buttonStyle(.plain)
-
-                    Button {
-                        let learnURL = URL(fileURLWithPath: "/Users/tonytoelle/Documents/PROJECTS/RedMunky - ShortKing/LEARN")
-                        NSWorkspace.shared.open(learnURL)
-                    } label: {
-                        Image(systemName: "questionmark")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundColor(.white)
-                            .frame(width: 22, height: 22)
-                            .background(Color(white: 0.22))
-                            .clipShape(Circle())
-                    }
-                    .buttonStyle(.plain)
-                }
-                .padding(.horizontal, 18)
-                .padding(.bottom, 12)
             }
-            .frame(minWidth: 440)
+            .frame(minWidth: 480)
             .background(Color(white: 0.14))
         }
-        .frame(width: 680, height: 480)
+        .frame(width: 740, height: 530)
     }
 
-    private var currentDetailTitle: String {
-        if let sub = navigationStack.last {
-            switch sub {
-            case .generalSubpage:      return "General & Login Items"
-            case .wifiSubpage:         return "Wi-Fi"
-            case .firewallSubpage:     return "Firewall"
-            case .thunderboltSubpage:  return "Thunderbolt Bridge"
-            case .macroStorageSubpage: return "Macro Watch Directory"
-            case .accessibilitySubpage: return "Accessibility Permissions"
-            case .emergencySubpage:    return "Emergency Stop"
-            }
-        }
-        return selectedCategory.rawValue
-    }
-
-    // Sidebar Row with macOS Highlight
+    // Sidebar Row
     @ViewBuilder
-    private func sidebarRow(category: SettingsCategory) -> some View {
+    private func sidebarButton(category: SettingsCategory) -> some View {
         Button {
             selectedCategory = category
-            navigationStack.removeAll()
         } label: {
-            HStack(spacing: 10) {
+            HStack(spacing: 9) {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    RoundedRectangle(cornerRadius: 5, style: .continuous)
                         .fill(category.iconColor)
-                        .frame(width: 24, height: 24)
+                        .frame(width: 22, height: 22)
                     Image(systemName: category.iconName)
                         .foregroundColor(.white)
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(.system(size: 11, weight: .semibold))
                 }
 
                 Text(category.rawValue)
-                    .font(.system(size: 13, weight: selectedCategory == category ? .medium : .regular))
+                    .font(.system(size: 12.5, weight: selectedCategory == category ? .semibold : .regular))
                     .foregroundColor(selectedCategory == category ? .white : Color(white: 0.88))
 
                 Spacer()
             }
             .padding(.horizontal, 8)
-            .padding(.vertical, 5)
+            .padding(.vertical, 6)
             .background(
                 selectedCategory == category
-                    ? Color(red: 0.05, green: 0.45, blue: 0.95) // Vibrant Apple blue selection
+                    ? Color(red: 0.10, green: 0.48, blue: 0.95)
                     : Color.clear
             )
             .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
@@ -4674,183 +4588,537 @@ struct SettingsView: View {
         .buttonStyle(.plain)
     }
 
-    // Overview Cards for the Selected Category
+    // ═══════════════════════════════════════════════════
+    // 1. GENERAL SETTINGS PANE
+    // ═══════════════════════════════════════════════════
     @ViewBuilder
-    private func renderCategoryOverview() -> some View {
-        switch selectedCategory {
-        case .general:
-            macOSCard(
-                icon: "power",
-                color: Color.blue,
-                title: "Launch at Login (Auto-Start)",
-                statusDotColor: launchAtLogin.isEnabled ? .green : Color(white: 0.5),
-                statusText: launchAtLogin.isEnabled ? "Enabled (Opens at macOS boot)" : "Disabled"
-            ) {
-                navigationStack.append(.generalSubpage)
+    private func renderGeneralSettings() -> some View {
+        // Startup & Window Behavior Card
+        settingsCard(title: "Startup & Window Behavior", icon: "power", iconColor: .blue) {
+            VStack(spacing: 0) {
+                toggleRow(
+                    title: "Launch at Login (Buka Otomatis saat Startup)",
+                    subtitle: "Starts the ShortKing background macro engine automatically when your Mac turns on or you log in.",
+                    isOn: Binding(
+                        get: { launchAtLogin.isEnabled },
+                        set: { launchAtLogin.setEnabled($0) }
+                    )
+                )
+
+                cardDivider()
+
+                toggleRow(
+                    title: "Always on Top (Jendela Selalu di Atas)",
+                    subtitle: "Keeps the ShortKing Macro Editor floating on top of all other application windows.",
+                    isOn: Binding(
+                        get: { alwaysOnTop },
+                        set: {
+                            alwaysOnTop = $0
+                            AppDelegate.shared?.updateAlwaysOnTop()
+                        }
+                    )
+                )
             }
+        }
 
-            macOSCard(
-                icon: "folder.fill",
-                color: Color(red: 0.05, green: 0.5, blue: 0.95),
-                title: "ShortKing Macro Watcher",
-                statusDotColor: .green,
-                statusText: "Active: \(store.watchDirectoryURL.lastPathComponent)"
-            ) {
-                navigationStack.append(.macroStorageSubpage)
+        // Dock & Menu Bar Visibility Card
+        settingsCard(title: "Dock & Menu Bar Visibility", icon: "menubar.dock.rectangle", iconColor: .teal) {
+            VStack(spacing: 0) {
+                toggleRow(
+                    title: "Show in macOS Menu Bar (Status Bar Item)",
+                    subtitle: "Displays the 👑 ShortKing status icon in the top macOS menu bar for rapid macro triggers.",
+                    isOn: Binding(
+                        get: { showInMenuBar },
+                        set: {
+                            showInMenuBar = $0
+                            AppDelegate.shared?.updateMenuBarVisibility($0)
+                        }
+                    )
+                )
+
+                cardDivider()
+
+                toggleRow(
+                    title: "Show in macOS Dock",
+                    subtitle: "Displays ShortKing in your macOS Dock. Turn off if you prefer running purely in the Menu Bar.",
+                    isOn: Binding(
+                        get: { showInDock },
+                        set: {
+                            showInDock = $0
+                            AppDelegate.shared?.updateDockVisibility($0)
+                        }
+                    )
+                )
             }
+        }
 
-            macOSCard(
-                icon: "figure.arms.open",
-                color: Color.blue,
-                title: "Accessibility (Aksesibilitas)",
-                statusDotColor: permissions.isAccessibilityGranted ? .green : .red,
-                statusText: permissions.isAccessibilityGranted ? "Granted" : "Permission Required"
-            ) {
-                navigationStack.append(.accessibilitySubpage)
-            }
+        // Macro Watch Directory Card
+        settingsCard(title: "Macro Watch Directory (Penyimpanan Dokumen)", icon: "folder.fill", iconColor: Color(red: 0.15, green: 0.65, blue: 0.95)) {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("ShortKing monitors this folder in real-time. Any `.shortking` JSON macro file added or edited here will automatically sync.")
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
 
-            macOSCard(
-                icon: "xmark.octagon.fill",
-                color: Color.red,
-                title: "Emergency Panic Switch",
-                statusDotColor: .red,
-                statusText: "⌘ + ⌃ + ⇧ + X"
-            ) {
-                navigationStack.append(.emergencySubpage)
-            }
+                HStack(spacing: 8) {
+                    Text(store.watchDirectoryURL.path)
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundColor(.white)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .padding(8)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color(white: 0.10))
+                        .cornerRadius(6)
+                }
 
-        case .network, .wifi:
-            // 100% Match to the uploaded screenshot!
-            macOSCard(
-                icon: "wifi",
-                color: Color.blue,
-                title: "Wi-Fi",
-                statusDotColor: .green,
-                statusText: "Connected"
-            ) {
-                navigationStack.append(.wifiSubpage)
-            }
+                HStack(spacing: 10) {
+                    Button {
+                        let panel = NSOpenPanel()
+                        panel.canChooseDirectories = true
+                        panel.canChooseFiles = false
+                        panel.allowsMultipleSelection = false
+                        panel.title = "Pilih Folder Makro ShortKing"
+                        if panel.runModal() == .OK, let url = panel.url {
+                            store.setWatchDirectory(url)
+                        }
+                    } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: "folder.badge.plus")
+                            Text("Choose Folder…")
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
 
-            macOSCard(
-                icon: "arrow.left.arrow.right",
-                color: Color.orange,
-                title: "Firewall",
-                statusDotColor: Color(white: 0.5),
-                statusText: firewallEnabled ? "Active" : "Inactive"
-            ) {
-                navigationStack.append(.firewallSubpage)
-            }
+                    Button {
+                        NSWorkspace.shared.open(store.watchDirectoryURL)
+                    } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: "arrow.up.forward.app")
+                            Text("Reveal in Finder")
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
 
-            Text("Other Services")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundColor(.secondary)
-                .padding(.top, 10)
-                .padding(.leading, 4)
-
-            macOSCard(
-                icon: "bolt.fill",
-                color: Color.gray,
-                title: "Thunderbolt Bridge",
-                statusDotColor: Color(red: 1.0, green: 0.35, blue: 0.35),
-                statusText: "Not connected"
-            ) {
-                navigationStack.append(.thunderboltSubpage)
-            }
-
-            // ShortKing Integration Card
-            macOSCard(
-                icon: "folder.fill",
-                color: Color(red: 0.05, green: 0.5, blue: 0.95),
-                title: "ShortKing Macro Watcher",
-                statusDotColor: .green,
-                statusText: "Active: \(store.watchDirectoryURL.lastPathComponent)"
-            ) {
-                navigationStack.append(.macroStorageSubpage)
-            }
-
-        case .accessibility:
-            macOSCard(
-                icon: "figure.arms.open",
-                color: Color.blue,
-                title: "Accessibility (Aksesibilitas)",
-                statusDotColor: permissions.isAccessibilityGranted ? .green : .red,
-                statusText: permissions.isAccessibilityGranted ? "Granted" : "Permission Required"
-            ) {
-                navigationStack.append(.accessibilitySubpage)
-            }
-
-        case .emergency:
-            macOSCard(
-                icon: "xmark.octagon.fill",
-                color: Color.red,
-                title: "Emergency Panic Switch",
-                statusDotColor: .red,
-                statusText: "⌘ + ⌃ + ⇧ + X"
-            ) {
-                navigationStack.append(.emergencySubpage)
-            }
-
-        default:
-            macOSCard(
-                icon: selectedCategory.iconName,
-                color: selectedCategory.iconColor,
-                title: selectedCategory.rawValue,
-                statusDotColor: .green,
-                statusText: "Operational"
-            ) {
-                navigationStack.append(.macroStorageSubpage)
+                    Button {
+                        store.loadMacros()
+                    } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: "arrow.clockwise")
+                            Text("Reload Macros")
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
             }
         }
     }
 
-    // Reusable Rounded Rectangle Card matching macOS
+    // ═══════════════════════════════════════════════════
+    // 2. PERMISSIONS & SECURITY PANE
+    // ═══════════════════════════════════════════════════
     @ViewBuilder
-    private func macOSCard(
-        icon: String,
-        color: Color,
-        title: String,
-        statusDotColor: Color?,
-        statusText: String?,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            HStack(spacing: 12) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(color)
-                        .frame(width: 32, height: 32)
-                    Image(systemName: icon)
-                        .foregroundColor(.white)
-                        .font(.system(size: 16, weight: .medium))
-                }
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(.white)
-
-                    if let text = statusText {
-                        HStack(spacing: 5) {
-                            if let dot = statusDotColor {
-                                Circle()
-                                    .fill(dot)
-                                    .frame(width: 6, height: 6)
-                            }
-                            Text(text)
+    private func renderPermissionsSettings() -> some View {
+        // macOS Permissions Card
+        settingsCard(title: "macOS System Permissions", icon: "hand.raised.fill", iconColor: .green) {
+            VStack(spacing: 0) {
+                // Accessibility Row
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Accessibility (Aksesibilitas)")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundColor(.white)
+                            Text("Required by macOS to simulate mouse clicks, keyboard shortcuts, drags, and macro events.")
                                 .font(.system(size: 11))
                                 .foregroundColor(.secondary)
                         }
+                        Spacer()
+                        statusBadge(isGranted: permissions.isAccessibilityGranted)
+                    }
+
+                    HStack(spacing: 8) {
+                        if !permissions.isAccessibilityGranted {
+                            Button("Request Permission Prompt") {
+                                permissions.requestAccessibilityPrompt()
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.small)
+                        }
+
+                        Button("Open macOS Privacy Settings") {
+                            permissions.openAccessibilitySettings()
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
                     }
                 }
+                .padding(.vertical, 10)
 
-                Spacer()
+                cardDivider()
 
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(Color.secondary.opacity(0.6))
+                // Input Monitoring Row
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Input Monitoring (Pemantauan Input)")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundColor(.white)
+                            Text("Required to capture global hotkey triggers while other applications are in the foreground.")
+                                .font(.system(size: 11))
+                                .foregroundColor(.secondary)
+                        }
+                        Spacer()
+                        statusBadge(isGranted: permissions.isInputMonitoringGranted)
+                    }
+
+                    HStack(spacing: 8) {
+                        if !permissions.isInputMonitoringGranted {
+                            Button("Request Permission Prompt") {
+                                permissions.requestInputMonitoringPrompt()
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.small)
+                        }
+
+                        Button("Open Input Monitoring Settings") {
+                            permissions.openInputMonitoringSettings()
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    }
+                }
+                .padding(.vertical, 10)
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 12)
+        }
+
+        // Emergency Panic Card
+        settingsCard(title: "Emergency Panic Engine (Saklar Darurat)", icon: "xmark.octagon.fill", iconColor: .red) {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Global Panic Shortcut:")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(.white)
+                        Text("Pressing this combination immediately aborts all running macro simulations, loops, and actions.")
+                            .font(.system(size: 11))
+                            .foregroundColor(.secondary)
+                    }
+                    Spacer()
+                    Text("⌘ + ⌃ + ⇧ + X")
+                        .font(.system(size: 13, weight: .bold, design: .monospaced))
+                        .foregroundColor(.red)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(Color.red.opacity(0.15))
+                        .cornerRadius(6)
+                        .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.red.opacity(0.3), lineWidth: 1))
+                }
+
+                cardDivider()
+
+                toggleRow(
+                    title: "Sound Alert on Panic Trigger",
+                    subtitle: "Plays a high-priority macOS system warning alert sound when emergency stop is triggered.",
+                    isOn: $soundOnEmergency
+                )
+
+                HStack {
+                    Spacer()
+                    Button {
+                        CarbonHotKeyManager.shared.dispatch(hotKeyID: 9999)
+                    } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: "bolt.slash.fill")
+                            Text("Test Emergency Stop Now")
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(.red)
+                    .controlSize(.small)
+                }
+                .padding(.top, 4)
+            }
+        }
+    }
+
+    // ═══════════════════════════════════════════════════
+    // 3. MACRO ENGINE & EXECUTION PANE
+    // ═══════════════════════════════════════════════════
+    @ViewBuilder
+    private func renderEngineSettings() -> some View {
+        // Timing & Delays Card
+        settingsCard(title: "Execution Timing & Delays", icon: "gauge.with.needle.fill", iconColor: .orange) {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Default Step Delay (Jeda Antar Aksi)")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(.white)
+                        Text("Default pause duration between sequential macro steps so target applications process events smoothly.")
+                            .font(.system(size: 11))
+                            .foregroundColor(.secondary)
+                    }
+                    Spacer()
+                    Text(String(format: "%.2f s (%d ms)", defaultStepDelay, Int(defaultStepDelay * 1000)))
+                        .font(.system(size: 12, weight: .bold, design: .monospaced))
+                        .foregroundColor(.orange)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color(white: 0.12))
+                        .cornerRadius(5)
+                }
+
+                HStack(spacing: 12) {
+                    Slider(value: $defaultStepDelay, in: 0.01...0.30, step: 0.01)
+                    Button("Reset (0.05s)") {
+                        defaultStepDelay = 0.05
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.mini)
+                }
+
+                cardDivider()
+
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Max Loop Safety Limit (Batas Loop Aman)")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(.white)
+                        Text("Safety ceiling for 'Do Again' repeat loops to prevent infinite freezes.")
+                            .font(.system(size: 11))
+                            .foregroundColor(.secondary)
+                    }
+                    Spacer()
+                    Picker("", selection: $maxLoopIterations) {
+                        Text("100 cycles").tag(100)
+                        Text("500 cycles").tag(500)
+                        Text("1,000 cycles").tag(1000)
+                        Text("5,000 cycles").tag(5000)
+                    }
+                    .frame(width: 130)
+                }
+            }
+        }
+
+        // Audio & Visual Feedback Card
+        settingsCard(title: "Audio & Visual Feedback", icon: "speaker.wave.2.fill", iconColor: .yellow) {
+            VStack(spacing: 0) {
+                toggleRow(
+                    title: "Sound on Macro Completion",
+                    subtitle: "Plays a subtle audio tick sound when a triggered macro finishes all steps.",
+                    isOn: $soundOnComplete
+                )
+
+                cardDivider()
+
+                toggleRow(
+                    title: "Sound on Action Error",
+                    subtitle: "Plays an error beep if an action fails (e.g. image target not found or coordinate invalid).",
+                    isOn: $soundOnError
+                )
+
+                cardDivider()
+
+                toggleRow(
+                    title: "Visual OSD Feedback",
+                    subtitle: "Briefly flashes a subtle on-screen indicator when a global macro shortcut is pressed.",
+                    isOn: $showOSDFeedback
+                )
+            }
+        }
+
+        // Hardware Controls Card
+        settingsCard(title: "Hardware Display Controls", icon: "sun.max.fill", iconColor: .yellow) {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("macOS DisplayServices Hardware Engine")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(.white)
+                        Text("Direct GPU display brightness control for Apple Silicon and Intel Mac screens.")
+                            .font(.system(size: 11))
+                            .foregroundColor(.secondary)
+                    }
+                    Spacer()
+                    HStack(spacing: 5) {
+                        Circle().fill(Color.green).frame(width: 7, height: 7)
+                        Text("Operational")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(.green)
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.green.opacity(0.12))
+                    .cornerRadius(5)
+                }
+            }
+        }
+    }
+
+    // ═══════════════════════════════════════════════════
+    // 4. APPEARANCE & EDITOR PANE
+    // ═══════════════════════════════════════════════════
+    @ViewBuilder
+    private func renderAppearanceSettings() -> some View {
+        // Macro Editor Display Card
+        settingsCard(title: "Macro Editor Display", icon: "list.number", iconColor: .purple) {
+            VStack(spacing: 0) {
+                toggleRow(
+                    title: "Show Step Number Badges (Nomor Urut Aksi)",
+                    subtitle: "Displays sequential step numbering (1, 2, 3...) on each action card in the builder.",
+                    isOn: $showActionIndices
+                )
+
+                cardDivider()
+
+                toggleRow(
+                    title: "Compact Action Cards Layout",
+                    subtitle: "Reduces vertical padding for viewing complex multi-action macros with minimal scrolling.",
+                    isOn: $compactActionCards
+                )
+
+                cardDivider()
+
+                toggleRow(
+                    title: "Show Shortcut Badges in Sidebar",
+                    subtitle: "Shows hotkey badges (e.g. ⇧+F1) directly next to macro names in the sidebar.",
+                    isOn: $showTriggerBadgesInSidebar
+                )
+            }
+        }
+
+        // Persistence & Storage Card
+        settingsCard(title: "Persistence & Formatting", icon: "doc.text.fill", iconColor: .indigo) {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Macro File Format: .shortking (JSON)")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(.white)
+                        Text("Standardized JSON structure compatible with Git version control and text editors.")
+                            .font(.system(size: 11))
+                            .foregroundColor(.secondary)
+                    }
+                    Spacer()
+                    Text("Auto-Save Active ✅")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(.green)
+                }
+            }
+        }
+    }
+
+    // ═══════════════════════════════════════════════════
+    // 5. ABOUT SHORTKING PANE
+    // ═══════════════════════════════════════════════════
+    @ViewBuilder
+    private func renderAboutSettings() -> some View {
+        // App Identity Card
+        settingsCard(title: "Application Information", icon: "crown.fill", iconColor: .yellow) {
+            HStack(spacing: 16) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(LinearGradient(
+                            colors: [Color(red: 0.15, green: 0.55, blue: 0.95), Color(red: 0.45, green: 0.20, blue: 0.85)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ))
+                        .frame(width: 56, height: 56)
+                    Text("👑")
+                        .font(.system(size: 30))
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("ShortKing")
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundColor(.white)
+                    Text("Version 1.0 (macOS Native)")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.secondary)
+                    Text("Compact & High-Performance macOS Macro Automation Engine powered by Carbon HotKeys & Quartz Event Simulation.")
+                        .font(.system(size: 11))
+                        .foregroundColor(Color(white: 0.7))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .padding(.vertical, 4)
+        }
+
+        // Quick Links & Actions Card
+        settingsCard(title: "Documentation & Resources", icon: "book.fill", iconColor: .blue) {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 10) {
+                    Button {
+                        let learnURL = URL(fileURLWithPath: "/Users/tonytoelle/Documents/PROJECTS/RedMunky - ShortKing/LEARN")
+                        NSWorkspace.shared.open(learnURL)
+                    } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: "book.pages.fill")
+                            Text("Open Documentation (LEARN)")
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+
+                    Button {
+                        NSWorkspace.shared.open(store.watchDirectoryURL)
+                    } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: "folder.fill")
+                            Text("Open Macros Folder")
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+
+                    Button {
+                        AppDelegate.shared?.relaunchApp()
+                    } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: "arrow.clockwise")
+                            Text("Relaunch App")
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+
+                Text("Emergency Stop Hotkey: ⌘ + Control + Shift + X")
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundColor(.secondary)
+                    .padding(.top, 4)
+            }
+        }
+    }
+
+    // ═══════════════════════════════════════════════════
+    // REUSABLE UI BUILDER HELPERS
+    // ═══════════════════════════════════════════════════
+
+    @ViewBuilder
+    private func settingsCard<Content: View>(
+        title: String,
+        icon: String,
+        iconColor: Color,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 7) {
+                Image(systemName: icon)
+                    .foregroundColor(iconColor)
+                    .font(.system(size: 13, weight: .semibold))
+                Text(title)
+                    .font(.system(size: 12.5, weight: .bold))
+                    .foregroundColor(Color(white: 0.9))
+            }
+
+            VStack(alignment: .leading, spacing: 0) {
+                content()
+            }
+            .padding(14)
             .background(Color(white: 0.18))
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             .overlay(
@@ -4858,221 +5126,52 @@ struct SettingsView: View {
                     .stroke(Color.white.opacity(0.06), lineWidth: 1)
             )
         }
-        .buttonStyle(.plain)
     }
 
-    // Sub-pages (Drill-down views)
     @ViewBuilder
-    private func renderSubpage(_ subpage: SettingsSubpage) -> some View {
-        VStack(alignment: .leading, spacing: 18) {
-            switch subpage {
-            case .generalSubpage:
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("General & Login Items")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(.secondary)
-
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack {
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text("Open ShortKing automatically at Login")
-                                    .foregroundColor(.white)
-                                    .font(.system(size: 13, weight: .medium))
-                                Text("Starts the macro automation engine automatically whenever your Mac starts up or you log in.")
-                                    .font(.system(size: 11))
-                                    .foregroundColor(.secondary)
-                            }
-                            Spacer()
-                            Toggle("", isOn: Binding(
-                                get: { launchAtLogin.isEnabled },
-                                set: { launchAtLogin.setEnabled($0) }
-                            ))
-                            .toggleStyle(.switch)
-                        }
-                        .padding(14)
-                        .background(Color(white: 0.18))
-                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-
-                        HStack(spacing: 8) {
-                            Circle()
-                                .fill(launchAtLogin.isEnabled ? Color.green : Color(white: 0.5))
-                                .frame(width: 8, height: 8)
-                            Text(launchAtLogin.isEnabled ? "Auto-start is active (Registered in macOS Login Items & LaunchAgents)." : "Auto-start is currently turned off.")
-                                .font(.system(size: 11))
-                                .foregroundColor(.secondary)
-                        }
-                        .padding(.horizontal, 4)
-                    }
-                }
-
-            case .wifiSubpage:
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("Wi-Fi Settings")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(.secondary)
-
-                    VStack(spacing: 0) {
-                        HStack {
-                            Text("Wi-Fi Network")
-                                .foregroundColor(.white)
-                            Spacer()
-                            Toggle("", isOn: $wifiEnabled)
-                                .toggleStyle(.switch)
-                        }
-                        .padding(12)
-
-                        Divider()
-
-                        HStack {
-                            Text("Connected SSID")
-                                .foregroundColor(.white)
-                            Spacer()
-                            Text("Home-5G (Connected)")
-                                .foregroundColor(.secondary)
-                        }
-                        .padding(12)
-                    }
-                    .background(Color(white: 0.18))
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                }
-
-            case .firewallSubpage:
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("Firewall Configuration")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(.secondary)
-
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Firewall")
-                                .foregroundColor(.white)
-                            Text("Blocks unauthorized incoming network connections")
-                                .font(.caption).foregroundColor(.secondary)
-                        }
-                        Spacer()
-                        Toggle("", isOn: $firewallEnabled)
-                            .toggleStyle(.switch)
-                    }
-                    .padding(14)
-                    .background(Color(white: 0.18))
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                }
-
-            case .macroStorageSubpage:
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("ShortKing Macro Documents Directory")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(.secondary)
-
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text(store.watchDirectoryURL.path)
-                            .font(.system(size: 11, design: .monospaced))
-                            .foregroundColor(.white)
-                            .padding(10)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(Color(white: 0.12))
-                            .cornerRadius(6)
-
-                        HStack {
-                            Button("Choose Folder…") {
-                                let panel = NSOpenPanel()
-                                panel.canChooseDirectories = true
-                                panel.canChooseFiles = false
-                                panel.allowsMultipleSelection = false
-                                panel.title = "Pilih Folder Makro ShortKing"
-                                if panel.runModal() == .OK, let url = panel.url {
-                                    store.setWatchDirectory(url)
-                                }
-                            }
-                            .buttonStyle(.borderedProminent)
-
-                            Button("Reveal in Finder") {
-                                NSWorkspace.shared.open(store.watchDirectoryURL)
-                            }
-                            .buttonStyle(.bordered)
-                        }
-                    }
-                    .padding(14)
-                    .background(Color(white: 0.18))
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                }
-
-            case .accessibilitySubpage:
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("Accessibility Privileges")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(.secondary)
-
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack {
-                            Text("Status:")
-                                .foregroundColor(.white)
-                            Spacer()
-                            Text(permissions.isAccessibilityGranted ? "Granted ✅" : "Missing ❌")
-                                .foregroundColor(permissions.isAccessibilityGranted ? .green : .red)
-                        }
-
-                        if !permissions.isAccessibilityGranted {
-                            Button("Request Permission Prompt") {
-                                permissions.requestAccessibilityPrompt()
-                            }
-                            .buttonStyle(.borderedProminent)
-                        }
-
-                        Button("Open macOS Privacy & Security Settings") {
-                            permissions.openAccessibilitySettings()
-                        }
-                        .buttonStyle(.bordered)
-                    }
-                    .padding(14)
-                    .background(Color(white: 0.18))
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                }
-
-            case .emergencySubpage:
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("Panic Emergency Stop")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(.secondary)
-
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack {
-                            Text("Shortcut:")
-                                .foregroundColor(.white)
-                            Spacer()
-                            Text("⌘ + ⌃ + ⇧ + X")
-                                .font(.system(size: 12, weight: .bold, design: .monospaced))
-                                .foregroundColor(.red)
-                        }
-
-                        HStack {
-                            Text("Sound alert on trigger")
-                                .foregroundColor(.white)
-                            Spacer()
-                            Toggle("", isOn: $soundOnEmergency)
-                                .toggleStyle(.switch)
-                        }
-                    }
-                    .padding(14)
-                    .background(Color(white: 0.18))
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                }
-
-            case .thunderboltSubpage:
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("Thunderbolt Bridge")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(.secondary)
-
-                    Text("No active Thunderbolt hardware bridges connected.")
-                        .foregroundColor(.secondary)
-                        .padding(14)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color(white: 0.18))
-                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                }
+    private func toggleRow(
+        title: String,
+        subtitle: String,
+        isOn: Binding<Bool>
+    ) -> some View {
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .foregroundColor(.white)
+                    .font(.system(size: 12.5, weight: .medium))
+                Text(subtitle)
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            Spacer()
+            Toggle("", isOn: isOn)
+                .toggleStyle(.switch)
         }
+        .padding(.vertical, 6)
+    }
+
+    @ViewBuilder
+    private func cardDivider() -> some View {
+        Divider()
+            .background(Color.white.opacity(0.08))
+            .padding(.vertical, 8)
+    }
+
+    @ViewBuilder
+    private func statusBadge(isGranted: Bool) -> some View {
+        HStack(spacing: 5) {
+            Circle()
+                .fill(isGranted ? Color.green : Color.red)
+                .frame(width: 7, height: 7)
+            Text(isGranted ? "Granted ✅" : "Permission Required ❌")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(isGranted ? .green : .red)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background((isGranted ? Color.green : Color.red).opacity(0.12))
+        .cornerRadius(6)
     }
 }
 
@@ -6649,12 +6748,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDele
         sender.state = newVal ? .on : .off
     }
 
+    func updateDockVisibility(_ show: Bool) {
+        NSApp.setActivationPolicy(show ? .regular : .accessory)
+    }
+
+    func updateMenuBarVisibility(_ show: Bool) {
+        statusItem?.isVisible = show
+    }
+
     @objc func showSettingsWindow() {
         NSApp.setActivationPolicy(.regular)
         if settingsWindow == nil {
             let win = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 720, height: 480),
-                styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView],
+                contentRect: NSRect(x: 0, y: 0, width: 740, height: 530),
+                styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
                 backing: .buffered, defer: false)
             win.center()
             win.title = "ShortKing Settings"
