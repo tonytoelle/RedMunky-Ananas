@@ -5,23 +5,14 @@ TRIGGER: shift+f1
 ACTION: brightness_down
 ACTION: path 394,1111:move 500,971:move 680,929:move 835,842:move 901,744:move 911,922:move 1075,877:move 1186,877:move
 ACTION: path 394,1111:move 454,1011:move 564,1011:move
-ACTION: click 826 536
-ACTION: path 767,654:move
-ACTION: path 767,654:move 833,494:move
-ACTION: path 767,654:move 833,494:move 933,483:move
-ACTION: path 767,654:move 833,494:move 933,483:move 825,676:move
-ACTION: path 767,654:move 833,494:move 933,483:move 825,676:move 988,645:move
-ACTION: path 767,654:move 833,494:move 933,483:move 825,676:move 988,645:move 1154,448:move
-ACTION: path 767,654:move 833,494:move 933,483:move 825,676:move 988,645:move 1154,448:move 1217,652:move
-ACTION: path 767,654:move 833,494:move 933,483:move 825,676:move 988,645:move 1154,448:move 1217,652:move 1280,513:move
-ACTION: path 767,654:move 833,494:move 933,483:move 825,676:move 988,645:move 1154,448:move 1217,652:move 1280,513:move 1136,591:move
-ACTION: path 767,654:move 833,494:move 933,483:move 825,676:move 988,645:move 1154,448:move 1217,652:move 1280,513:move 1136,591:move 1030,469:move
-ACTION: path 767,654:move 833,494:move 933,483:move 825,676:move 988,645:move 1154,448:move 1217,652:move 1280,513:move 1136,591:move 1030,469:move
-ACTION: path 393,1109:move
-ACTION: path 393,1109:move 460,999:move
-ACTION: path 393,1109:move 460,999:move 543,1024:move
-ACTION: path 393,1109:move 460,999:move 543,1024:move 586,953:move
-ACTION: path 393,1109:move 460,999:move 543,1024:move 586,953:move 662,961:move
-ACTION: path 393,1109:move 460,999:move 543,1024:move 586,953:move 662,961:move 709,899:move
-ACTION: path 393,1109:move 460,999:move 543,1024:move 586,953:move 662,961:move 709,899:move 814,883:move
-ACTION: path 393,1109:move 460,999:move 543,1024:move 586,953:move 662,961:move 709,899:move 814,883:move
+ACTION: click 394 1113
+ACTION: click 906 738
+ACTION: drag 799 769 to 992 720
+ACTION: path 453,949:move
+ACTION: path 453,949:move 525,865:move
+ACTION: path 453,949:move 525,865:move 616,861:move
+ACTION: path 453,949:move 525,865:move 616,861:move 696,781:move
+ACTION: path 453,949:move 525,865:move 616,861:move 696,781:move 802,799:move
+ACTION: path 453,949:move 525,865:move 616,861:move 696,781:move 802,799:move 874,772:move
+ACTION: path 453,949:move 525,865:move 616,861:move 696,781:move 802,799:move 874,772:move
+ACTION: path 453,949:move 471,851:move 590,909:move 610,817:move 696,781:move 802,799:move 874,772:move

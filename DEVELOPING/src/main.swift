@@ -2490,6 +2490,24 @@ struct CaptureOverlaySwiftUIView: View {
                     .animation(.easeInOut(duration: 0.15), value: state.isHudVisible)
                     .onAppear { state.lastHudCenter = pos }
                     .onChange(of: pos) { _, newPos in state.lastHudCenter = newPos }
+                
+                if state.isFollowingCursor {
+                    ZStack {
+                        // Outer ring the size of a finger touch (diameter 32)
+                        Circle()
+                            .stroke(Color.white.opacity(0.85), lineWidth: 1.5)
+                            .frame(width: 32, height: 32)
+                            .shadow(color: Color.black.opacity(0.3), radius: 2)
+                        
+                        // Solid small dot in the center (diameter 6)
+                        Circle()
+                            .fill(state.defaultPointType.color)
+                            .frame(width: 6, height: 6)
+                            .shadow(color: Color.black.opacity(0.3), radius: 1)
+                    }
+                    .position(state.quartzLocation)
+                    .allowsHitTesting(false)
+                }
             }
         }
     }
@@ -2734,6 +2752,7 @@ class CaptureOverlayHostingView: NSView {
             guard let self = self else { return }
             self.window?.invalidateCursorRects(for: self)
             if following {
+                NSCursor.hide()
                 self.window?.ignoresMouseEvents = false
                 
                 // Get current mouse location instantly
@@ -2741,6 +2760,8 @@ class CaptureOverlayHostingView: NSView {
                 let screenHeight = self.window?.screen?.frame.height ?? NSScreen.main?.frame.height ?? 1080
                 let quartzPt = CGPoint(x: mouseLoc.x, y: screenHeight - mouseLoc.y)
                 self.stateModel.quartzLocation = quartzPt
+            } else {
+                NSCursor.unhide()
             }
         }
         
@@ -2777,10 +2798,12 @@ class CaptureOverlayHostingView: NSView {
     required init?(coder: NSCoder) { fatalError() }
     
     deinit {
+        NSCursor.unhide()
         cleanupMonitors()
     }
 
     private func cleanupMonitors() {
+        NSCursor.unhide()
         if let m = localKeyMonitor { NSEvent.removeMonitor(m); localKeyMonitor = nil }
         if let m = globalKeyMonitor { NSEvent.removeMonitor(m); globalKeyMonitor = nil }
         if let m = globalMouseMonitor { NSEvent.removeMonitor(m); globalMouseMonitor = nil }
@@ -2790,6 +2813,9 @@ class CaptureOverlayHostingView: NSView {
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         if let win = window {
+            if stateModel.isFollowingCursor {
+                NSCursor.hide()
+            }
             let screenPt = NSEvent.mouseLocation
             let winLoc = win.convertPoint(fromScreen: screenPt)
             let screenHeight = win.screen?.frame.height ?? NSScreen.main?.frame.height ?? bounds.height
