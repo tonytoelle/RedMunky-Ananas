@@ -14,7 +14,7 @@ mkdir -p "$MACOS_DIR"
 mkdir -p "$RESOURCES_DIR"
 
 echo "🔨 Mengkompilasi Swift Macro Engine..."
-swiftc "$DIR/src/main.swift" -o "$MACOS_DIR/$APP_NAME" -O
+swiftc "$DIR/src/main.swift" -o "$MACOS_DIR/$APP_NAME" -O -F /System/Library/PrivateFrameworks -framework DisplayServices
 
 echo "📝 Membuat Info.plist untuk $APP_NAME.app..."
 cat <<EOF > "$APP_BUNDLE/Contents/Info.plist"

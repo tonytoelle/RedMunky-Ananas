@@ -700,6 +700,22 @@ class ShortKingParser {
 // MARK: - Input Simulator (Robust & Timing-Correct)
 // ==========================================
 class InputSimulator {
+    @_silgen_name("DisplayServicesGetBrightness")
+    static func DisplayServicesGetBrightness(_ displayID: CGDirectDisplayID, _ brightness: UnsafeMutablePointer<Float>) -> Int32
+
+    @_silgen_name("DisplayServicesSetBrightness")
+    static func DisplayServicesSetBrightness(_ displayID: CGDirectDisplayID, _ brightness: Float) -> Int32
+
+    static func adjustBrightness(delta: Float) {
+        let mainDisplay = CGMainDisplayID()
+        var current: Float = 0.0
+        let statusGet = DisplayServicesGetBrightness(mainDisplay, &current)
+        if statusGet == 0 {
+            let newBrightness = max(0.0, min(1.0, current + delta))
+            _ = DisplayServicesSetBrightness(mainDisplay, newBrightness)
+        }
+    }
+
     static let source = CGEventSource(stateID: .hidSystemState)
     static var isEmergencyStopped = false
 
@@ -940,11 +956,11 @@ class InputSimulator {
                     
                 case .brightnessUp:
                     guard !isEmergencyStopped else { return }
-                    postMediaKey(key: 2) // NX_KEYTYPE_BRIGHTNESS_UP
+                    InputSimulator.adjustBrightness(delta: 0.0625)
                     
                 case .brightnessDown:
                     guard !isEmergencyStopped else { return }
-                    postMediaKey(key: 3) // NX_KEYTYPE_BRIGHTNESS_DOWN
+                    InputSimulator.adjustBrightness(delta: -0.0625)
                 }
             }
         }
