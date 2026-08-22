@@ -32,6 +32,32 @@ struct KeyMap {
 // ==========================================
 // MARK: - Models (with stable IDs for drag-drop)
 // ==========================================
+enum TriggerMode: String, Codable, CaseIterable, Hashable {
+    case keyPress = "key_press"
+    case keySwitch = "key_switch"
+    
+    var displayName: String {
+        switch self {
+        case .keyPress: return "Key Press"
+        case .keySwitch: return "Key Switch"
+        }
+    }
+    
+    var iconName: String {
+        switch self {
+        case .keyPress: return "keyboard"
+        case .keySwitch: return "arrow.triangle.swap"
+        }
+    }
+    
+    var color: Color {
+        switch self {
+        case .keyPress: return Color(red: 0.45, green: 0.2, blue: 0.8)
+        case .keySwitch: return Color(red: 0.1, green: 0.65, blue: 0.7)
+        }
+    }
+}
+
 struct Trigger: Hashable, Equatable, Codable, Identifiable {
     var id = UUID()
     var keyCode: CGKeyCode
@@ -39,6 +65,8 @@ struct Trigger: Hashable, Equatable, Codable, Identifiable {
     var requireShift: Bool
     var requireOption: Bool
     var requireControl: Bool
+    var mode: TriggerMode = .keyPress
+    var alternateActionItems: [MacroActionItem] = []
 
     var displayString: String {
         var p: [String] = []
@@ -57,6 +85,66 @@ struct Trigger: Hashable, Equatable, Codable, Identifiable {
         if requireControl { p.append("ctrl") }
         p.append(KeyMap.name(for: keyCode).lowercased())
         return p.joined(separator: "+")
+    }
+
+    // Custom Codable for backward compatibility
+    enum CodingKeys: String, CodingKey {
+        case id, keyCode, requireCmd, requireShift, requireOption, requireControl, mode
+    }
+
+    init(keyCode: CGKeyCode, requireCmd: Bool, requireShift: Bool, requireOption: Bool, requireControl: Bool, mode: TriggerMode = .keyPress, alternateActionItems: [MacroActionItem] = []) {
+        self.keyCode = keyCode
+        self.requireCmd = requireCmd
+        self.requireShift = requireShift
+        self.requireOption = requireOption
+        self.requireControl = requireControl
+        self.mode = mode
+        self.alternateActionItems = alternateActionItems
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        keyCode = try c.decode(CGKeyCode.self, forKey: .keyCode)
+        requireCmd = try c.decode(Bool.self, forKey: .requireCmd)
+        requireShift = try c.decode(Bool.self, forKey: .requireShift)
+        requireOption = try c.decode(Bool.self, forKey: .requireOption)
+        requireControl = try c.decode(Bool.self, forKey: .requireControl)
+        mode = try c.decodeIfPresent(TriggerMode.self, forKey: .mode) ?? .keyPress
+        alternateActionItems = []
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id)
+        try c.encode(keyCode, forKey: .keyCode)
+        try c.encode(requireCmd, forKey: .requireCmd)
+        try c.encode(requireShift, forKey: .requireShift)
+        try c.encode(requireOption, forKey: .requireOption)
+        try c.encode(requireControl, forKey: .requireControl)
+        try c.encode(mode, forKey: .mode)
+    }
+
+    // Manual Hashable
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+        hasher.combine(keyCode)
+        hasher.combine(requireCmd)
+        hasher.combine(requireShift)
+        hasher.combine(requireOption)
+        hasher.combine(requireControl)
+        hasher.combine(mode)
+    }
+
+    // Manual Equatable
+    static func == (lhs: Trigger, rhs: Trigger) -> Bool {
+        return lhs.id == rhs.id &&
+               lhs.keyCode == rhs.keyCode &&
+               lhs.requireCmd == rhs.requireCmd &&
+               lhs.requireShift == rhs.requireShift &&
+               lhs.requireOption == rhs.requireOption &&
+               lhs.requireControl == rhs.requireControl &&
+               lhs.mode == rhs.mode
     }
 }
 
@@ -551,6 +639,9 @@ class ShortKingParser {
         var isEnabled: Bool = true
         var groupStack: [[MacroActionItem]] = [[]]
         var groupNames: [String] = []
+        var altGroupStack: [[MacroActionItem]] = [[]]
+        var altGroupNames: [String] = []
+        var isParsingAltActions = false
         
         for rawLine in content.components(separatedBy: .newlines) {
             let line = rawLine.trimmingCharacters(in: .whitespaces)
@@ -558,9 +649,59 @@ class ShortKingParser {
             if line.uppercased().hasPrefix("ENABLED:") {
                 let valStr = String(line.dropFirst(8)).trimmingCharacters(in: .whitespaces).lowercased()
                 isEnabled = (valStr != "false" && valStr != "0" && valStr != "no" && valStr != "disabled")
+            } else if line.uppercased().hasPrefix("TRIGGER_MODE:") {
+                let modeStr = String(line.dropFirst(13)).trimmingCharacters(in: .whitespaces).lowercased()
+                if modeStr == "key_switch" {
+                    // Apply mode to the last trigger
+                    if !triggers.isEmpty {
+                        triggers[triggers.count - 1].mode = .keySwitch
+                    }
+                }
             } else if line.uppercased().hasPrefix("TRIGGER:") {
+                // If we were parsing alt actions, finalize them for the previous trigger
+                if isParsingAltActions, !triggers.isEmpty {
+                    let altItems = altGroupStack.first ?? []
+                    triggers[triggers.count - 1].alternateActionItems = altItems
+                    altGroupStack = [[]]
+                    altGroupNames = []
+                    isParsingAltActions = false
+                }
                 if let t = parseTrigger(String(line.dropFirst(8)).trimmingCharacters(in: .whitespaces)) {
                     triggers.append(t)
+                }
+            } else if line.uppercased().hasPrefix("ALT_ACTION:") {
+                isParsingAltActions = true
+                let actionStr = String(line.dropFirst(11)).trimmingCharacters(in: .whitespaces)
+                var cleanActionStr = actionStr
+                var repeats = 1
+                let parts = actionStr.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
+                if let lastPart = parts.last, lastPart.hasPrefix("x"), lastPart.count > 1,
+                   let val = Int(lastPart.dropFirst()) {
+                    repeats = val
+                    cleanActionStr = String(actionStr.prefix(actionStr.count - lastPart.count)).trimmingCharacters(in: .whitespaces)
+                }
+                
+                if cleanActionStr.lowercased().hasPrefix("group") {
+                    var gName = "Group"
+                    let namePart = cleanActionStr.dropFirst(5).trimmingCharacters(in: .whitespaces)
+                    if namePart.hasPrefix("\"") && namePart.hasSuffix("\"") && namePart.count >= 2 {
+                        gName = String(namePart.dropFirst().dropLast())
+                    } else if !namePart.isEmpty {
+                        gName = namePart
+                    }
+                    altGroupStack.append([])
+                    altGroupNames.append(gName)
+                } else if cleanActionStr.lowercased() == "end_group" {
+                    if altGroupStack.count > 1 {
+                        let subActions = altGroupStack.popLast()!
+                        let name = altGroupNames.popLast()!
+                        let groupItem = MacroActionItem(action: .group(name: name, actions: subActions), repeatCount: repeats)
+                        altGroupStack[altGroupStack.count - 1].append(groupItem)
+                    }
+                } else {
+                    if let a = parseAction(cleanActionStr) {
+                        altGroupStack[altGroupStack.count - 1].append(MacroActionItem(action: a, repeatCount: repeats))
+                    }
                 }
             } else if line.uppercased().hasPrefix("ACTION:") {
                 let actionStr = String(line.dropFirst(7)).trimmingCharacters(in: .whitespaces)
@@ -596,6 +737,12 @@ class ShortKingParser {
                     }
                 }
             }
+        }
+        
+        // Finalize any remaining alt actions for the last trigger
+        if isParsingAltActions, !triggers.isEmpty {
+            let altItems = altGroupStack.first ?? []
+            triggers[triggers.count - 1].alternateActionItems = altItems
         }
         
         let items = groupStack.first ?? []
@@ -733,19 +880,22 @@ class ShortKingParser {
         }
         for t in triggers {
             lines.append("TRIGGER: \(t.scriptString)")
+            if t.mode == .keySwitch {
+                lines.append("TRIGGER_MODE: key_switch")
+            }
         }
         lines.append("")
         lines.append("# Actions:")
         
-        func appendActionItem(_ item: MacroActionItem) {
+        func appendActionItem(_ item: MacroActionItem, prefix: String = "ACTION") {
             var line = ""
             switch item.action {
             case .doAgain(let target):
                 switch target {
                 case .origin:
-                    line = "ACTION: do_again"
+                    line = "\(prefix): do_again"
                 case .step(let idx):
-                    line = "ACTION: do_again step_\(idx)"
+                    line = "\(prefix): do_again step_\(idx)"
                 case .action(let tid):
                     func findFlatIndex(id: UUID, currentItems: [MacroActionItem], indexTracker: inout Int) -> Int? {
                         for current in currentItems {
@@ -761,28 +911,36 @@ class ShortKingParser {
                     }
                     var tracker = 0
                     if let idx = findFlatIndex(id: tid, currentItems: actionItems, indexTracker: &tracker) {
-                        line = "ACTION: do_again step_\(idx)"
+                        line = "\(prefix): do_again step_\(idx)"
                     } else {
-                        line = "ACTION: do_again"
+                        line = "\(prefix): do_again"
                     }
                 }
             case .group(let name, let subActions):
-                line = "ACTION: group \"\(name)\""
+                line = "\(prefix): group \"\(name)\""
                 if item.repeatCount > 1 {
                     line += " x\(item.repeatCount)"
                 }
                 lines.append(line)
                 for subItem in subActions {
-                    appendActionItem(subItem)
+                    appendActionItem(subItem, prefix: prefix)
                 }
-                lines.append("ACTION: end_group")
+                lines.append("\(prefix): end_group")
                 return
             default:
                 line = item.action.scriptLine
+                // Replace "ACTION:" prefix with the correct prefix for alt actions
+                if prefix == "ALT_ACTION" && line.hasPrefix("ACTION:") {
+                    line = "ALT_ACTION:" + line.dropFirst(7)
+                }
             }
             
             if item.repeatCount > 1 {
                 line += " x\(item.repeatCount)"
+            }
+            // Ensure correct prefix for non-scriptLine items
+            if prefix == "ALT_ACTION" && line.hasPrefix("ACTION:") {
+                line = "ALT_ACTION:" + line.dropFirst(7)
             }
             lines.append(line)
         }
@@ -790,6 +948,16 @@ class ShortKingParser {
         for item in actionItems {
             appendActionItem(item)
         }
+        
+        // Emit alternate actions for key switch triggers
+        for t in triggers where t.mode == .keySwitch && !t.alternateActionItems.isEmpty {
+            lines.append("")
+            lines.append("# Alternate Actions:")
+            for item in t.alternateActionItems {
+                appendActionItem(item, prefix: "ALT_ACTION")
+            }
+        }
+        
         return lines.joined(separator: "\n") + "\n"
     }
 
@@ -1481,6 +1649,8 @@ class MacroStore: ObservableObject {
     @Published var isSidebarVisible = true
     @Published var selectedActionIDs: Set<UUID> = []
     @Published var lastSelectedActionID: UUID? = nil
+    // Key switch toggle state: maps trigger ID -> current state (false = primary, true = alternate)
+    var keySwitchStates: [UUID: Bool] = [:]
     
     var selectedActionID: UUID? {
         get { selectedActionIDs.first }
@@ -1816,7 +1986,10 @@ class MacroStore: ObservableObject {
                 if trig.keyCode == 144 || trig.keyCode == 145 {
                     continue
                 }
-                CarbonHotKeyManager.shared.register(trigger: trig) {
+                let trigID = trig.id
+                let trigMode = trig.mode
+                let altItems = trig.alternateActionItems
+                CarbonHotKeyManager.shared.register(trigger: trig) { [weak self] in
                     print("🚀 Executing: \(macro.fileName)")
                     // Capture cursor origin NOW before background dispatch
                     let originPos: CGPoint = {
@@ -1825,8 +1998,20 @@ class MacroStore: ObservableObject {
                         let sh = NSScreen.main?.frame.height ?? 1080
                         return CGPoint(x: cp.x, y: sh - cp.y)
                     }()
+                    
+                    // Determine which action set to run for key switch triggers
+                    let executionItems: [MacroActionItem]
+                    if trigMode == .keySwitch && !altItems.isEmpty {
+                        let useAlternate = self?.keySwitchStates[trigID] ?? false
+                        executionItems = useAlternate ? altItems : items
+                        self?.keySwitchStates[trigID] = !useAlternate
+                        print("🔄 Key Switch: \(useAlternate ? "alternate" : "primary") actions")
+                    } else {
+                        executionItems = items
+                    }
+                    
                     DispatchQueue.global(qos: .userInitiated).async {
-                        InputSimulator.execute(items: items, preRecordedOrigin: originPos)
+                        InputSimulator.execute(items: executionItems, preRecordedOrigin: originPos)
                     }
                 }
             }
@@ -5120,6 +5305,198 @@ struct ActionDropDelegate: DropDelegate {
 }
 
 // ==========================================
+// MARK: - Fuzzy Search Utilities
+// ==========================================
+func levenshteinDistance(_ a: String, _ b: String) -> Int {
+    let aChars = Array(a)
+    let bChars = Array(b)
+    let n = aChars.count
+    let m = bChars.count
+    if n == 0 { return m }
+    if m == 0 { return n }
+    
+    var matrix = [[Int]](repeating: [Int](repeating: 0, count: m + 1), count: n + 1)
+    for i in 0...n { matrix[i][0] = i }
+    for j in 0...m { matrix[0][j] = j }
+    
+    for i in 1...n {
+        for j in 1...m {
+            let cost = aChars[i - 1] == bChars[j - 1] ? 0 : 1
+            matrix[i][j] = min(
+                matrix[i - 1][j] + 1,
+                matrix[i][j - 1] + 1,
+                matrix[i - 1][j - 1] + cost
+            )
+        }
+    }
+    return matrix[n][m]
+}
+
+func fuzzyMatch(_ query: String, in target: String, tolerance: Int = 3) -> (matches: Bool, score: Int) {
+    let q = query.lowercased()
+    let t = target.lowercased()
+    
+    // Exact substring match = best score
+    if t.contains(q) { return (true, 0) }
+    
+    // Prefix match
+    if t.hasPrefix(q) { return (true, 0) }
+    
+    // Levenshtein distance on whole strings
+    let dist = levenshteinDistance(q, t)
+    if dist <= tolerance { return (true, dist) }
+    
+    // Check if query is a fuzzy prefix (distance of query to any prefix of target)
+    if q.count <= t.count {
+        let prefix = String(t.prefix(q.count))
+        let prefixDist = levenshteinDistance(q, prefix)
+        if prefixDist <= tolerance { return (true, prefixDist) }
+    }
+    
+    // Word-level matching: check query against each word in target
+    let words = t.split(separator: " ").map(String.init)
+    for word in words {
+        let wordDist = levenshteinDistance(q, word)
+        if wordDist <= tolerance { return (true, wordDist + 1) }
+    }
+    
+    return (false, Int.max)
+}
+
+// ==========================================
+// MARK: - Searchable Action Item Definition
+// ==========================================
+struct SearchableActionDef: Identifiable {
+    let id = UUID()
+    let title: String
+    let icon: String
+    let color: Color
+    
+    static let allActions: [SearchableActionDef] = [
+        .init(title: "Path", icon: "point.topleft.down.to.point.bottomright.curvepath.fill", color: Color(red: 0.65, green: 0.25, blue: 0.85)),
+        .init(title: "Left Click", icon: "cursorarrow.click", color: Color(red: 0.08, green: 0.45, blue: 0.82)),
+        .init(title: "Right Click", icon: "cursorarrow.click", color: Color(red: 0.04, green: 0.52, blue: 0.54)),
+        .init(title: "Drag", icon: "hand.draw", color: Color(red: 0.52, green: 0.22, blue: 0.75)),
+        .init(title: "Move Cursor", icon: "cursorarrow.motionlines", color: Color(red: 0.28, green: 0.52, blue: 0.92)),
+        .init(title: "Delay", icon: "timer", color: Color(red: 0.88, green: 0.42, blue: 0.04)),
+        .init(title: "Text", icon: "text.cursor", color: Color(red: 0.12, green: 0.58, blue: 0.24)),
+        .init(title: "Key", icon: "keyboard", color: Color(red: 0.32, green: 0.28, blue: 0.72)),
+        .init(title: "Do Again", icon: "arrow.counterclockwise", color: Color(red: 0.12, green: 0.58, blue: 0.65)),
+        .init(title: "Group", icon: "folder", color: Color.orange),
+        .init(title: "Custom", icon: "terminal", color: Color.pink),
+        .init(title: "Open File", icon: "arrow.up.forward.app", color: Color(red: 0.1, green: 0.65, blue: 0.6)),
+        .init(title: "Vol Up", icon: "speaker.wave.3.fill", color: Color.blue),
+        .init(title: "Vol Down", icon: "speaker.wave.1.fill", color: Color.blue),
+        .init(title: "Brit Up", icon: "sun.max.fill", color: Color.orange),
+        .init(title: "Brit Down", icon: "sun.min.fill", color: Color.orange),
+    ]
+}
+
+// ==========================================
+// MARK: - Spotlight-Style Search Bar
+// ==========================================
+struct SpotlightSearchBar: View {
+    let placeholder: String
+    let items: [SearchableActionDef]
+    let onSelect: (SearchableActionDef) -> Void
+    
+    @State private var query: String = ""
+    @State private var isShowingDropdown: Bool = false
+    @State private var selectedIndex: Int = 0
+    @FocusState private var isFocused: Bool
+    
+    var filteredItems: [(item: SearchableActionDef, score: Int)] {
+        guard !query.trimmingCharacters(in: .whitespaces).isEmpty else {
+            return items.map { ($0, 0) }
+        }
+        return items.compactMap { item in
+            let result = fuzzyMatch(query, in: item.title)
+            return result.matches ? (item, result.score) : nil
+        }.sorted { $0.score < $1.score }
+    }
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 6) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundColor(.secondary)
+                    .font(.system(size: 11))
+                TextField(placeholder, text: $query)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 12))
+                    .focused($isFocused)
+                    .onSubmit {
+                        if !filteredItems.isEmpty {
+                            let idx = min(selectedIndex, filteredItems.count - 1)
+                            onSelect(filteredItems[idx].item)
+                            query = ""
+                            isShowingDropdown = false
+                            isFocused = false
+                        }
+                    }
+                    .onChange(of: query) { _ in
+                        isShowingDropdown = !query.isEmpty
+                        selectedIndex = 0
+                    }
+                if !query.isEmpty {
+                    Button { query = ""; isShowingDropdown = false } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(.secondary)
+                            .font(.system(size: 10))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .background(Color(white: 0.22))
+            .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+            
+            if isShowingDropdown && !filteredItems.isEmpty {
+                VStack(spacing: 0) {
+                    ForEach(Array(filteredItems.prefix(8).enumerated()), id: \.element.item.id) { idx, entry in
+                        Button {
+                            onSelect(entry.item)
+                            query = ""
+                            isShowingDropdown = false
+                            isFocused = false
+                        } label: {
+                            HStack(spacing: 8) {
+                                ZStack {
+                                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                                        .fill(entry.item.color)
+                                        .frame(width: 22, height: 22)
+                                    Image(systemName: entry.item.icon)
+                                        .foregroundColor(.white)
+                                        .font(.system(size: 11, weight: .semibold))
+                                }
+                                Text(entry.item.title)
+                                    .font(.system(size: 12, weight: .medium))
+                                    .foregroundColor(.white)
+                                Spacer()
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(idx == selectedIndex ? Color.white.opacity(0.1) : Color.clear)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.vertical, 4)
+                .background(Color(white: 0.20))
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                )
+                .padding(.top, 4)
+            }
+        }
+    }
+}
+
+// ==========================================
 // MARK: - Macro Inspector (Right Column - System Settings Canvas)
 // ==========================================
 struct MacroInspectorView: View {
@@ -5133,43 +5510,29 @@ struct MacroInspectorView: View {
     @State private var keyMonitor: Any? = nil
     @State private var isTriggerCollapsed = false
     @State private var isActionsCollapsed = false
-    @State private var isAddActionCollapsed = false
+    @State private var isShowingActionPopover = false
+    @State private var isShowingTriggerPopover = false
     @State private var isEditingName = false
+    @State private var activeActionTarget: ActionTarget = .primary
+    
+    enum ActionTarget { case primary, alternate }
 
     @FocusState private var isNameFocused: Bool
+    
+    // Detect if any trigger is key switch
+    var hasKeySwitchTrigger: Bool {
+        macro.triggers.contains { $0.mode == .keySwitch }
+    }
 
     var body: some View {
         VStack(spacing: 0) {
             headerSection
 
-            // Main Detail ScrollView
+            // Main Detail ScrollView — 2 areas: Trigger + Actions
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 14) {
                     triggerSection
-
-                    // Downward connector arrow
-                    HStack {
-                        Spacer()
-                        Image(systemName: "chevron.down")
-                            .font(.system(size: 13, weight: .bold))
-                            .foregroundColor(Color(white: 0.32))
-                        Spacer()
-                    }
-                    .padding(.vertical, 2)
-
                     actionsSection
-
-                    // Minimalist + separator
-                    HStack {
-                        Spacer()
-                        Image(systemName: "plus")
-                            .font(.system(size: 11, weight: .bold))
-                            .foregroundColor(Color(white: 0.35))
-                        Spacer()
-                    }
-                    .padding(.vertical, 2)
-
-                    addActionSection
                 }
                 .padding(22)
             }
@@ -5298,15 +5661,15 @@ struct MacroInspectorView: View {
                     HStack(spacing: 12) {
                         ZStack {
                             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .fill(Color(red: 0.45, green: 0.2, blue: 0.8))
+                                .fill(trig.mode.color)
                                 .frame(width: 32, height: 32)
-                            Image(systemName: "keyboard")
+                            Image(systemName: trig.mode.iconName)
                                 .foregroundColor(.white)
                                 .font(.system(size: 15, weight: .semibold))
                         }
 
                         if detailWidth > 320 {
-                            Text("Key Press")
+                            Text(trig.mode.displayName)
                                 .font(.system(size: 13, weight: .medium))
                                 .foregroundColor(.white)
                         }
@@ -5317,6 +5680,23 @@ struct MacroInspectorView: View {
                             store.saveMacro(macro)
                             isDirty = false
                         }
+
+                        // Mode toggle button
+                        Button {
+                            store.registerUndoState(for: macro)
+                            if let idx = macro.triggers.firstIndex(where: { $0.id == trig.id }) {
+                                macro.triggers[idx].mode = macro.triggers[idx].mode == .keyPress ? .keySwitch : .keyPress
+                                store.saveMacro(macro)
+                            }
+                        } label: {
+                            Image(systemName: "arrow.triangle.swap")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundColor(trig.mode == .keySwitch ? Color(red: 0.1, green: 0.65, blue: 0.7) : .secondary)
+                                .frame(width: 20, height: 20)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .help(trig.mode == .keyPress ? "Switch to Key Switch mode" : "Switch to Key Press mode")
 
                         if macro.triggers.count > 1 {
                             Button {
@@ -5335,24 +5715,56 @@ struct MacroInspectorView: View {
                     }
                 }
 
+                // Centered + button for adding triggers
                 HStack {
                     Spacer()
                     Button {
-                        store.registerUndoState(for: macro)
-                        macro.triggers.append(Trigger(keyCode: 17, requireCmd: true, requireShift: true, requireOption: false, requireControl: false))
-                        store.saveMacro(macro)
+                        isShowingTriggerPopover.toggle()
                     } label: {
-                        Label("Add Trigger", systemImage: "plus")
-                            .font(.system(size: 11, weight: .semibold))
+                        Image(systemName: "plus")
+                            .font(.system(size: 12, weight: .bold))
                             .foregroundColor(.secondary)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
+                            .frame(width: 28, height: 28)
                             .background(Color.white.opacity(0.05))
-                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                            .clipShape(Circle())
                     }
                     .buttonStyle(.plain)
-                    .padding(.top, 4)
+                    .popover(isPresented: $isShowingTriggerPopover, arrowEdge: .bottom) {
+                        VStack(spacing: 4) {
+                            ForEach(TriggerMode.allCases, id: \.self) { mode in
+                                Button {
+                                    store.registerUndoState(for: macro)
+                                    macro.triggers.append(Trigger(keyCode: 17, requireCmd: true, requireShift: true, requireOption: false, requireControl: false, mode: mode))
+                                    store.saveMacro(macro)
+                                    isShowingTriggerPopover = false
+                                } label: {
+                                    HStack(spacing: 8) {
+                                        ZStack {
+                                            RoundedRectangle(cornerRadius: 5, style: .continuous)
+                                                .fill(mode.color)
+                                                .frame(width: 22, height: 22)
+                                            Image(systemName: mode.iconName)
+                                                .foregroundColor(.white)
+                                                .font(.system(size: 11, weight: .semibold))
+                                        }
+                                        Text(mode.displayName)
+                                            .font(.system(size: 12, weight: .medium))
+                                            .foregroundColor(.white)
+                                        Spacer()
+                                    }
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 5)
+                                    .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                        .padding(8)
+                        .frame(width: 160)
+                    }
+                    Spacer()
                 }
+                .padding(.top, 4)
             }
         }
         .padding(.horizontal, 14)
@@ -5386,120 +5798,137 @@ struct MacroInspectorView: View {
             }
 
             if !isActionsCollapsed {
-                DraggableActionList(actionItems: $macro.actionItems, onSave: {
-                    store.saveMacro(macro)
-                }, onInsertTemplate: { typeName, targetIndex in
-                    switch typeName {
-                    case "Path":
-                        store.registerUndoState(for: macro)
-                        let newActionItem = MacroActionItem(action: .path(points: []))
-                        if targetIndex >= macro.actionItems.count {
-                            macro.actionItems.append(newActionItem)
-                        } else {
-                            macro.actionItems.insert(newActionItem, at: targetIndex)
+                if hasKeySwitchTrigger {
+                    // Two sub-areas: Actions and Alternate Actions
+                    VStack(alignment: .leading, spacing: 16) {
+                        // PRIMARY ACTIONS AREA
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack(spacing: 6) {
+                                Image(systemName: "bolt.fill")
+                                    .foregroundColor(.purple)
+                                    .font(.system(size: 12))
+                                Text("Primary Action")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundColor(.white)
+                            }
+                            
+                            DraggableActionList(actionItems: $macro.actionItems, onSave: {
+                                store.saveMacro(macro)
+                            }, onInsertTemplate: { typeName, targetIndex in
+                                insertAction(typeName: typeName, targetIndex: targetIndex, isAlternate: false)
+                            }, detailWidth: detailWidth)
                         }
-                        store.saveMacro(macro)
-                        
-                        CaptureOverlayWindow.shared = CaptureOverlayWindow(
-                            initialPoints: [],
-                            defaultType: .move,
-                            onSequenceCaptured: { pts in
-                                if pts.isEmpty {
-                                    macro.actionItems.removeAll(where: { $0.id == newActionItem.id })
-                                    store.saveMacro(macro)
-                                } else {
-                                    if let idx = macro.actionItems.firstIndex(where: { $0.id == newActionItem.id }) {
-                                        macro.actionItems[idx].action = .path(points: pts)
+                        .padding(10)
+                        .background(Color.white.opacity(activeActionTarget == .primary ? 0.03 : 0.01))
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(Color.purple.opacity(activeActionTarget == .primary ? 0.3 : 0.1), lineWidth: 1)
+                        )
+                        .onTapGesture {
+                            activeActionTarget = .primary
+                        }
+
+                        // ALTERNATE ACTIONS AREA
+                        if let switchTriggerIndex = macro.triggers.firstIndex(where: { $0.mode == .keySwitch }) {
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "arrow.triangle.swap")
+                                        .foregroundColor(Color(red: 0.1, green: 0.65, blue: 0.7))
+                                        .font(.system(size: 12))
+                                    Text("Alternate Action")
+                                        .font(.system(size: 12, weight: .semibold))
+                                        .foregroundColor(.white)
+                                }
+                                
+                                DraggableActionList(actionItems: Binding(
+                                    get: { macro.triggers[switchTriggerIndex].alternateActionItems },
+                                    set: { newValue in
+                                        macro.triggers[switchTriggerIndex].alternateActionItems = newValue
                                         store.saveMacro(macro)
                                     }
-                                }
-                            },
-                            onSequenceRealTime: { tempPts in
-                                if let idx = macro.actionItems.firstIndex(where: { $0.id == newActionItem.id }) {
-                                    macro.actionItems[idx].action = .path(points: tempPts)
+                                ), onSave: {
                                     store.saveMacro(macro)
+                                }, onInsertTemplate: { typeName, targetIndex in
+                                    insertAction(typeName: typeName, targetIndex: targetIndex, isAlternate: true)
+                                }, detailWidth: detailWidth)
+                            }
+                            .padding(10)
+                            .background(Color.white.opacity(activeActionTarget == .alternate ? 0.03 : 0.01))
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Color(red: 0.1, green: 0.65, blue: 0.7).opacity(activeActionTarget == .alternate ? 0.3 : 0.1), lineWidth: 1)
+                            )
+                            .onTapGesture {
+                                activeActionTarget = .alternate
+                            }
+                        }
+                    }
+                } else {
+                    // Single actions area
+                    DraggableActionList(actionItems: $macro.actionItems, onSave: {
+                        store.saveMacro(macro)
+                    }, onInsertTemplate: { typeName, targetIndex in
+                        insertAction(typeName: typeName, targetIndex: targetIndex, isAlternate: false)
+                    }, detailWidth: detailWidth)
+                }
+
+                // Center "+" button and Search bar side-by-side
+                HStack(spacing: 12) {
+                    Spacer()
+                    
+                    Button {
+                        isShowingActionPopover.toggle()
+                    } label: {
+                        Image(systemName: "plus")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(.secondary)
+                            .frame(width: 28, height: 28)
+                            .background(Color.white.opacity(0.05))
+                            .clipShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .popover(isPresented: $isShowingActionPopover, arrowEdge: .bottom) {
+                        ScrollView {
+                            LazyVGrid(columns: [GridItem(.adaptive(minimum: 36, maximum: 44), spacing: 8)], spacing: 8) {
+                                ForEach(SearchableActionDef.allActions) { actionDef in
+                                    Button {
+                                        let isAlt = hasKeySwitchTrigger && activeActionTarget == .alternate
+                                        let tIdx = isAlt ? (macro.triggers.first(where: { $0.mode == .keySwitch })?.alternateActionItems.count ?? 0) : macro.actionItems.count
+                                        insertAction(typeName: actionDef.title, targetIndex: tIdx, isAlternate: isAlt)
+                                        isShowingActionPopover = false
+                                    } label: {
+                                        ZStack {
+                                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                                .fill(actionDef.color)
+                                                .frame(width: 32, height: 32)
+                                            Image(systemName: actionDef.icon)
+                                                .foregroundColor(.white)
+                                                .font(.system(size: 14, weight: .semibold))
+                                        }
+                                        .frame(width: 32, height: 32)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .help(actionDef.title)
                                 }
                             }
-                        )
-                    case "Left Click":
-                        CaptureOverlayWindow.shared = CaptureOverlayWindow(
-                            mode: .click(button: .left, initialPoint: nil),
-                            onClickCaptured: { pt in
-                                store.registerUndoState(for: macro)
-                                let item = MacroActionItem(action: .click(point: pt, button: .left))
-                                if targetIndex >= macro.actionItems.count {
-                                    macro.actionItems.append(item)
-                                } else {
-                                    macro.actionItems.insert(item, at: targetIndex)
-                                }
-                                store.saveMacro(macro)
-                            },
-                            onClickRealTime: { tempPt in }
-                        )
-                    case "Right Click":
-                        CaptureOverlayWindow.shared = CaptureOverlayWindow(
-                            mode: .click(button: .right, initialPoint: nil),
-                            onClickCaptured: { pt in
-                                store.registerUndoState(for: macro)
-                                let item = MacroActionItem(action: .click(point: pt, button: .right))
-                                if targetIndex >= macro.actionItems.count {
-                                    macro.actionItems.append(item)
-                                } else {
-                                    macro.actionItems.insert(item, at: targetIndex)
-                                }
-                                store.saveMacro(macro)
-                            },
-                            onClickRealTime: { tempPt in }
-                        )
-                    case "Drag":
-                        CaptureOverlayWindow.shared = CaptureOverlayWindow(
-                            mode: .drag(initialStart: nil, initialEnd: nil),
-                            onDragCaptured: { start, end in
-                                store.registerUndoState(for: macro)
-                                let item = MacroActionItem(action: .drag(start: start, end: end))
-                                if targetIndex >= macro.actionItems.count {
-                                    macro.actionItems.append(item)
-                                } else {
-                                    macro.actionItems.insert(item, at: targetIndex)
-                                }
-                                store.saveMacro(macro)
-                            },
-                            onDragRealTime: { tempStart, tempEnd in }
-                        )
-                    case "Move Cursor":
-                        CaptureOverlayWindow.shared = CaptureOverlayWindow(
-                            mode: .click(button: .left, initialPoint: nil),
-                            onClickCaptured: { pt in
-                                store.registerUndoState(for: macro)
-                                let item = MacroActionItem(action: .moveCursor(point: pt))
-                                if targetIndex >= macro.actionItems.count {
-                                    macro.actionItems.append(item)
-                                } else {
-                                    macro.actionItems.insert(item, at: targetIndex)
-                                }
-                                store.saveMacro(macro)
-                            },
-                            onClickRealTime: { tempPt in }
-                        )
-                    default:
-                        let nonCoordAction: MacroAction
-                        switch typeName {
-                        case "Delay": nonCoordAction = .delay(ms: 300)
-                        case "Text":  nonCoordAction = .typeText(text: "Hello ShortKing")
-                        case "Key":   nonCoordAction = .pressKey(keyCode: 36)
-                        case "Origin", "Do Again": nonCoordAction = .doAgain(target: .origin)
-                        default:      nonCoordAction = .delay(ms: 300)
+                            .padding(10)
                         }
-                        store.registerUndoState(for: macro)
-                        let item = MacroActionItem(action: nonCoordAction)
-                        if targetIndex >= macro.actionItems.count {
-                            macro.actionItems.append(item)
-                        } else {
-                            macro.actionItems.insert(item, at: targetIndex)
-                        }
-                        store.saveMacro(macro)
+                        .frame(width: 200, height: 160)
                     }
-                }, detailWidth: detailWidth)
+
+                    // Spotlight-style search bar next to the "+" button
+                    SpotlightSearchBar(placeholder: "Search actions...", items: SearchableActionDef.allActions) { actionDef in
+                        let isAlt = hasKeySwitchTrigger && activeActionTarget == .alternate
+                        let tIdx = isAlt ? (macro.triggers.first(where: { $0.mode == .keySwitch })?.alternateActionItems.count ?? 0) : macro.actionItems.count
+                        insertAction(typeName: actionDef.title, targetIndex: tIdx, isAlternate: isAlt)
+                    }
+                    .frame(width: 140)
+                    
+                    Spacer()
+                }
+                .padding(.top, 8)
             }
         }
         .padding(.horizontal, 14)
@@ -5512,225 +5941,123 @@ struct MacroInspectorView: View {
         )
     }
 
-    // MARK: - Add Action Palette Section
-    @ViewBuilder
-    private var addActionSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("Add Action")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(.secondary)
-                    .padding(.leading, 2)
-                Spacer()
-                Image(systemName: isAddActionCollapsed ? "chevron.right" : "chevron.down")
-                    .foregroundColor(.secondary)
-                    .font(.system(size: 10, weight: .bold))
-            }
-            .contentShape(Rectangle())
-            .onTapGesture {
-                withAnimation(.easeInOut(duration: 0.15)) {
-                    isAddActionCollapsed.toggle()
-                }
-            }
-            .padding(.top, 6)
-
-            if !isAddActionCollapsed {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 32, maximum: 40), spacing: 8)], spacing: 8) {
-                    // Path / Sequence (Multi-point cursor operation chain)
-                    quickActionButton(title: "Path", icon: "point.topleft.down.to.point.bottomright.curvepath.fill", color: Color(red: 0.65, green: 0.25, blue: 0.85)) {
-                        store.registerUndoState(for: macro)
-                        let newActionItem = MacroActionItem(action: .path(points: []))
-                        macro.actionItems.append(newActionItem)
-                        store.saveMacro(macro)
-                        
-                        CaptureOverlayWindow.shared = CaptureOverlayWindow(
-                            initialPoints: [],
-                            defaultType: .move,
-                            onSequenceCaptured: { pts in
-                                if pts.isEmpty {
-                                    // If confirmed empty, clean up the item
-                                    macro.actionItems.removeAll(where: { $0.id == newActionItem.id })
-                                    store.saveMacro(macro)
-                                } else {
-                                    if let idx = macro.actionItems.firstIndex(where: { $0.id == newActionItem.id }) {
-                                        macro.actionItems[idx].action = .path(points: pts)
-                                        store.saveMacro(macro)
-                                    }
-                                }
-                            },
-                            onSequenceRealTime: { tempPts in
-                                if let idx = macro.actionItems.firstIndex(where: { $0.id == newActionItem.id }) {
-                                    macro.actionItems[idx].action = .path(points: tempPts)
-                                    store.saveMacro(macro)
-                                }
-                            }
-                        )
-                    }
-
-                    quickActionButton(title: "Left Click", icon: "cursorarrow.click", color: Color(red: 0.08, green: 0.45, blue: 0.82)) {
-                        CaptureOverlayWindow.shared = CaptureOverlayWindow(
-                            mode: .click(button: .left, initialPoint: nil),
-                            onClickCaptured: { pt in
-                                store.registerUndoState(for: macro)
-                                let item = MacroActionItem(action: .click(point: pt, button: .left))
-                                macro.actionItems.append(item)
-                                store.saveMacro(macro)
-                            },
-                            onClickRealTime: { tempPt in
-                                // Realtime updates ignored since action is not yet appended
-                            }
-                        )
-                    }
-
-                    quickActionButton(title: "Right Click", icon: "cursorarrow.click", color: Color(red: 0.04, green: 0.52, blue: 0.54)) {
-                        CaptureOverlayWindow.shared = CaptureOverlayWindow(
-                            mode: .click(button: .right, initialPoint: nil),
-                            onClickCaptured: { pt in
-                                store.registerUndoState(for: macro)
-                                let item = MacroActionItem(action: .click(point: pt, button: .right))
-                                macro.actionItems.append(item)
-                                store.saveMacro(macro)
-                            },
-                            onClickRealTime: { tempPt in
-                                // Realtime updates ignored since action is not yet appended
-                            }
-                        )
-                    }
-
-                    quickActionButton(title: "Drag", icon: "hand.draw", color: Color(red: 0.52, green: 0.22, blue: 0.75)) {
-                        CaptureOverlayWindow.shared = CaptureOverlayWindow(
-                            mode: .drag(initialStart: nil, initialEnd: nil),
-                            onDragCaptured: { start, end in
-                                store.registerUndoState(for: macro)
-                                let item = MacroActionItem(action: .drag(start: start, end: end))
-                                macro.actionItems.append(item)
-                                store.saveMacro(macro)
-                            },
-                            onDragRealTime: { tempStart, tempEnd in
-                                // Realtime updates ignored since action is not yet appended
-                            }
-                        )
-                    }
-
-                    quickActionButton(title: "Move", icon: "cursorarrow.motionlines", color: Color(red: 0.28, green: 0.52, blue: 0.92)) {
-                        CaptureOverlayWindow.shared = CaptureOverlayWindow(
-                            mode: .click(button: .left, initialPoint: nil),
-                            onClickCaptured: { pt in
-                                store.registerUndoState(for: macro)
-                                let item = MacroActionItem(action: .moveCursor(point: pt))
-                                macro.actionItems.append(item)
-                                store.saveMacro(macro)
-                            },
-                            onClickRealTime: { tempPt in
-                                // Realtime updates ignored since action is not yet appended
-                            }
-                        )
-                    }
-
-                    quickActionButton(title: "Delay", icon: "timer", color: Color(red: 0.88, green: 0.42, blue: 0.04)) {
-                        store.registerUndoState(for: macro)
-                        macro.actionItems.append(MacroActionItem(action: .delay(ms: 300)))
-                        store.saveMacro(macro)
-                    }
-
-                    quickActionButton(title: "Text", icon: "text.cursor", color: Color(red: 0.12, green: 0.58, blue: 0.24)) {
-                        store.registerUndoState(for: macro)
-                        macro.actionItems.append(MacroActionItem(action: .typeText(text: "Hello ShortKing")))
-                        store.saveMacro(macro)
-                    }
-
-                    quickActionButton(title: "Key", icon: "keyboard", color: Color(red: 0.32, green: 0.28, blue: 0.72)) {
-                        store.registerUndoState(for: macro)
-                        macro.actionItems.append(MacroActionItem(action: .pressKey(keyCode: 36)))
-                        store.saveMacro(macro)
-                    }
-
-                    quickActionButton(title: "Do Again", icon: "arrow.counterclockwise", color: Color(red: 0.12, green: 0.58, blue: 0.65)) {
-                        store.registerUndoState(for: macro)
-                        macro.actionItems.append(MacroActionItem(action: .doAgain(target: .origin)))
-                        store.saveMacro(macro)
-                    }
-
-                    quickActionButton(title: "Group", icon: "folder", color: Color.orange) {
-                        store.registerUndoState(for: macro)
-                        macro.actionItems.append(MacroActionItem(action: .group(name: "New Group", actions: [])))
-                        store.saveMacro(macro)
-                    }
-
-                    quickActionButton(title: "Custom", icon: "terminal", color: Color.pink) {
-                        store.registerUndoState(for: macro)
-                        macro.actionItems.append(MacroActionItem(action: .customAction(script: "osascript -e 'set volume output volume (output volume of (get volume settings) + 6)'")))
-                        store.saveMacro(macro)
-                    }
-
-                    quickActionButton(title: "Open File", icon: "arrow.up.forward.app", color: Color(red: 0.1, green: 0.65, blue: 0.6)) {
-                        store.registerUndoState(for: macro)
-                        macro.actionItems.append(MacroActionItem(action: .openFile(path: "")))
-                        store.saveMacro(macro)
-                    }
-
-                    quickActionButton(title: "Vol Up", icon: "speaker.wave.3.fill", color: Color.blue) {
-                        store.registerUndoState(for: macro)
-                        macro.actionItems.append(MacroActionItem(action: .volumeUp))
-                        store.saveMacro(macro)
-                    }
-
-                    quickActionButton(title: "Vol Down", icon: "speaker.wave.1.fill", color: Color.blue) {
-                        store.registerUndoState(for: macro)
-                        macro.actionItems.append(MacroActionItem(action: .volumeDown))
-                        store.saveMacro(macro)
-                    }
-
-                    quickActionButton(title: "Brit Up", icon: "sun.max.fill", color: Color.orange) {
-                        store.registerUndoState(for: macro)
-                        macro.actionItems.append(MacroActionItem(action: .brightnessUp))
-                        store.saveMacro(macro)
-                    }
-
-                    quickActionButton(title: "Brit Down", icon: "sun.min.fill", color: Color.orange) {
-                        store.registerUndoState(for: macro)
-                        macro.actionItems.append(MacroActionItem(action: .brightnessDown))
-                        store.saveMacro(macro)
-                    }
-                }
-            }
+    private func insertAction(typeName: String, targetIndex: Int, isAlternate: Bool) {
+        store.registerUndoState(for: macro)
+        
+        let newAction: MacroAction
+        switch typeName {
+        case "Path": newAction = .path(points: [])
+        case "Left Click": newAction = .click(point: .zero, button: .left)
+        case "Right Click": newAction = .click(point: .zero, button: .right)
+        case "Drag": newAction = .drag(start: .zero, end: .zero)
+        case "Move Cursor": newAction = .moveCursor(point: .zero)
+        case "Delay": newAction = .delay(ms: 300)
+        case "Text": newAction = .typeText(text: "Hello ShortKing")
+        case "Key": newAction = .pressKey(keyCode: 36)
+        case "Do Again": newAction = .doAgain(target: .origin)
+        case "Group": newAction = .group(name: "New Group", actions: [])
+        case "Custom": newAction = .customAction(script: "osascript -e 'set volume output volume (output volume of (get volume settings) + 6)'")
+        case "Open File": newAction = .openFile(path: "")
+        case "Vol Up": newAction = .volumeUp
+        case "Vol Down": newAction = .volumeDown
+        case "Brit Up": newAction = .brightnessUp
+        case "Brit Down": newAction = .brightnessDown
+        default: newAction = .delay(ms: 300)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
-        .background(Color(white: 0.18))
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .stroke(Color.white.opacity(0.06), lineWidth: 1)
-        )
-        .padding(.top, 4)
+        
+        let newActionItem = MacroActionItem(action: newAction)
+        
+        if isAlternate {
+            if let idx = macro.triggers.firstIndex(where: { $0.mode == .keySwitch }) {
+                var altItems = macro.triggers[idx].alternateActionItems
+                if targetIndex >= altItems.count {
+                    altItems.append(newActionItem)
+                } else {
+                    altItems.insert(newActionItem, at: targetIndex)
+                }
+                macro.triggers[idx].alternateActionItems = altItems
+                store.saveMacro(macro)
+                
+                triggerCaptureIfNeeded(for: newActionItem, index: targetIndex, isAlternate: true, switchTriggerIndex: idx)
+            }
+        } else {
+            if targetIndex >= macro.actionItems.count {
+                macro.actionItems.append(newActionItem)
+            } else {
+                macro.actionItems.insert(newActionItem, at: targetIndex)
+            }
+            store.saveMacro(macro)
+            
+            triggerCaptureIfNeeded(for: newActionItem, index: targetIndex, isAlternate: false, switchTriggerIndex: nil)
+        }
     }
 
-    @ViewBuilder
-    private func quickActionButton(
-        title: String,
-        icon: String,
-        color: Color,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(color)
-                    .frame(width: 32, height: 32)
-                Image(systemName: icon)
-                    .foregroundColor(.white)
-                    .font(.system(size: 14, weight: .semibold))
-            }
-            .frame(width: 32, height: 32)
-            .frame(maxWidth: .infinity, alignment: .center)
-            .padding(.vertical, 6)
-            .contentShape(Rectangle())
+    private func triggerCaptureIfNeeded(for actionItem: MacroActionItem, index: Int, isAlternate: Bool, switchTriggerIndex: Int?) {
+        switch actionItem.action {
+        case .path:
+            CaptureOverlayWindow.shared = CaptureOverlayWindow(
+                initialPoints: [],
+                defaultType: .move,
+                onSequenceCaptured: { pts in
+                    if pts.isEmpty {
+                        removeActionItem(id: actionItem.id, isAlternate: isAlternate, switchTriggerIndex: switchTriggerIndex)
+                    } else {
+                        updateActionItem(id: actionItem.id, action: .path(points: pts), isAlternate: isAlternate, switchTriggerIndex: switchTriggerIndex)
+                    }
+                },
+                onSequenceRealTime: { tempPts in
+                    updateActionItem(id: actionItem.id, action: .path(points: tempPts), isAlternate: isAlternate, switchTriggerIndex: switchTriggerIndex)
+                }
+            )
+        case .click(let pt, let button):
+            CaptureOverlayWindow.shared = CaptureOverlayWindow(
+                mode: .click(button: button, initialPoint: pt == .zero ? nil : pt),
+                onClickCaptured: { capturedPt in
+                    updateActionItem(id: actionItem.id, action: .click(point: capturedPt, button: button), isAlternate: isAlternate, switchTriggerIndex: switchTriggerIndex)
+                },
+                onClickRealTime: { _ in }
+            )
+        case .drag(let start, let end):
+            CaptureOverlayWindow.shared = CaptureOverlayWindow(
+                mode: .drag(initialStart: start == .zero ? nil : start, initialEnd: end == .zero ? nil : end),
+                onDragCaptured: { capturedStart, capturedEnd in
+                    updateActionItem(id: actionItem.id, action: .drag(start: capturedStart, end: capturedEnd), isAlternate: isAlternate, switchTriggerIndex: switchTriggerIndex)
+                },
+                onDragRealTime: { _, _ in }
+            )
+        case .moveCursor(let pt):
+            CaptureOverlayWindow.shared = CaptureOverlayWindow(
+                mode: .click(button: .left, initialPoint: pt == .zero ? nil : pt),
+                onClickCaptured: { capturedPt in
+                    updateActionItem(id: actionItem.id, action: .moveCursor(point: capturedPt), isAlternate: isAlternate, switchTriggerIndex: switchTriggerIndex)
+                },
+                onClickRealTime: { _ in }
+            )
+        default:
+            break
         }
-        .buttonStyle(.plain)
-        .help(title)
-        .onDrag {
-            return NSItemProvider(object: "action_template:\(title)" as NSString)
+    }
+    
+    private func removeActionItem(id: UUID, isAlternate: Bool, switchTriggerIndex: Int?) {
+        if isAlternate, let idx = switchTriggerIndex {
+            macro.triggers[idx].alternateActionItems.removeAll(where: { $0.id == id })
+        } else {
+            macro.actionItems.removeAll(where: { $0.id == id })
+        }
+        store.saveMacro(macro)
+    }
+    
+    private func updateActionItem(id: UUID, action: MacroAction, isAlternate: Bool, switchTriggerIndex: Int?) {
+        if isAlternate, let idx = switchTriggerIndex {
+            if let aIdx = macro.triggers[idx].alternateActionItems.firstIndex(where: { $0.id == id }) {
+                macro.triggers[idx].alternateActionItems[aIdx].action = action
+                store.saveMacro(macro)
+            }
+        } else {
+            if let aIdx = macro.actionItems.firstIndex(where: { $0.id == id }) {
+                macro.actionItems[aIdx].action = action
+                store.saveMacro(macro)
+            }
         }
     }
 
@@ -7469,11 +7796,14 @@ struct MainEditorView: View {
             switch node {
             case .folder(let name, let url, let config, let children):
                 let matching = filterTree(nodes: children, query: query)
-                if !matching.isEmpty || name.localizedCaseInsensitiveContains(query) {
+                let nameMatches = fuzzyMatch(query, in: name).matches
+                if !matching.isEmpty || nameMatches {
                     result.append(.folder(name: name, url: url, config: config, children: matching))
                 }
             case .macro(let item):
-                if item.fileName.localizedCaseInsensitiveContains(query) || item.trigger.displayString.localizedCaseInsensitiveContains(query) {
+                let fileMatches = fuzzyMatch(query, in: item.fileName).matches
+                let trigMatches = fuzzyMatch(query, in: item.trigger.displayString).matches
+                if fileMatches || trigMatches {
                     result.append(.macro(item: item))
                 }
             }
