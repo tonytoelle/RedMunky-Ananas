@@ -1,0 +1,12 @@
+{
+  "iconName": "folder.fill",
+  "colorName": "orange",
+  "isRestrictedToApps": true,
+  "targetApps": [
+    {
+      "name": "Preview",
+      "bundleId": "com.apple.Preview"
+    }
+  ],
+  "customAppIconBundleId": "com.apple.Preview"
+}
