@@ -2232,6 +2232,7 @@ class CaptureOverlayState: ObservableObject {
     @Published var mode: CaptureOverlayWindow.Mode = .click(button: .left, initialPoint: nil)
     @Published var currentLocation: CGPoint = .zero       // In Cocoa window coordinates (bottom-left origin)
     @Published var quartzLocation: CGPoint = .zero        // In Quartz display coordinates (top-left origin)
+    @Published var isFollowingCursor: Bool = true         // New flag for intuitive UX flow
     
     @Published var points: [SequencePoint] = []
     @Published var activeDraggingIndex: Int? = nil
@@ -2242,7 +2243,7 @@ class CaptureOverlayState: ObservableObject {
     @Published var lastHudCenter: CGPoint = .zero
     
     var isHudVisible: Bool {
-        if phase == .recording { return true }
+        if isFollowingCursor { return true }
         if selectedPointIndex != nil || activeDraggingIndex != nil || isHoveringHud { return true }
         if hoveredIndex != nil { return true }
         for p in points {
@@ -2281,6 +2282,7 @@ class CaptureOverlayState: ObservableObject {
         points.remove(at: index)
         if points.isEmpty {
             phase = .recording
+            isFollowingCursor = true
             selectedPointIndex = nil
         } else {
             selectedPointIndex = min(index, points.count - 1)
@@ -2288,28 +2290,8 @@ class CaptureOverlayState: ObservableObject {
     }
     
     func insertPoint() {
-        let newPt: SequencePoint
-        let insertIndex: Int
-        
-        if let sel = selectedPointIndex, sel < points.count {
-            let basePt = points[sel]
-            let newX = basePt.point.x + 35
-            let newY = basePt.point.y + 35
-            newPt = SequencePoint(point: CGPoint(x: newX, y: newY), type: defaultPointType)
-            insertIndex = sel + 1
-        } else {
-            newPt = SequencePoint(point: quartzLocation, type: defaultPointType)
-            insertIndex = points.count
-        }
-        
-        if insertIndex >= points.count {
-            points.append(newPt)
-            selectedPointIndex = points.count - 1
-        } else {
-            points.insert(newPt, at: insertIndex)
-            selectedPointIndex = insertIndex
-        }
-        phase = .editing
+        guard !isFollowingCursor else { return }
+        isFollowingCursor = true
     }
 }
 
@@ -2325,7 +2307,7 @@ struct CaptureOverlaySwiftUIView: View {
                 // Completely transparent background with no dimming in any phase
                 Color.clear
                     .edgesIgnoringSafeArea(.all)
-                    .allowsHitTesting(false)
+                    .allowsHitTesting(state.isFollowingCursor)
                 
                 // ─────────────────────────────────────────────
                 // CONNECTING PATH LINES BETWEEN PINS (Color Gradient)
@@ -2361,7 +2343,7 @@ struct CaptureOverlaySwiftUIView: View {
                 
                 // Active dashed line during recording to follow cursor
                 let shouldShowCursorLine: Bool = {
-                    guard state.phase == .recording, !state.points.isEmpty else { return false }
+                    guard state.isFollowingCursor, !state.points.isEmpty else { return false }
                     switch state.mode {
                     case .click:
                         return false
@@ -2646,8 +2628,10 @@ class CaptureOverlayHostingView: NSView {
         if !initialPoints.isEmpty {
             stateModel.phase = .editing
             stateModel.selectedPointIndex = nil
+            stateModel.isFollowingCursor = false
         } else {
             stateModel.phase = .recording
+            stateModel.isFollowingCursor = true
         }
         
         stateModel.onConfirmAll = { [weak self] in
@@ -2662,6 +2646,7 @@ class CaptureOverlayHostingView: NSView {
         stateModel.onResetAction = { [weak self] in
             self?.stateModel.points.removeAll()
             self?.stateModel.phase = .recording
+            self?.stateModel.isFollowingCursor = true
             self?.stateModel.activeDraggingIndex = nil
             self?.stateModel.hoveredIndex = nil
             self?.stateModel.selectedPointIndex = nil
@@ -2782,7 +2767,13 @@ class CaptureOverlayHostingView: NSView {
     // Dynamically toggle window.ignoresMouseEvents for full passthrough in edit mode
     private func updatePassthrough(quartzPt: CGPoint) {
         guard let win = self.window else { return }
-        guard stateModel.phase == .editing, stateModel.activeDraggingIndex == nil else {
+        // If we are actively placing a point (following cursor), we must capture clicks!
+        guard !stateModel.isFollowingCursor else {
+            win.ignoresMouseEvents = false
+            return
+        }
+        
+        guard stateModel.activeDraggingIndex == nil else {
             win.ignoresMouseEvents = false
             return
         }
@@ -2824,13 +2815,12 @@ class CaptureOverlayHostingView: NSView {
     
     // MARK: - Hit Testing (Native macOS Click-Through)
     override func hitTest(_ point: NSPoint) -> NSView? {
-        let screenHeight = window?.screen?.frame.height ?? NSScreen.main?.frame.height ?? bounds.height
-        let quartzPt = CGPoint(x: point.x, y: screenHeight - point.y)
-        
-        // During recording: capture all clicks to drop points!
-        if stateModel.phase == .recording {
+        if stateModel.isFollowingCursor {
             return super.hitTest(point)
         }
+        
+        let screenHeight = window?.screen?.frame.height ?? NSScreen.main?.frame.height ?? bounds.height
+        let quartzPt = CGPoint(x: point.x, y: screenHeight - point.y)
         
         // During edit: only capture clicks directly on/near pins
         for p in stateModel.points {
@@ -2842,7 +2832,7 @@ class CaptureOverlayHostingView: NSView {
         // Or clicks directly on the HUD card
         if stateModel.isHudVisible {
             let hudPos = stateModel.lastHudCenter
-            let hudRect = CGRect(x: hudPos.x - 75, y: hudPos.y - 30, width: 150, height: 60)
+            let hudRect = CGRect(x: hudPos.x - 110, y: hudPos.y - 45, width: 220, height: 90)
             if hudRect.contains(quartzPt) {
                 return super.hitTest(point)
             }
@@ -2871,26 +2861,47 @@ class CaptureOverlayHostingView: NSView {
     override func mouseDown(with event: NSEvent) {
         updateMouse(event: event)
         
-        if stateModel.phase == .recording {
+        if stateModel.isFollowingCursor {
+            let newPt = SequencePoint(point: stateModel.quartzLocation, type: stateModel.defaultPointType)
+            
             switch stateModel.mode {
             case .click:
-                stateModel.points = [SequencePoint(point: stateModel.quartzLocation, type: .click)]
+                stateModel.points = [newPt]
+                stateModel.isFollowingCursor = false
                 stateModel.onConfirmAll?()
                 return
                 
             case .drag:
                 if stateModel.points.isEmpty {
-                    stateModel.points.append(SequencePoint(point: stateModel.quartzLocation, type: .drag))
+                    stateModel.points.append(newPt)
                     stateModel.selectedPointIndex = 0
                 } else {
-                    stateModel.points.append(SequencePoint(point: stateModel.quartzLocation, type: .drag))
+                    stateModel.points.append(newPt)
+                    stateModel.isFollowingCursor = false
                     stateModel.onConfirmAll?()
                     return
                 }
                 
             case .sequence:
-                stateModel.points.append(SequencePoint(point: stateModel.quartzLocation, type: stateModel.defaultPointType))
-                stateModel.selectedPointIndex = stateModel.points.count - 1
+                let insertIndex: Int
+                if let sel = stateModel.selectedPointIndex, sel < stateModel.points.count {
+                    insertIndex = sel + 1
+                } else {
+                    insertIndex = stateModel.points.count
+                }
+                
+                if insertIndex >= stateModel.points.count {
+                    stateModel.points.append(newPt)
+                    stateModel.selectedPointIndex = stateModel.points.count - 1
+                } else {
+                    stateModel.points.insert(newPt, at: insertIndex)
+                    stateModel.selectedPointIndex = insertIndex
+                }
+                stateModel.isFollowingCursor = false
+                stateModel.phase = .editing
+                
+                // Keep windows ignores mouse events updated
+                updatePassthrough(quartzPt: stateModel.quartzLocation)
             }
         } else {
             // Edit phase: handled when clicking directly on a pin
@@ -2919,33 +2930,24 @@ class CaptureOverlayHostingView: NSView {
     
     private func handleKeyEvent(_ event: NSEvent) {
         if event.keyCode == 53 { // Esc
-            if stateModel.selectedPointIndex != nil {
-                stateModel.selectedPointIndex = nil
+            if stateModel.isFollowingCursor && !stateModel.points.isEmpty {
+                // Cancel current placing action and return to resting state
+                stateModel.isFollowingCursor = false
+                updatePassthrough(quartzPt: stateModel.quartzLocation)
             } else {
                 cleanupMonitors()
                 onCancel()
             }
         } else if event.keyCode == 36 || event.keyCode == 76 || event.keyCode == 49 { // Return / Enter / Space
-            if case .sequence = stateModel.mode {
-                if stateModel.phase == .recording {
-                    stateModel.phase = .editing
-                    stateModel.selectedPointIndex = nil
-                    updatePassthrough(quartzPt: stateModel.quartzLocation)
-                } else {
-                    cleanupMonitors()
-                    stateModel.onConfirmAll?()
-                }
-            } else {
-                cleanupMonitors()
-                stateModel.onConfirmAll?()
-            }
+            cleanupMonitors()
+            stateModel.onConfirmAll?()
         } else if event.keyCode == 48 { // Tab: cycle selected point
             if !stateModel.points.isEmpty {
                 let cur = stateModel.selectedPointIndex ?? -1
                 stateModel.selectedPointIndex = (cur + 1) % stateModel.points.count
             }
         } else if event.keyCode == 51 || event.keyCode == 117 { // Backspace / Delete
-            if case .sequence = stateModel.mode, let sel = stateModel.selectedPointIndex {
+            if let sel = stateModel.selectedPointIndex {
                 stateModel.removePoint(at: sel)
             }
         }
