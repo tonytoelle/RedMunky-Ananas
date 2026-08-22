@@ -2787,6 +2787,11 @@ class CaptureOverlayHostingView: NSView {
         stateModel.defaultPointType = defaultType
         stateModel.points = initialPoints
         
+        // Instantly initialize mouse location to prevent (0,0) startup coordinate lag/flicker
+        let initialMouseLoc = NSEvent.mouseLocation
+        let screenHeight = NSScreen.main?.frame.height ?? 1080
+        stateModel.quartzLocation = CGPoint(x: initialMouseLoc.x, y: screenHeight - initialMouseLoc.y)
+        
         if !initialPoints.isEmpty {
             stateModel.phase = .editing
             stateModel.selectedPointIndex = nil

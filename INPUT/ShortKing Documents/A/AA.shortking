@@ -22,3 +22,8 @@ ACTION: move 0 0
 ACTION: move 1553 814
 ACTION: move 0 0
 ACTION: move 0 0
+ACTION: move 1260 740
+ACTION: move 1327 871
+ACTION: path 
+ACTION: click 1279 817
+ACTION: click 0 0
