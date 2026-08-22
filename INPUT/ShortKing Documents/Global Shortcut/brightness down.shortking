@@ -3,4 +3,3 @@ TRIGGER: shift+f1
 
 # Actions:
 ACTION: brightness_down
-ACTION: do_again

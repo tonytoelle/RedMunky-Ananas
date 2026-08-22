@@ -5991,7 +5991,7 @@ struct MainEditorView: View {
     @FocusState private var isSearchFocused: Bool
     @State private var keyMonitor: Any? = nil
     @AppStorage("alwaysOnTop") private var alwaysOnTop: Bool = false
-    @State private var sidebarWidth: CGFloat = 290
+    @AppStorage("sidebarWidth") private var sidebarWidth: Double = 270
 
     var displayNodes: [FileSystemNode] {
         if searchText.isEmpty {
@@ -6249,7 +6249,7 @@ struct MainEditorView: View {
                         DragGesture(coordinateSpace: .named("mainContainer"))
                             .onChanged { gesture in
                                 let newWidth = gesture.location.x
-                                sidebarWidth = max(240, min(newWidth, 450))
+                                sidebarWidth = Double(max(240, min(newWidth, 450)))
                             }
                     )
                 }
@@ -6687,15 +6687,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDele
         statusMenu.addItem(withTitle: "Quit ShortKing", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
     }
 
-    // MARK: - Actions
     @objc func showEditorWindow() {
         NSApp.setActivationPolicy(.regular)
         if window == nil {
+            let defaultSize = NSSize(width: 760, height: 710)
+            let minSize = NSSize(width: 760, height: 710)
+
             let win = EditorWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 1000, height: 710),
+                contentRect: NSRect(x: 0, y: 0, width: defaultSize.width, height: defaultSize.height),
                 styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
                 backing: .buffered, defer: false)
+            win.minSize = minSize
+
             if !win.setFrameAutosaveName("ShortKingMainWindow") {
+                win.setContentSize(defaultSize)
                 win.center()
             }
             win.title = "👑 ShortKing — Macro Editor"
