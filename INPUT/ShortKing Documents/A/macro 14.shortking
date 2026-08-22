@@ -3,3 +3,4 @@ TRIGGER: cmd+shift+k
 
 # Actions:
 ACTION: do_again
+ACTION: path 393,1111:click 502,1055:drag 461,984:drag 813,882:click 665,967:drag 721,1027:drag
