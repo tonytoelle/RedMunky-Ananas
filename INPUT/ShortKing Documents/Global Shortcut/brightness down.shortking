@@ -16,3 +16,12 @@ ACTION: path 453,949:move 525,865:move 616,861:move 696,781:move 802,799:move
 ACTION: path 453,949:move 525,865:move 616,861:move 696,781:move 802,799:move 874,772:move
 ACTION: path 453,949:move 525,865:move 616,861:move 696,781:move 802,799:move 874,772:move
 ACTION: path 453,949:move 471,851:move 590,909:move 610,817:move 696,781:move 802,799:move 874,772:move
+ACTION: path 493,1007:move
+ACTION: path 493,1007:move 627,982:move
+ACTION: path 493,1007:move 627,982:move 684,952:move
+ACTION: path 493,1007:move 627,982:move 684,952:move 628,1062:move
+ACTION: path 493,1007:move 627,982:move 684,952:move 628,1062:move 518,1058:move
+ACTION: path 493,1007:move 627,982:move 684,952:move 628,1062:move 591,1035:move 518,1058:move
+ACTION: click 1046 634
+ACTION: right_click 1467 651
+ACTION: drag 1384 563 to 1486 469

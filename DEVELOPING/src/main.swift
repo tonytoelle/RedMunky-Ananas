@@ -2351,7 +2351,7 @@ struct CaptureOverlaySwiftUIView: View {
                         let ptB = state.points[idx + 1]
                         
                         let isLineBeingBypassed = state.isFollowingCursor && state.selectedPointIndex == idx
-                        let lineOpacityMultiplier: Double = isLineBeingBypassed ? 0.20 : 1.0
+                        let lineOpacityMultiplier: Double = isLineBeingBypassed ? 0.0 : 1.0
                         
                         let midColor = blendColors(typeA: ptA.type, typeB: ptB.type)
                         
@@ -3138,12 +3138,20 @@ class CaptureOverlayWindow: NSPanel {
     
     private var mode: Mode
     private var onClickCaptured: ((CGPoint) -> Void)?
-    private var onDragCaptured: ((CGPoint, CGPoint) -> Void)?
-    private var onSequenceCaptured: (([SequencePoint]) -> Void)?
+    private var onClickRealTime: ((CGPoint) -> Void)?
     
-    init(mode: Mode = .click(button: .left, initialPoint: nil), onClickCaptured: @escaping (CGPoint) -> Void) {
+    private var onDragCaptured: ((CGPoint, CGPoint) -> Void)?
+    private var onDragRealTime: ((CGPoint, CGPoint) -> Void)?
+    
+    private var onSequenceCaptured: (([SequencePoint]) -> Void)?
+    private var onSequenceRealTime: (([SequencePoint]) -> Void)?
+    
+    init(mode: Mode = .click(button: .left, initialPoint: nil), 
+         onClickCaptured: @escaping (CGPoint) -> Void,
+         onClickRealTime: ((CGPoint) -> Void)? = nil) {
         self.mode = mode
         self.onClickCaptured = onClickCaptured
+        self.onClickRealTime = onClickRealTime
         let screenRect = NSScreen.main?.frame ?? NSRect(x: 0, y: 0, width: 1920, height: 1080)
         super.init(contentRect: screenRect,
                    styleMask: [.borderless, .nonactivatingPanel],
@@ -3157,9 +3165,12 @@ class CaptureOverlayWindow: NSPanel {
         setupWindow(initialPoints: initPoints, defaultType: .click)
     }
     
-    init(mode: Mode = .drag(initialStart: nil, initialEnd: nil), onDragCaptured: @escaping (CGPoint, CGPoint) -> Void) {
+    init(mode: Mode = .drag(initialStart: nil, initialEnd: nil), 
+         onDragCaptured: @escaping (CGPoint, CGPoint) -> Void,
+         onDragRealTime: ((CGPoint, CGPoint) -> Void)? = nil) {
         self.mode = mode
         self.onDragCaptured = onDragCaptured
+        self.onDragRealTime = onDragRealTime
         let screenRect = NSScreen.main?.frame ?? NSRect(x: 0, y: 0, width: 1920, height: 1080)
         super.init(contentRect: screenRect,
                    styleMask: [.borderless, .nonactivatingPanel],
@@ -3177,9 +3188,13 @@ class CaptureOverlayWindow: NSPanel {
         setupWindow(initialPoints: initPoints, defaultType: .drag)
     }
     
-    init(initialPoints: [SequencePoint] = [], defaultType: SequencePointType = .move, onSequenceCaptured: @escaping ([SequencePoint]) -> Void) {
+    init(initialPoints: [SequencePoint] = [], 
+         defaultType: SequencePointType = .move, 
+         onSequenceCaptured: @escaping ([SequencePoint]) -> Void,
+         onSequenceRealTime: (([SequencePoint]) -> Void)? = nil) {
         self.mode = .sequence(initialPoints: initialPoints)
         self.onSequenceCaptured = onSequenceCaptured
+        self.onSequenceRealTime = onSequenceRealTime
         let screenRect = NSScreen.main?.frame ?? NSRect(x: 0, y: 0, width: 1920, height: 1080)
         super.init(contentRect: screenRect,
                    styleMask: [.borderless, .nonactivatingPanel],
@@ -3228,14 +3243,14 @@ class CaptureOverlayWindow: NSPanel {
             switch self.mode {
             case .click:
                 if let pt = currentPoints.first?.point {
-                    self.onClickCaptured?(pt)
+                    self.onClickRealTime?(pt)
                 }
             case .drag:
                 if currentPoints.count >= 2 {
-                    self.onDragCaptured?(currentPoints[0].point, currentPoints[1].point)
+                    self.onDragRealTime?(currentPoints[0].point, currentPoints[1].point)
                 }
             case .sequence:
-                self.onSequenceCaptured?(currentPoints)
+                self.onSequenceRealTime?(currentPoints)
             }
         })
         
@@ -3986,11 +4001,17 @@ struct ActionCardView: View {
                                     .stroke(isItemEditing ? Color.white.opacity(0.1) : Color.clear, lineWidth: 1)
                             )
                             .onTapGesture {
-                                CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .click(button: button, initialPoint: point)) { newPoint in
-                                    onPreSave()
-                                    item.action = .click(point: newPoint, button: button)
-                                    onSave()
-                                }
+                                CaptureOverlayWindow.shared = CaptureOverlayWindow(
+                                    mode: .click(button: button, initialPoint: point),
+                                    onClickCaptured: { newPoint in
+                                        onPreSave()
+                                        item.action = .click(point: newPoint, button: button)
+                                        onSave()
+                                    },
+                                    onClickRealTime: { tempPoint in
+                                        item.action = .click(point: tempPoint, button: button)
+                                    }
+                                )
                             }
                     case .drag(let start, let end):
                         Text(item.action.parameterString)
@@ -4005,20 +4026,33 @@ struct ActionCardView: View {
                                     .stroke(isItemEditing ? Color.white.opacity(0.1) : Color.clear, lineWidth: 1)
                             )
                             .onTapGesture {
-                                CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .drag(initialStart: start, initialEnd: end)) { newStart, newEnd in
-                                    onPreSave()
-                                    item.action = .drag(start: newStart, end: newEnd)
-                                    onSave()
-                                }
+                                CaptureOverlayWindow.shared = CaptureOverlayWindow(
+                                    mode: .drag(initialStart: start, initialEnd: end),
+                                    onDragCaptured: { newStart, newEnd in
+                                        onPreSave()
+                                        item.action = .drag(start: newStart, end: newEnd)
+                                        onSave()
+                                    },
+                                    onDragRealTime: { tempStart, tempEnd in
+                                        item.action = .drag(start: tempStart, end: tempEnd)
+                                    }
+                                )
                             }
                     case .path(let points):
                         Button {
-                            CaptureOverlayWindow.shared = CaptureOverlayWindow(initialPoints: points, defaultType: .move) { newPts in
-                                guard !newPts.isEmpty else { return }
-                                onPreSave()
-                                item.action = .path(points: newPts)
-                                onSave()
-                            }
+                            CaptureOverlayWindow.shared = CaptureOverlayWindow(
+                                initialPoints: points,
+                                defaultType: .move,
+                                onSequenceCaptured: { newPts in
+                                    guard !newPts.isEmpty else { return }
+                                    onPreSave()
+                                    item.action = .path(points: newPts)
+                                    onSave()
+                                },
+                                onSequenceRealTime: { tempPts in
+                                    item.action = .path(points: tempPts)
+                                }
+                            )
                         } label: {
                             HStack(spacing: 4) {
                                 Image(systemName: "pencil")
