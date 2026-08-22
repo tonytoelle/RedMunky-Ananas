@@ -367,6 +367,7 @@ class MacroItem: Identifiable, ObservableObject {
     @Published var fileURL: URL
     @Published var triggers: [Trigger] = []
     @Published var actionItems: [MacroActionItem]  // items have stable IDs for drag-drop
+    @Published var isEnabled: Bool = true
     var parentFolderConfig: FolderConfig?
 
     var actions: [MacroAction] { actionItems.map(\.action) }
@@ -382,21 +383,23 @@ class MacroItem: Identifiable, ObservableObject {
         }
     }
 
-    init(fileName: String, fileURL: URL, trigger: Trigger, actionItems: [MacroActionItem], parentFolderConfig: FolderConfig? = nil) {
+    init(fileName: String, fileURL: URL, trigger: Trigger, actionItems: [MacroActionItem], isEnabled: Bool = true, parentFolderConfig: FolderConfig? = nil) {
         self.id = UUID()
         self.fileName = fileName
         self.fileURL = fileURL
         self.triggers = [trigger]
         self.actionItems = actionItems
+        self.isEnabled = isEnabled
         self.parentFolderConfig = parentFolderConfig
     }
 
-    init(fileName: String, fileURL: URL, triggers: [Trigger], actionItems: [MacroActionItem], parentFolderConfig: FolderConfig? = nil) {
+    init(fileName: String, fileURL: URL, triggers: [Trigger], actionItems: [MacroActionItem], isEnabled: Bool = true, parentFolderConfig: FolderConfig? = nil) {
         self.id = UUID()
         self.fileName = fileName
         self.fileURL = fileURL
         self.triggers = triggers
         self.actionItems = actionItems
+        self.isEnabled = isEnabled
         self.parentFolderConfig = parentFolderConfig
     }
 }
@@ -530,13 +533,17 @@ class ShortKingParser {
     static func parseFile(at url: URL) -> MacroItem? {
         guard let content = try? String(contentsOf: url, encoding: .utf8) else { return nil }
         var triggers: [Trigger] = []
+        var isEnabled: Bool = true
         var groupStack: [[MacroActionItem]] = [[]]
         var groupNames: [String] = []
         
         for rawLine in content.components(separatedBy: .newlines) {
             let line = rawLine.trimmingCharacters(in: .whitespaces)
             guard !line.isEmpty, !line.hasPrefix("#"), !line.hasPrefix("//") else { continue }
-            if line.uppercased().hasPrefix("TRIGGER:") {
+            if line.uppercased().hasPrefix("ENABLED:") {
+                let valStr = String(line.dropFirst(8)).trimmingCharacters(in: .whitespaces).lowercased()
+                isEnabled = (valStr != "false" && valStr != "0" && valStr != "no" && valStr != "disabled")
+            } else if line.uppercased().hasPrefix("TRIGGER:") {
                 if let t = parseTrigger(String(line.dropFirst(8)).trimmingCharacters(in: .whitespaces)) {
                     triggers.append(t)
                 }
@@ -610,7 +617,7 @@ class ShortKingParser {
         resolveDoAgainTargets(in: &resolvedItems, flat: flatItems)
         
         guard !triggers.isEmpty else { return nil }
-        return MacroItem(fileName: url.lastPathComponent, fileURL: url, triggers: triggers, actionItems: resolvedItems)
+        return MacroItem(fileName: url.lastPathComponent, fileURL: url, triggers: triggers, actionItems: resolvedItems, isEnabled: isEnabled)
     }
 
     static func parseAction(_ s: String) -> MacroAction? {
@@ -691,8 +698,11 @@ class ShortKingParser {
         return nil
     }
 
-    static func generateScript(triggers: [Trigger], actionItems: [MacroActionItem]) -> String {
+    static func generateScript(triggers: [Trigger], actionItems: [MacroActionItem], isEnabled: Bool = true) -> String {
         var lines = ["# ShortKing Macro Script"]
+        if !isEnabled {
+            lines.append("ENABLED: false")
+        }
         for t in triggers {
             lines.append("TRIGGER: \(t.scriptString)")
         }
@@ -1533,6 +1543,7 @@ class MacroStore: ObservableObject {
 
     func triggerMacroBySpecialKey(name: String) {
         for macro in macros {
+            guard macro.isEnabled else { continue }
             let items = macro.actionItems
             for trigger in macro.triggers {
                 let targetCode: CGKeyCode = (name == "brightness_down") ? 145 : 144
@@ -1667,6 +1678,7 @@ class MacroStore: ObservableObject {
         let activeName = frontApp?.localizedName ?? ""
         
         for macro in macros {
+            guard macro.isEnabled else { continue }
             let items = macro.actionItems
             let folderConfig = macro.parentFolderConfig
             
@@ -1749,7 +1761,7 @@ class MacroStore: ObservableObject {
     }
 
     func saveMacro(_ macro: MacroItem) {
-        let content = ShortKingParser.generateScript(triggers: macro.triggers, actions: macro.actions)
+        let content = ShortKingParser.generateScript(triggers: macro.triggers, actionItems: macro.actionItems, isEnabled: macro.isEnabled)
         let fileURL = macro.fileURL
         let trigger = macro.trigger
         
@@ -1761,6 +1773,12 @@ class MacroStore: ObservableObject {
                 self.registerAllCarbonHotKeys()
             }
         }
+    }
+    
+    func toggleMacroEnabled(_ macro: MacroItem) {
+        macro.isEnabled.toggle()
+        saveMacro(macro)
+        objectWillChange.send()
     }
 
     func renameMacro(_ macro: MacroItem, newBaseName: String) {
@@ -6871,7 +6889,7 @@ struct SidebarNodeView: View {
                     
                     ZStack {
                         RoundedRectangle(cornerRadius: 4, style: .continuous)
-                            .fill(iconColor)
+                            .fill(macro.isEnabled ? iconColor : Color.gray.opacity(0.5))
                             .frame(width: 18, height: 18)
                         Image(systemName: iconName)
                             .foregroundColor(.white)
@@ -6880,14 +6898,26 @@ struct SidebarNodeView: View {
 
                     Text(macro.fileName.replacingOccurrences(of: ".shortking", with: "").toTitleCase())
                         .font(.system(size: 13, weight: .regular))
-                        .foregroundColor(isSelected ? .white : Color(white: 0.90))
+                        .foregroundColor(isSelected ? .white : (macro.isEnabled ? Color(white: 0.90) : Color.secondary.opacity(0.7)))
+                        .strikethrough(!macro.isEnabled, color: Color.secondary.opacity(0.6))
                         .lineLimit(1)
 
                     Spacer()
 
+                    if !macro.isEnabled {
+                        Text("Off")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundColor(.secondary)
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 1)
+                            .background(Color.white.opacity(0.08))
+                            .clipShape(RoundedRectangle(cornerRadius: 3))
+                    }
+
                     ShortcutBadgeView(trigger: macro.trigger, isDimmedMini: true, isSelected: isSelected)
-                        .opacity(isSelected ? 0.3 : 1.0)
+                        .opacity(isSelected ? 0.3 : (macro.isEnabled ? 1.0 : 0.4))
                 }
+                .opacity(macro.isEnabled ? 1.0 : 0.65)
                 .padding(.leading, CGFloat(depth * 12 + 4))
                 .padding(.trailing, 8)
                 .padding(.vertical, 6)
@@ -6906,6 +6936,18 @@ struct SidebarNodeView: View {
                 return NSItemProvider(object: pathsToDrag.joined(separator: "\n") as NSString)
             }
             .contextMenu {
+                Button {
+                    store.toggleMacroEnabled(macro)
+                } label: {
+                    if macro.isEnabled {
+                        Label("Disable Macro", systemImage: "bolt.slash")
+                    } else {
+                        Label("Enable Macro", systemImage: "bolt.fill")
+                    }
+                }
+                
+                Divider()
+
                 Button {
                     store.runMacro(macro)
                 } label: {
@@ -7682,16 +7724,19 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDele
         // Macro list submenu
         let macros = MacroStore.shared.macros
         if !macros.isEmpty {
-            let macrosHeader = NSMenuItem(title: "Active Macros (\(macros.count)):", action: nil, keyEquivalent: "")
+            let activeMacros = macros.filter { $0.isEnabled }
+            let macrosHeader = NSMenuItem(title: "Active Macros (\(activeMacros.count)):", action: nil, keyEquivalent: "")
             macrosHeader.isEnabled = false
             statusMenu.addItem(macrosHeader)
 
             for macro in macros {
                 let name = macro.fileName.replacingOccurrences(of: ".shortking", with: "")
-                let title = "  ▶ \(name)  [\(macro.trigger.displayString)]"
+                let statusIcon = macro.isEnabled ? "▶" : "⏸ (Off)"
+                let title = "  \(statusIcon) \(name)  [\(macro.trigger.displayString)]"
                 let item = NSMenuItem(title: title, action: #selector(runMacroFromMenu(_:)), keyEquivalent: "")
                 item.representedObject = macro
                 item.target = self
+                item.isEnabled = macro.isEnabled
                 statusMenu.addItem(item)
             }
             statusMenu.addItem(NSMenuItem.separator())

@@ -3,16 +3,10 @@ TRIGGER: shift+f1
 
 # Actions:
 ACTION: brightness_down
-ACTION: path 395,1105:drag 457,1001:move
-ACTION: path 395,1105:click 457,1001:move
-ACTION: path 392,1110:click 534,1034:drag
-ACTION: path 392,1110:click 534,1034:drag 466,958:drag
 ACTION: path 386,1099:click 565,1031:drag 466,958:drag
 ACTION: path 386,1099:click 565,1031:drag 466,958:drag
-ACTION: path 382,1090:click 565,1031:drag 466,958:drag
 ACTION: path 395,1107:click 525,1034:drag 466,958:drag 809,884:drag
 ACTION: path 395,1107:click 525,1034:drag 466,958:drag 809,884:click
-ACTION: path 395,1107:click 525,1034:drag 466,958:drag 809,884:move
 ACTION: path 395,1107:click 525,1034:drag 466,958:drag 818,881:move 740,981:move
 ACTION: path 395,1107:click 525,1034:drag 466,958:drag 635,917:move 813,882:move 740,981:move
 ACTION: path 395,1107:click 525,1034:drag 466,958:drag 625,920:move 813,882:drag 739,1004:move
@@ -26,18 +20,10 @@ ACTION: path 926,764:move
 ACTION: path 468,915:move
 ACTION: path 468,915:move 565,778:move
 ACTION: path 468,915:move 565,778:move 672,915:move
-ACTION: path 468,915:move 565,778:move 672,915:move 777,754:move
 ACTION: path 468,915:move 565,778:move 672,915:move 711,794:move 777,754:move
 ACTION: path 468,915:move 565,778:move 672,915:move 711,794:move 777,754:move 831,918:move
 ACTION: path 468,915:move 565,778:move 672,915:move 711,794:move 777,754:move 831,918:move 699,1003:move
 ACTION: path 468,915:move 565,778:move 566,885:move 672,915:move 711,794:move 777,754:move 831,918:move 699,1003:move
-ACTION: path 468,915:move 565,778:move 566,885:move 672,915:move 673,784:move 706,680:move 777,754:move 831,918:move 699,1003:move
 ACTION: path 468,915:move 565,778:move 566,885:move 672,915:move 673,784:move 706,680:move 814,767:drag 831,918:move 699,1003:move
 ACTION: path 468,915:move 565,778:move 566,885:move 672,915:move 673,784:move 706,680:move 814,767:drag 831,918:drag 699,1003:move
 ACTION: path 468,915:move 565,778:move 566,885:move 672,915:move 673,784:move 735,700:move 813,671:drag 814,767:drag 853,892:drag 775,974:move
-ACTION: path 468,915:move 565,778:move 566,885:move 672,915:move 673,784:move 735,700:drag 813,671:drag 814,767:drag 853,892:drag 775,974:move
-ACTION: path 468,915:move 565,778:move 566,885:move 672,915:move 673,784:move 735,700:click 813,671:drag 814,767:drag 853,892:drag 775,974:move
-ACTION: path 468,915:move 565,778:move 566,885:move 672,915:move 673,784:drag 735,700:click 813,671:drag 814,767:drag 853,892:drag 775,974:move
-ACTION: path 468,915:move 565,778:move 566,885:move 672,915:move 673,784:click 735,700:click 813,671:drag 814,767:drag 853,892:drag 775,974:move
-ACTION: path 468,915:move 565,778:move 566,885:move 672,915:drag 662,773:click 735,700:click 813,671:drag 814,767:drag 853,892:drag 775,974:move
-ACTION: path 468,915:move 565,778:move 566,885:move 672,915:click 662,773:click 735,700:click 813,671:drag 814,767:drag 853,892:drag 775,974:move
