@@ -1,5 +1,5 @@
 # ShortKing Macro Script
-TRIGGER: f3
+TRIGGER: f5
 
 # Actions:
 ACTION: custom_action "~/select_rectangle.sh"
