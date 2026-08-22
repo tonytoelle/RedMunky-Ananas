@@ -1657,7 +1657,7 @@ class MacroStore: ObservableObject {
     func createNewMacro(inFolder parentURL: URL? = nil) {
         let targetDir = parentURL ?? watchDirectoryURL
         let count = macros.count + 1
-        let fileName = "macro_\(count).shortking"
+        let fileName = "macro \(count).shortking"
         let url = targetDir.appendingPathComponent(fileName)
         self.selectedFilePath = url.path
         let t = Trigger(keyCode: 40, requireCmd: true, requireShift: true, requireOption: false, requireControl: false)
@@ -5438,7 +5438,7 @@ struct SidebarNodeView: View {
                                         .font(.system(size: 17))
                                 }
 
-                                Text(name)
+                                Text(name.toTitleCase())
                                     .font(.system(size: 13, weight: .bold))
                                     .foregroundColor(isSelected ? .white : Color(white: 0.92))
                                     .lineLimit(1)
@@ -5590,7 +5590,7 @@ struct SidebarNodeView: View {
                             .font(.system(size: 9, weight: .bold))
                     }
 
-                    Text(macro.fileName.replacingOccurrences(of: ".shortking", with: ""))
+                    Text(macro.fileName.replacingOccurrences(of: ".shortking", with: "").toTitleCase())
                         .font(.system(size: 13, weight: .regular))
                         .foregroundColor(isSelected ? .white : Color(white: 0.90))
                         .lineLimit(1)
@@ -6520,3 +6520,14 @@ app.setActivationPolicy(.accessory)
 let delegate = AppDelegate()
 app.delegate = delegate
 app.run()
+
+// ==========================================
+// MARK: - Extensions
+// ==========================================
+extension String {
+    func toTitleCase() -> String {
+        let formatted = self.replacingOccurrences(of: "_", with: " ")
+                            .replacingOccurrences(of: "-", with: " ")
+        return formatted.capitalized
+    }
+}
