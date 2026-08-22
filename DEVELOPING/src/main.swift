@@ -2503,7 +2503,18 @@ struct CaptureOverlaySwiftUIView: View {
         
         HStack(spacing: 10) {
             // Left: Squircle Action Type Icon Button
-            Button {
+            ZStack {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(currentType.color)
+                    .frame(width: 36, height: 36)
+                    .shadow(color: currentType.color.opacity(0.4), radius: 4)
+                
+                Image(systemName: currentType.icon == "hand.draw" ? "hand.tap.fill" : currentType.icon)
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundColor(.white)
+            }
+            .contentShape(Rectangle())
+            .onTapGesture {
                 if let sel = state.selectedPointIndex, sel < state.points.count {
                     state.cycleType(at: sel)
                     state.defaultPointType = state.points[sel].type
@@ -2518,35 +2529,22 @@ struct CaptureOverlaySwiftUIView: View {
                     case .click: state.defaultPointType = .move
                     }
                 }
-            } label: {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(currentType.color)
-                        .frame(width: 36, height: 36)
-                        .shadow(color: currentType.color.opacity(0.4), radius: 4)
-                    
-                    Image(systemName: currentType.icon == "hand.draw" ? "hand.tap.fill" : currentType.icon)
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundColor(.white)
-                }
             }
-            .buttonStyle(.plain)
             
             // Plus button to insert/add a point
-            Button {
-                state.insertPoint()
-            } label: {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(Color.white.opacity(0.15))
-                        .frame(width: 36, height: 36)
-                    
-                    Image(systemName: "plus")
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundColor(.white)
-                }
+            ZStack {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(Color.white.opacity(0.15))
+                    .frame(width: 36, height: 36)
+                
+                Image(systemName: "plus")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundColor(.white)
             }
-            .buttonStyle(.plain)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                state.insertPoint()
+            }
             
             // Right: Coordinates and Subtitle
             VStack(alignment: .leading, spacing: 2) {
@@ -2806,7 +2804,7 @@ class CaptureOverlayHostingView: NSView {
         // Check HUD card
         if stateModel.isHudVisible {
             let hud = stateModel.lastHudCenter
-            if CGRect(x: hud.x - 80, y: hud.y - 35, width: 160, height: 70).contains(quartzPt) {
+            if CGRect(x: hud.x - 110, y: hud.y - 45, width: 220, height: 90).contains(quartzPt) {
                 win.ignoresMouseEvents = false
                 return
             }
