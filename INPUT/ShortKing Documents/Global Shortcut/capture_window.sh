@@ -17,6 +17,20 @@ if screencapture -i -w "$filepath"; then
                 else
                     keystroke "a" using {command down, shift down}
                 end if
+                
+                delay 0.3
+                
+                tell window 1
+                    if exists toolbar 2 then
+                        if exists button "Sketch" of toolbar 2 then
+                            click button "Sketch" of toolbar 2
+                        else if exists button "Sketsa" of toolbar 2 then
+                            click button "Sketsa" of toolbar 2
+                        else
+                            click button 3 of toolbar 2
+                        end if
+                    end if
+                end tell
             on error
                 keystroke "a" using {command down, shift down}
             end try
