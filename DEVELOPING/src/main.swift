@@ -2286,19 +2286,31 @@ struct CaptureOverlaySwiftUIView: View {
                     .edgesIgnoringSafeArea(.all)
                 
                 // ─────────────────────────────────────────────
-                // CONNECTING PATH LINES BETWEEN PINS
+                // CONNECTING PATH LINES BETWEEN PINS (Color Gradient)
                 // ─────────────────────────────────────────────
                 if state.points.count > 1 {
                     ForEach(0..<(state.points.count - 1), id: \.self) { idx in
                         let start = state.points[idx].point
                         let end = state.points[idx + 1].point
+                        let ptA = state.points[idx]
+                        let ptB = state.points[idx + 1]
+                        
+                        let startColor = ptA.type.color.opacity(0.95)
+                        // If moving from a .move point, line fades out to 0 opacity
+                        let endColor: Color = (ptA.type == .move) ? ptB.type.color.opacity(0.0) : ptB.type.color.opacity(0.95)
+                        
+                        let grad = LinearGradient(
+                            gradient: Gradient(colors: [startColor, endColor]),
+                            startPoint: UnitPoint(x: start.x / max(1, geo.size.width), y: start.y / max(1, geo.size.height)),
+                            endPoint: UnitPoint(x: end.x / max(1, geo.size.width), y: end.y / max(1, geo.size.height))
+                        )
                         
                         Path { path in
                             path.move(to: start)
                             path.addLine(to: end)
                         }
                         .stroke(
-                            Color(red: 0.65, green: 0.25, blue: 0.95).opacity(0.9),
+                            grad,
                             style: StrokeStyle(lineWidth: 3.5, lineCap: .round, dash: [5, 6])
                         )
                     }
@@ -2318,13 +2330,24 @@ struct CaptureOverlaySwiftUIView: View {
                 }()
                 
                 if shouldShowCursorLine, let lastPt = state.points.last {
+                    let start = lastPt.point
+                    let end = state.quartzLocation
+                    let startColor = lastPt.type.color.opacity(0.95)
+                    let endColor: Color = (lastPt.type == .move) ? state.defaultPointType.color.opacity(0.0) : state.defaultPointType.color.opacity(0.95)
+                    
+                    let activeGrad = LinearGradient(
+                        gradient: Gradient(colors: [startColor, endColor]),
+                        startPoint: UnitPoint(x: start.x / max(1, geo.size.width), y: start.y / max(1, geo.size.height)),
+                        endPoint: UnitPoint(x: end.x / max(1, geo.size.width), y: end.y / max(1, geo.size.height))
+                    )
+                    
                     Path { path in
-                        path.move(to: lastPt.point)
-                        path.addLine(to: state.quartzLocation)
+                        path.move(to: start)
+                        path.addLine(to: end)
                     }
                     .stroke(
-                        Color(red: 0.65, green: 0.25, blue: 0.95).opacity(0.8),
-                        style: StrokeStyle(lineWidth: 3, lineCap: .round, dash: [5, 6])
+                        activeGrad,
+                        style: StrokeStyle(lineWidth: 3.5, lineCap: .round, dash: [5, 6])
                     )
                 }
                 
