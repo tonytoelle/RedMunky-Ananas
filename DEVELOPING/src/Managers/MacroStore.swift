@@ -195,9 +195,10 @@ class MacroStore: ObservableObject {
         }
 
         var savedPath = UserDefaults.standard.string(forKey: "watchDirectoryPath") ?? defaultPath
-        if savedPath.contains("tonytoelle/Documents/PROJECTS") || !fileManager.fileExists(atPath: savedPath) {
+        if savedPath == "/Users/tonytoelle/Documents/PROJECTS/RedMunky - ShortKing/INPUT/ShortKing Documents" || !fileManager.fileExists(atPath: savedPath) {
             savedPath = defaultPath
             UserDefaults.standard.set(savedPath, forKey: "watchDirectoryPath")
+            UserDefaults.standard.synchronize()
         }
 
         self.watchDirectoryURL = URL(fileURLWithPath: savedPath)
@@ -365,6 +366,7 @@ class MacroStore: ObservableObject {
         stopWatching()
         self.watchDirectoryURL = url
         UserDefaults.standard.set(url.path, forKey: "watchDirectoryPath")
+        UserDefaults.standard.synchronize()
         loadMacros()
         startWatching()
     }
