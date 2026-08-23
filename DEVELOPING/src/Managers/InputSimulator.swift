@@ -68,12 +68,29 @@ class InputSimulator {
         eventUp?.cgEvent?.post(tap: .cghidEventTap)
     }
 
-    static func execute(items: [MacroActionItem], preRecordedOrigin: CGPoint? = nil, preRecordedWindowRect: CGRect? = nil) {
+    static var persistentOrigins: [UUID: CGPoint] = [:]
+    static var persistentWindowRects: [UUID: CGRect] = [:]
+
+    static func execute(items: [MacroActionItem], preRecordedOrigin: CGPoint? = nil, preRecordedWindowRect: CGRect? = nil, macroID: UUID? = nil) {
         isEmergencyStopped = false
         
-        // Use pre-recorded origin if provided (captured on main thread before dispatch),
-        // otherwise capture now as fallback.
-        var originQuartzPos: CGPoint = preRecordedOrigin ?? {
+        // Use persistent origin if available and macroID is provided, fallback to preRecordedOrigin
+        var originQuartzPos: CGPoint = {
+            if let mid = macroID, let saved = persistentOrigins[mid] {
+                return saved
+            }
+            return preRecordedOrigin ?? {
+                if let loc = CGEvent(source: nil)?.location, loc != .zero {
+                    return loc
+                }
+                let cocoaPt = NSEvent.mouseLocation
+                let screenH = NSScreen.screens.first?.frame.height ?? 1080
+                return CGPoint(x: cocoaPt.x, y: screenH - cocoaPt.y)
+            }()
+        }()
+        
+        // Keep absolute start cursor position to restore it at the end of the macro
+        let macroStartCursorPos = preRecordedOrigin ?? {
             if let loc = CGEvent(source: nil)?.location, loc != .zero {
                 return loc
             }
@@ -82,11 +99,11 @@ class InputSimulator {
             return CGPoint(x: cocoaPt.x, y: screenH - cocoaPt.y)
         }()
         
-        // Keep absolute start cursor position to restore it at the end of the macro
-        let macroStartCursorPos = originQuartzPos
-        
-        var originWindowRect: CGRect? = preRecordedWindowRect ?? {
-            return InputSimulator.getFrontmostWindowRect()
+        var originWindowRect: CGRect? = {
+            if let mid = macroID, let saved = persistentWindowRects[mid] {
+                return saved
+            }
+            return preRecordedWindowRect ?? InputSimulator.getFrontmostWindowRect()
         }()
         
         // Show ghost cursor at origin position for the duration of execution
@@ -105,17 +122,17 @@ class InputSimulator {
         usleep(60000) // 60ms
         releaseModifiers()
 
-        executeSubActions(items: items, originQuartzPos: &originQuartzPos, originWindowRect: &originWindowRect)
+        executeSubActions(items: items, originQuartzPos: &originQuartzPos, originWindowRect: &originWindowRect, macroID: macroID)
     }
 
-    private static func executeSubActions(items: [MacroActionItem], originQuartzPos: inout CGPoint, originWindowRect: inout CGRect?) {
+    private static func executeSubActions(items: [MacroActionItem], originQuartzPos: inout CGPoint, originWindowRect: inout CGRect?, macroID: UUID?) {
         for item in items {
             let repeats = max(1, item.repeatCount)
             for _ in 0..<repeats {
                 guard !isEmergencyStopped else { return }
                 switch item.action {
                 case .group(_, let subActions):
-                    executeSubActions(items: subActions, originQuartzPos: &originQuartzPos, originWindowRect: &originWindowRect)
+                    executeSubActions(items: subActions, originQuartzPos: &originQuartzPos, originWindowRect: &originWindowRect, macroID: macroID)
                     
                 case .click(let point, let button):
                     let dT: CGEventType = button == .left ? .leftMouseDown : .rightMouseDown
@@ -421,10 +438,16 @@ class InputSimulator {
                             let sh = NSScreen.screens.first?.frame.height ?? 1080
                             originQuartzPos = CGPoint(x: cp.x, y: sh - cp.y)
                         }
+                        if let mid = macroID {
+                            InputSimulator.persistentOrigins[mid] = originQuartzPos
+                        }
                         print("📍 Cursor origin recorded manually at \(originQuartzPos)")
                     } else if type == .window {
                         if let rect = InputSimulator.getFrontmostWindowRect() {
                             originWindowRect = rect
+                            if let mid = macroID {
+                                InputSimulator.persistentWindowRects[mid] = rect
+                            }
                             print("🪟 Window origin recorded manually at \(rect)")
                         }
                     }

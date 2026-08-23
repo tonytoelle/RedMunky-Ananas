@@ -245,7 +245,7 @@ class MacroStore: ObservableObject {
                     }()
                     let windowRect = InputSimulator.getFrontmostWindowRect()
                     DispatchQueue.global(qos: .userInitiated).async {
-                        InputSimulator.execute(items: items, preRecordedOrigin: originPos, preRecordedWindowRect: windowRect)
+                        InputSimulator.execute(items: items, preRecordedOrigin: originPos, preRecordedWindowRect: windowRect, macroID: macro.id)
                     }
                 }
             }
@@ -440,7 +440,7 @@ class MacroStore: ObservableObject {
                     }
                     
                     DispatchQueue.global(qos: .userInitiated).async {
-                        InputSimulator.execute(items: executionItems, preRecordedOrigin: originPos, preRecordedWindowRect: windowRect)
+                        InputSimulator.execute(items: executionItems, preRecordedOrigin: originPos, preRecordedWindowRect: windowRect, macroID: macro.id)
                     }
                 }
             }
@@ -778,7 +778,7 @@ class MacroStore: ObservableObject {
             return CGPoint(x: cocoaPt.x, y: screenH - cocoaPt.y)
         }()
         let windowRect = InputSimulator.getFrontmostWindowRect()
-        DispatchQueue.global(qos: .userInitiated).async { InputSimulator.execute(items: items, preRecordedOrigin: originPos, preRecordedWindowRect: windowRect) }
+        DispatchQueue.global(qos: .userInitiated).async { InputSimulator.execute(items: items, preRecordedOrigin: originPos, preRecordedWindowRect: windowRect, macroID: macro.id) }
     }
 
     func pasteCopiedMacro(toFolder destDir: URL) {
