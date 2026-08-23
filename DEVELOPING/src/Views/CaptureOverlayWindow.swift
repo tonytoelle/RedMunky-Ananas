@@ -791,7 +791,7 @@ class CaptureOverlayHostingView: NSView {
         
         // Instantly initialize mouse location to prevent (0,0) startup coordinate lag/flicker
         let initialMouseLoc = NSEvent.mouseLocation
-        let screenHeight = NSScreen.main?.frame.height ?? 1080
+        let screenHeight = NSScreen.screens.first?.frame.height ?? 1080
         stateModel.quartzLocation = CGPoint(x: initialMouseLoc.x, y: screenHeight - initialMouseLoc.y)
         
         if !initialPoints.isEmpty {
@@ -812,7 +812,7 @@ class CaptureOverlayHostingView: NSView {
                 
                 // Get current mouse location instantly
                 let mouseLoc = NSEvent.mouseLocation
-                let screenHeight = self.window?.screen?.frame.height ?? NSScreen.main?.frame.height ?? 1080
+                let screenHeight = NSScreen.screens.first?.frame.height ?? 1080
                 let quartzPt = CGPoint(x: mouseLoc.x, y: screenHeight - mouseLoc.y)
                 self.stateModel.quartzLocation = quartzPt
             } else {
@@ -931,7 +931,7 @@ class CaptureOverlayHostingView: NSView {
                     guard let self = self, let win = self.window else { return }
                     let screenPt = NSEvent.mouseLocation
                     let winLoc = win.convertPoint(fromScreen: screenPt)
-                    let screenHeight = win.screen?.frame.height ?? NSScreen.main?.frame.height ?? self.bounds.height
+                    let screenHeight = NSScreen.screens.first?.frame.height ?? 1080
                     let quartzPt = CGPoint(x: winLoc.x, y: screenHeight - winLoc.y)
                     
                     DispatchQueue.main.async {
@@ -948,7 +948,7 @@ class CaptureOverlayHostingView: NSView {
                     guard let self = self, let win = self.window else { return event }
                     let screenPt = NSEvent.mouseLocation
                     let winLoc = win.convertPoint(fromScreen: screenPt)
-                    let screenHeight = win.screen?.frame.height ?? NSScreen.main?.frame.height ?? self.bounds.height
+                    let screenHeight = NSScreen.screens.first?.frame.height ?? 1080
                     let quartzPt = CGPoint(x: winLoc.x, y: screenHeight - winLoc.y)
                     
                     self.stateModel.currentLocation = winLoc
@@ -1052,7 +1052,7 @@ class CaptureOverlayHostingView: NSView {
     
     private func updateMouse(event: NSEvent) {
         let winLoc = event.locationInWindow
-        let screenHeight = window?.screen?.frame.height ?? NSScreen.main?.frame.height ?? bounds.height
+        let screenHeight = NSScreen.screens.first?.frame.height ?? 1080
         var quartzPt = CGPoint(x: winLoc.x, y: screenHeight - winLoc.y)
         
         if case .windowTransform = stateModel.mode {
@@ -1080,7 +1080,7 @@ class CaptureOverlayHostingView: NSView {
     
     // MARK: - Hit Testing (Native macOS Click-Through)
     override func hitTest(_ point: NSPoint) -> NSView? {
-        let screenHeight = window?.screen?.frame.height ?? NSScreen.main?.frame.height ?? bounds.height
+        let screenHeight = NSScreen.screens.first?.frame.height ?? 1080
         let quartzPt = CGPoint(x: point.x, y: screenHeight - point.y)
         
         // In pass-through mode: ONLY HUD card can be clicked!

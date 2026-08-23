@@ -240,7 +240,7 @@ class MacroStore: ObservableObject {
                     let originPos: CGPoint = {
                         if let loc = CGEvent(source: nil)?.location, loc != .zero { return loc }
                         let cp = NSEvent.mouseLocation
-                        let sh = NSScreen.main?.frame.height ?? 1080
+                        let sh = NSScreen.screens.first?.frame.height ?? 1080
                         return CGPoint(x: cp.x, y: sh - cp.y)
                     }()
                     let windowRect = InputSimulator.getFrontmostWindowRect()
@@ -423,7 +423,7 @@ class MacroStore: ObservableObject {
                     let originPos: CGPoint = {
                         if let loc = CGEvent(source: nil)?.location, loc != .zero { return loc }
                         let cp = NSEvent.mouseLocation
-                        let sh = NSScreen.main?.frame.height ?? 1080
+                        let sh = NSScreen.screens.first?.frame.height ?? 1080
                         return CGPoint(x: cp.x, y: sh - cp.y)
                     }()
                     let windowRect = InputSimulator.getFrontmostWindowRect()
@@ -774,7 +774,7 @@ class MacroStore: ObservableObject {
                 return loc
             }
             let cocoaPt = NSEvent.mouseLocation
-            let screenH = NSScreen.main?.frame.height ?? 1080
+            let screenH = NSScreen.screens.first?.frame.height ?? 1080
             return CGPoint(x: cocoaPt.x, y: screenH - cocoaPt.y)
         }()
         let windowRect = InputSimulator.getFrontmostWindowRect()

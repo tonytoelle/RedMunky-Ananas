@@ -78,7 +78,7 @@ class InputSimulator {
                 return loc
             }
             let cocoaPt = NSEvent.mouseLocation
-            let screenH = NSScreen.main?.frame.height ?? 1080
+            let screenH = NSScreen.screens.first?.frame.height ?? 1080
             return CGPoint(x: cocoaPt.x, y: screenH - cocoaPt.y)
         }()
         
@@ -418,7 +418,7 @@ class InputSimulator {
                             originQuartzPos = loc
                         } else {
                             let cp = NSEvent.mouseLocation
-                            let sh = NSScreen.main?.frame.height ?? 1080
+                            let sh = NSScreen.screens.first?.frame.height ?? 1080
                             originQuartzPos = CGPoint(x: cp.x, y: sh - cp.y)
                         }
                         print("📍 Cursor origin recorded manually at \(originQuartzPos)")
