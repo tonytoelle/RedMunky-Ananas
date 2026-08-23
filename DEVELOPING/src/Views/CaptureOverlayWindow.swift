@@ -1014,6 +1014,11 @@ class CaptureOverlayHostingView: NSView {
     private func updatePassthrough(quartzPt: CGPoint) {
         guard let win = self.window else { return }
         
+        if case .windowTransform = stateModel.mode {
+            win.ignoresMouseEvents = false
+            return
+        }
+        
         // In pass-through mode: ONLY HUD card can be clicked, everything else clicks through to apps underneath!
         if stateModel.isPassThroughMode {
             if stateModel.isHudVisible {
