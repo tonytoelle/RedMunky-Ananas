@@ -18,7 +18,7 @@ struct MacroInspectorView: View {
     @State private var keyMonitor: Any? = nil
     @State private var isTriggerCollapsed = false
     @State private var isActionsCollapsed = false
-    @State private var isShowingActionPopover = false
+    @AppStorage("isActionDrawerOpen") private var isActionDrawerOpen = false
     @State private var isShowingTriggerPopover = false
     @State private var isEditingName = false
     @State private var activeActionTarget: ActionTarget = .primary
@@ -389,59 +389,97 @@ struct MacroInspectorView: View {
                     }, detailWidth: detailWidth)
                 }
 
-                // Center "+" button and Search bar side-by-side
-                HStack(spacing: 12) {
-                    Spacer()
-                    
-                    Button {
-                        isShowingActionPopover.toggle()
-                    } label: {
-                        Image(systemName: "plus")
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundColor(.secondary)
-                            .frame(width: 28, height: 28)
-                            .background(Color.white.opacity(0.05))
-                            .clipShape(Circle())
-                    }
-                    .buttonStyle(.plain)
-                    .popover(isPresented: $isShowingActionPopover, arrowEdge: .bottom) {
-                        ScrollView {
-                            LazyVGrid(columns: [GridItem(.adaptive(minimum: 36, maximum: 44), spacing: 8)], spacing: 8) {
-                                ForEach(SearchableActionDef.allActions) { actionDef in
-                                    Button {
-                                        let isAlt = hasKeySwitchTrigger && activeActionTarget == .alternate
-                                        let tIdx = isAlt ? (macro.triggers.first(where: { $0.mode == .keySwitch })?.alternateActionItems.count ?? 0) : macro.actionItems.count
-                                        insertAction(typeName: actionDef.title, targetIndex: tIdx, isAlternate: isAlt)
-                                        isShowingActionPopover = false
-                                    } label: {
-                                        ZStack {
-                                            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                                .fill(actionDef.color)
-                                                .frame(width: 32, height: 32)
-                                            Image(systemName: actionDef.icon)
-                                                .foregroundColor(.white)
-                                                .font(.system(size: 14, weight: .semibold))
-                                        }
-                                        .frame(width: 32, height: 32)
-                                    }
-                                    .buttonStyle(.plain)
-                                    .help(actionDef.title)
+                // Action Selection Drawer
+                VStack(spacing: 12) {
+                    if isActionDrawerOpen {
+                        VStack(spacing: 10) {
+                            HStack(spacing: 10) {
+                                SpotlightSearchBar(placeholder: "Search actions...", items: SearchableActionDef.allActions) { actionDef in
+                                    let isAlt = hasKeySwitchTrigger && activeActionTarget == .alternate
+                                    let tIdx = isAlt ? (macro.triggers.first(where: { $0.mode == .keySwitch })?.alternateActionItems.count ?? 0) : macro.actionItems.count
+                                    insertAction(typeName: actionDef.title, targetIndex: tIdx, isAlternate: isAlt)
                                 }
+                                
+                                Button {
+                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                        isActionDrawerOpen = false
+                                    }
+                                } label: {
+                                    Image(systemName: "chevron.up")
+                                        .font(.system(size: 11, weight: .bold))
+                                        .foregroundColor(.secondary)
+                                        .frame(width: 24, height: 24)
+                                        .background(Color.white.opacity(0.05))
+                                        .clipShape(Circle())
+                                }
+                                .buttonStyle(.plain)
+                                .help("Close Action Drawer")
                             }
-                            .padding(10)
+                            
+                            ScrollView(.vertical, showsIndicators: false) {
+                                LazyVGrid(columns: [GridItem(.adaptive(minimum: 50, maximum: 60), spacing: 8)], spacing: 8) {
+                                    ForEach(SearchableActionDef.allActions) { actionDef in
+                                        Button {
+                                            let isAlt = hasKeySwitchTrigger && activeActionTarget == .alternate
+                                            let tIdx = isAlt ? (macro.triggers.first(where: { $0.mode == .keySwitch })?.alternateActionItems.count ?? 0) : macro.actionItems.count
+                                            insertAction(typeName: actionDef.title, targetIndex: tIdx, isAlternate: isAlt)
+                                        } label: {
+                                            VStack(spacing: 4) {
+                                                ZStack {
+                                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                                        .fill(actionDef.color)
+                                                        .frame(width: 32, height: 32)
+                                                    Image(systemName: actionDef.icon)
+                                                        .foregroundColor(.white)
+                                                        .font(.system(size: 14, weight: .semibold))
+                                                }
+                                                Text(actionDef.title)
+                                                    .font(.system(size: 9))
+                                                    .foregroundColor(.secondary)
+                                                    .lineLimit(1)
+                                            }
+                                        }
+                                        .buttonStyle(.plain)
+                                        .help(actionDef.title)
+                                    }
+                                }
+                                .padding(.vertical, 4)
+                            }
+                            .frame(height: 100)
                         }
-                        .frame(width: 200, height: 160)
+                        .padding(10)
+                        .background(Color.black.opacity(0.15))
+                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .stroke(Color.white.opacity(0.04), lineWidth: 1)
+                        )
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                    } else {
+                        HStack {
+                            Spacer()
+                            Button {
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                    isActionDrawerOpen = true
+                                }
+                            } label: {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "plus.circle.fill")
+                                        .font(.system(size: 13))
+                                    Text("Add Action")
+                                        .font(.system(size: 12, weight: .semibold))
+                                }
+                                .foregroundColor(.secondary)
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 8)
+                                .background(Color.white.opacity(0.05))
+                                .clipShape(Capsule())
+                            }
+                            .buttonStyle(.plain)
+                            Spacer()
+                        }
+                        .transition(.move(edge: .top).combined(with: .opacity))
                     }
-
-                    // Spotlight-style search bar next to the "+" button
-                    SpotlightSearchBar(placeholder: "Search actions...", items: SearchableActionDef.allActions) { actionDef in
-                        let isAlt = hasKeySwitchTrigger && activeActionTarget == .alternate
-                        let tIdx = isAlt ? (macro.triggers.first(where: { $0.mode == .keySwitch })?.alternateActionItems.count ?? 0) : macro.actionItems.count
-                        insertAction(typeName: actionDef.title, targetIndex: tIdx, isAlternate: isAlt)
-                    }
-                    .frame(width: 140)
-                    
-                    Spacer()
                 }
                 .padding(.top, 8)
             }
