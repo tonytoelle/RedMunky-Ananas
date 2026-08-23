@@ -792,6 +792,7 @@ class CaptureOverlayHostingView: NSView {
     private var globalMouseMonitor: Any?
     private var localMouseMonitor: Any?
     private var stateModel = CaptureOverlayState()
+    private var isDrawingNewRect = false
     
     init(mode: CaptureOverlayWindow.Mode,
          initialPoints: [SequencePoint] = [],
@@ -1159,7 +1160,13 @@ class CaptureOverlayHostingView: NSView {
     override func mouseUp(with event: NSEvent) {
         let wasDragging = (stateModel.activeDraggingIndex != nil)
         stateModel.activeDraggingIndex = nil
-        if wasDragging {
+        if isDrawingNewRect {
+            isDrawingNewRect = false
+            stateModel.phase = .editing
+            stateModel.selectedPointIndex = nil
+            stateModel.notifyPointsCommitted()
+            updatePassthrough(quartzPt: stateModel.quartzLocation)
+        } else if wasDragging {
             stateModel.notifyPointsCommitted()
         }
     }
@@ -1213,24 +1220,13 @@ class CaptureOverlayHostingView: NSView {
                 stateModel.notifyPointsCommitted()
                 
             case .windowTransform:
-                stateModel.points.append(newPt)
-                if stateModel.points.count == 3 {
-                    let p1 = stateModel.points[0].point
-                    let p2 = stateModel.points[1].point
-                    let p3 = stateModel.points[2].point
-                    let p4 = CGPoint(x: p1.x, y: p3.y)
-                    
-                    stateModel.isFollowingCursor = false
-                    onWindowTransformCaptured?(p1, p2, p3, p4)
-                    
-                    if let win = window {
-                        win.close()
-                    }
-                    CaptureOverlayWindow.shared = nil
-                } else {
-                    updatePassthrough(quartzPt: stateModel.quartzLocation)
-                    stateModel.notifyPointsCommitted()
-                }
+                stateModel.points = [newPt, newPt]
+                stateModel.selectedPointIndex = 1
+                stateModel.activeDraggingIndex = 1
+                isDrawingNewRect = true
+                stateModel.isFollowingCursor = false
+                window?.ignoresMouseEvents = false
+                stateModel.notifyPointsRealtime()
             }
         } else {
             // Edit phase: handled when clicking directly on a pin
@@ -1475,10 +1471,10 @@ class CaptureOverlayWindow: NSPanel {
             case .sequence:
                 self.onSequenceCaptured?(finalPoints)
             case .windowTransform:
-                if finalPoints.count >= 3 {
+                if finalPoints.count >= 2 {
                     let p1 = finalPoints[0].point
-                    let p2 = finalPoints[1].point
-                    let p3 = finalPoints[2].point
+                    let p3 = finalPoints[1].point
+                    let p2 = CGPoint(x: p3.x, y: p1.y)
                     let p4 = CGPoint(x: p1.x, y: p3.y)
                     self.onWindowTransformCaptured?(p1, p2, p3, p4)
                 }
