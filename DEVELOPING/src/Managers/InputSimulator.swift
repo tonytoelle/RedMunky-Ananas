@@ -82,6 +82,9 @@ class InputSimulator {
             return CGPoint(x: cocoaPt.x, y: screenH - cocoaPt.y)
         }()
         
+        // Keep absolute start cursor position to restore it at the end of the macro
+        let macroStartCursorPos = originQuartzPos
+        
         var originWindowRect: CGRect? = preRecordedWindowRect ?? {
             return InputSimulator.getFrontmostWindowRect()
         }()
@@ -93,8 +96,8 @@ class InputSimulator {
         CGWarpMouseCursorPosition(CGPoint(x: 99999, y: 99999))
         
         defer {
-            // Restore real cursor back to its original position
-            CGWarpMouseCursorPosition(originQuartzPos)
+            // Restore real cursor back to its absolute original position before macro started
+            CGWarpMouseCursorPosition(macroStartCursorPos)
             ExecutionCursorOverlayWindow.hide()
         }
         

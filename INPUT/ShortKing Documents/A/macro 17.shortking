@@ -2,4 +2,4 @@
 TRIGGER: cmd+l
 
 # Actions:
-ACTION: origin window
+ACTION: origin cursor
