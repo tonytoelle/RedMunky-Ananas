@@ -177,6 +177,25 @@ class ShortKingParser {
         let parts = s.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
         guard let cmd = parts.first?.lowercased() else { return nil }
         switch cmd {
+        case "window_transform":
+            if parts.count >= 5 {
+                let p1Parts = parts[1].split(separator: ",")
+                let p2Parts = parts[2].split(separator: ",")
+                let p3Parts = parts[3].split(separator: ",")
+                let p4Parts = parts[4].split(separator: ",")
+                if p1Parts.count >= 2, p2Parts.count >= 2, p3Parts.count >= 2, p4Parts.count >= 2,
+                   let x1 = Double(p1Parts[0]), let y1 = Double(p1Parts[1]),
+                   let x2 = Double(p2Parts[0]), let y2 = Double(p2Parts[1]),
+                   let x3 = Double(p3Parts[0]), let y3 = Double(p3Parts[1]),
+                   let x4 = Double(p4Parts[0]), let y4 = Double(p4Parts[1]) {
+                    return .windowTransform(
+                        p1: CGPoint(x: x1, y: y1),
+                        p2: CGPoint(x: x2, y: y2),
+                        p3: CGPoint(x: x3, y: y3),
+                        p4: CGPoint(x: x4, y: y4)
+                    )
+                }
+            }
         case "click":
             if parts.count >= 3, let x = Double(parts[1]), let y = Double(parts[2]) {
                 return .click(point: CGPoint(x: x, y: y), button: .left)

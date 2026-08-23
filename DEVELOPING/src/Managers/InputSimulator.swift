@@ -385,6 +385,9 @@ class InputSimulator {
                 case .brightnessDown:
                     guard !isEmergencyStopped else { return }
                     InputSimulator.adjustBrightness(delta: -0.0625)
+                    
+                case .windowTransform(let p1, let p2, let p3, let p4):
+                    print("🪟 Window transform executing. Corners: \(p1), \(p2), \(p3), \(p4)")
                 }
             }
         }

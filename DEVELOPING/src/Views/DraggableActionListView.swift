@@ -245,6 +245,25 @@ struct ActionCardView: View {
                                     onSave()
                                 }
                             }
+                    case .windowTransform(let p1, let p2, let p3, _):
+                        Text("(\(Int(p1.x)),\(Int(p1.y))) → (\(Int(p2.x)),\(Int(p2.y))) → (\(Int(p3.x)),\(Int(p3.y)))")
+                            .font(.system(size: 12, weight: .medium, design: .monospaced))
+                            .foregroundColor(.secondary)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(isItemEditing ? Color(white: 0.12) : Color.clear)
+                            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                    .stroke(isItemEditing ? Color.white.opacity(0.1) : Color.clear, lineWidth: 1)
+                            )
+                            .onTapGesture {
+                                CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .windowTransform) { np1, np2, np3, np4 in
+                                    onPreSave()
+                                    item.action = .windowTransform(p1: np1, p2: np2, p3: np3, p4: np4)
+                                    onSave()
+                                }
+                            }
                     case .typeText, .pasteText:
                         InlineTextEditView(action: $item.action, onPreSave: onPreSave, onSave: onSave, detailWidth: detailWidth)
                     case .openFile:

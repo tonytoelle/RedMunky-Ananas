@@ -238,6 +238,7 @@ enum MacroAction: Equatable {
     case brightnessUp
     case brightnessDown
     indirect case group(name: String, actions: [MacroActionItem])
+    case windowTransform(p1: CGPoint, p2: CGPoint, p3: CGPoint, p4: CGPoint)
 
     var iconName: String {
         switch self {
@@ -257,6 +258,7 @@ enum MacroAction: Equatable {
         case .brightnessUp:   return "sun.max.fill"
         case .brightnessDown: return "sun.min.fill"
         case .group:        return "folder"
+        case .windowTransform: return "macwindow"
         }
     }
     var color: Color {
@@ -275,6 +277,7 @@ enum MacroAction: Equatable {
         case .volumeUp, .volumeDown: return Color.blue
         case .brightnessUp, .brightnessDown: return Color.orange
         case .group:        return Color.orange
+        case .windowTransform: return Color(red: 0.1, green: 0.58, blue: 0.8)
         }
     }
     var title: String {
@@ -295,6 +298,7 @@ enum MacroAction: Equatable {
         case .brightnessUp:         return "Brightness Up"
         case .brightnessDown:       return "Brightness Down"
         case .group:                return "Group"
+        case .windowTransform:      return "Window Transform"
         }
     }
     var details: String {
@@ -332,6 +336,8 @@ enum MacroAction: Equatable {
             return "Decrease screen brightness (Native)"
         case .group(let name, let actions):
             return "Group: \"\(name)\" (\(actions.count) actions)"
+        case .windowTransform(let p1, _, _, _):
+            return "Window Transform coordinates starting at (\(Int(p1.x)), \(Int(p1.y)))"
         }
     }
     var parameterString: String {
@@ -375,6 +381,8 @@ enum MacroAction: Equatable {
             return "-"
         case .group(_, let actions):
             return "\(actions.count) actions"
+        case .windowTransform:
+            return "4 corners"
         }
     }
     var scriptLine: String {
@@ -417,6 +425,8 @@ enum MacroAction: Equatable {
             return "ACTION: brightness_down"
         case .group(let name, _):
             return "ACTION: group \"\(name)\""
+        case .windowTransform(let p1, let p2, let p3, let p4):
+            return "ACTION: window_transform \(Int(p1.x)),\(Int(p1.y)) \(Int(p2.x)),\(Int(p2.y)) \(Int(p3.x)),\(Int(p3.y)) \(Int(p4.x)),\(Int(p4.y))"
         }
     }
     

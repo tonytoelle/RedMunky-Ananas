@@ -1,9 +1,5 @@
 # ShortKing Macro Script
-TRIGGER: cmd+shift+k
+TRIGGER: l
 
 # Actions:
-ACTION: click 1503 507
-ACTION: click 0 0
-ACTION: click 0 0
-ACTION: click 1768 257
-ACTION: click 1768 257
+ACTION: window_transform 1122,180 1631,180 1631,1156 1122,1156

@@ -514,6 +514,7 @@ struct MacroInspectorView: View {
         case "Vol Down": newAction = .volumeDown
         case "Brit Up": newAction = .brightnessUp
         case "Brit Down": newAction = .brightnessDown
+        case "Window Transform": newAction = .windowTransform(p1: .zero, p2: .zero, p3: .zero, p4: .zero)
         default: newAction = .delay(ms: 300)
         }
         
@@ -585,6 +586,10 @@ struct MacroInspectorView: View {
                 },
                 onClickRealTime: { _ in }
             )
+        case .windowTransform:
+            CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .windowTransform) { p1, p2, p3, p4 in
+                updateActionItem(id: actionItem.id, action: .windowTransform(p1: p1, p2: p2, p3: p3, p4: p4), isAlternate: isAlternate, switchTriggerIndex: switchTriggerIndex)
+            }
         default:
             break
         }

@@ -151,7 +151,42 @@ struct CaptureOverlaySwiftUIView: View {
                 // ─────────────────────────────────────────────
                 // CONNECTING PATH LINES BETWEEN PINS (Color Gradient)
                 // ─────────────────────────────────────────────
-                if state.points.count > 1 {
+                if case .windowTransform = state.mode {
+                    if state.points.count == 1 {
+                        let p1 = state.points[0].point
+                        let cursor = state.quartzLocation
+                        Path { path in
+                            path.move(to: p1)
+                            path.addLine(to: cursor)
+                        }
+                        .stroke(Color.blue, style: StrokeStyle(lineWidth: 2, dash: [4, 4]))
+                        .allowsHitTesting(false)
+                        
+                        circlePin(at: p1, label: "1", color: .blue)
+                    } else if state.points.count == 2 {
+                        let p1 = state.points[0].point
+                        let p2 = state.points[1].point
+                        let cursor = state.quartzLocation
+                        let p4 = CGPoint(x: p1.x, y: cursor.y)
+                        
+                        Path { path in
+                            path.move(to: p1)
+                            path.addLine(to: p2)
+                            path.move(to: p2)
+                            path.addLine(to: cursor)
+                            path.move(to: cursor)
+                            path.addLine(to: p4)
+                            path.move(to: p4)
+                            path.addLine(to: p1)
+                        }
+                        .stroke(Color.blue, style: StrokeStyle(lineWidth: 2, dash: [4, 4]))
+                        .allowsHitTesting(false)
+                        
+                        circlePin(at: p1, label: "1", color: .blue)
+                        circlePin(at: p2, label: "2", color: .blue)
+                        circlePin(at: p4, label: "4 (auto)", color: .blue.opacity(0.6))
+                    }
+                } else if state.points.count > 1 {
                     ForEach(0..<(state.points.count - 1), id: \.self) { idx in
                         let start = state.points[idx].point
                         let end = state.points[idx + 1].point
@@ -376,7 +411,28 @@ struct CaptureOverlaySwiftUIView: View {
         }
         .frame(width: 32, height: 32)
         .contentShape(Circle())
-        .opacity(isSelected || isHovered || isDragging ? 1.0 : 0.5) // 50% opacity for inactive path points
+    }
+    
+    @ViewBuilder
+    private func circlePin(at point: CGPoint, label: String, color: Color) -> some View {
+        ZStack {
+            Circle()
+                .stroke(Color.white, lineWidth: 1.5)
+                .frame(width: 26, height: 26)
+                .shadow(color: Color.black.opacity(0.35), radius: 2)
+            Circle()
+                .fill(color)
+                .frame(width: 8, height: 8)
+            Text(label)
+                .font(.system(size: 8, weight: .heavy, design: .rounded))
+                .foregroundColor(.white)
+                .padding(.horizontal, 4)
+                .padding(.vertical, 1)
+                .background(Color.black.opacity(0.65))
+                .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
+                .offset(y: -18)
+        }
+        .position(point)
     }
     
     // MARK: - Minimal Compact Floating Action HUD Card
@@ -576,6 +632,7 @@ class CaptureOverlayHostingView: NSView {
     var onFinishSequence: ([SequencePoint]) -> Void
     var onCancel: () -> Void
     var onPointsChanged: ([SequencePoint]) -> Void
+    var onWindowTransformCaptured: ((CGPoint, CGPoint, CGPoint, CGPoint) -> Void)? = nil
     
     private var trackingArea: NSTrackingArea?
     private var localKeyMonitor: Any?
@@ -842,7 +899,16 @@ class CaptureOverlayHostingView: NSView {
     private func updateMouse(event: NSEvent) {
         let winLoc = event.locationInWindow
         let screenHeight = window?.screen?.frame.height ?? NSScreen.main?.frame.height ?? bounds.height
-        let quartzPt = CGPoint(x: winLoc.x, y: screenHeight - winLoc.y)
+        var quartzPt = CGPoint(x: winLoc.x, y: screenHeight - winLoc.y)
+        
+        if case .windowTransform = stateModel.mode {
+            if stateModel.points.count == 1 {
+                quartzPt.y = stateModel.points[0].point.y
+            } else if stateModel.points.count == 2 {
+                quartzPt.x = stateModel.points[1].point.x
+            }
+        }
+        
         stateModel.currentLocation = winLoc
         stateModel.quartzLocation = quartzPt
         updateHover(quartzPt: quartzPt)
@@ -967,6 +1033,26 @@ class CaptureOverlayHostingView: NSView {
                 // Keep windows ignores mouse events updated
                 updatePassthrough(quartzPt: stateModel.quartzLocation)
                 stateModel.notifyPointsCommitted()
+                
+            case .windowTransform:
+                stateModel.points.append(newPt)
+                if stateModel.points.count == 3 {
+                    let p1 = stateModel.points[0].point
+                    let p2 = stateModel.points[1].point
+                    let p3 = stateModel.points[2].point
+                    let p4 = CGPoint(x: p1.x, y: p3.y)
+                    
+                    stateModel.isFollowingCursor = false
+                    onWindowTransformCaptured?(p1, p2, p3, p4)
+                    
+                    if let win = window {
+                        win.close()
+                    }
+                    CaptureOverlayWindow.shared = nil
+                } else {
+                    updatePassthrough(quartzPt: stateModel.quartzLocation)
+                    stateModel.notifyPointsCommitted()
+                }
             }
         } else {
             // Edit phase: handled when clicking directly on a pin
@@ -1090,6 +1176,7 @@ class CaptureOverlayWindow: NSPanel {
         case click(button: CGMouseButton = .left, initialPoint: CGPoint? = nil)
         case drag(initialStart: CGPoint? = nil, initialEnd: CGPoint? = nil)
         case sequence(initialPoints: [SequencePoint] = [])
+        case windowTransform
     }
     
     private var mode: Mode
@@ -1101,6 +1188,8 @@ class CaptureOverlayWindow: NSPanel {
     
     private var onSequenceCaptured: (([SequencePoint]) -> Void)?
     private var onSequenceRealTime: (([SequencePoint]) -> Void)?
+    
+    var onWindowTransformCaptured: ((CGPoint, CGPoint, CGPoint, CGPoint) -> Void)?
     
     init(mode: Mode = .click(button: .left, initialPoint: nil), 
          onClickCaptured: @escaping (CGPoint) -> Void,
@@ -1159,6 +1248,18 @@ class CaptureOverlayWindow: NSPanel {
         setupWindow(initialPoints: initialPoints, defaultType: defaultType)
     }
     
+    init(mode: Mode = .windowTransform, 
+         onWindowTransformCaptured: @escaping (CGPoint, CGPoint, CGPoint, CGPoint) -> Void) {
+        self.mode = mode
+        self.onWindowTransformCaptured = onWindowTransformCaptured
+        let screenRect = NSScreen.main?.frame ?? NSRect(x: 0, y: 0, width: 1920, height: 1080)
+        super.init(contentRect: screenRect,
+                   styleMask: [.borderless, .nonactivatingPanel],
+                   backing: .buffered,
+                   defer: false)
+        setupWindow(initialPoints: [], defaultType: .click)
+    }
+    
     private func setupWindow(initialPoints: [SequencePoint], defaultType: SequencePointType) {
         self.isOpaque = false
         self.backgroundColor = .clear
@@ -1190,6 +1291,8 @@ class CaptureOverlayWindow: NSPanel {
                 }
             case .sequence:
                 self.onSequenceCaptured?(finalPoints)
+            case .windowTransform:
+                break
             }
         }, onCancel: { [weak self] in
             self?.close()
@@ -1206,10 +1309,9 @@ class CaptureOverlayWindow: NSPanel {
                     self.onDragCaptured?(currentPoints[0].point, currentPoints[1].point)
                 }
             case .sequence:
-                // Use realtime callback for intermediate point updates,
-                // NOT onSequenceCaptured which creates new action items.
-                // onSequenceCaptured only fires via onFinishSequence (Confirm All).
                 self.onSequenceRealTime?(currentPoints)
+            case .windowTransform:
+                break
             }
         }, onPointsRealtime: { [weak self] currentPoints in
             guard let self = self else { return }
@@ -1224,9 +1326,12 @@ class CaptureOverlayWindow: NSPanel {
                 }
             case .sequence:
                 self.onSequenceRealTime?(currentPoints)
+            case .windowTransform:
+                break
             }
         })
         
+        contentView.onWindowTransformCaptured = self.onWindowTransformCaptured
         self.contentView = contentView
         self.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)

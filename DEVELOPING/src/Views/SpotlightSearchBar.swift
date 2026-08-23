@@ -32,6 +32,7 @@ struct SearchableActionDef: Identifiable {
         .init(title: "Vol Down", icon: "speaker.wave.1.fill", color: Color.blue),
         .init(title: "Brit Up", icon: "sun.max.fill", color: Color.orange),
         .init(title: "Brit Down", icon: "sun.min.fill", color: Color.orange),
+        .init(title: "Window Transform", icon: "macwindow", color: Color(red: 0.1, green: 0.58, blue: 0.8)),
     ]
 }
 
