@@ -106,16 +106,9 @@ class InputSimulator {
             return preRecordedWindowRect ?? InputSimulator.getFrontmostWindowRect()
         }()
         
-        // Show ghost cursor at the start cursor position FIRST (synchronous — blocks until visible)
-        ExecutionCursorOverlayWindow.show(at: macroStartCursorPos)
-        
-        // Warp real cursor off-screen to make it look invisible during execution
-        CGWarpMouseCursorPosition(CGPoint(x: 99999, y: 99999))
-        
         defer {
-            // Restore: warp real cursor back FIRST, then remove ghost
+            // Restore real cursor back to its absolute original position before macro started
             CGWarpMouseCursorPosition(macroStartCursorPos)
-            ExecutionCursorOverlayWindow.hide()
         }
         
         // Initial delay allowing user to release physical hotkey combination
