@@ -50,7 +50,7 @@ class MultitouchManager: ObservableObject {
     private static var maxFingerCountDuringGesture = 0
     
     // Load Private APIs
-    private typealias MTDeviceCreateListFn = @convention(c) () -> CFArray?
+    private typealias MTDeviceCreateListFn = @convention(c) () -> Unmanaged<CFArray>?
     private typealias MTRegisterContactFrameCallbackFn = @convention(c) (MTDeviceRef?, MTContactCallbackFunction?) -> Void
     private typealias MTDeviceStartFn = @convention(c) (MTDeviceRef?, Int32) -> Void
     private typealias MTDeviceStopFn = @convention(c) (MTDeviceRef?) -> Void
@@ -89,9 +89,27 @@ class MultitouchManager: ObservableObject {
         guard !isListening else { return }
         guard let MTDeviceCreateList = MTDeviceCreateList,
               let MTRegisterContactFrameCallback = MTRegisterContactFrameCallback,
-              let MTDeviceStart = MTDeviceStart else { return }
+              let MTDeviceStart = MTDeviceStart else { 
+            print("❌ Multitouch APIs not fully loaded")
+            return 
+        }
         
-        guard let deviceList = MTDeviceCreateList() as? [MTDeviceRef] else { return }
+        guard let unmanagedList = MTDeviceCreateList() else {
+            print("❌ MTDeviceCreateList returned nil")
+            return
+        }
+        
+        let cfList = unmanagedList.takeRetainedValue()
+        let count = CFArrayGetCount(cfList)
+        print("🔍 Found \(count) potential multitouch devices")
+        
+        var deviceList: [MTDeviceRef] = []
+        for i in 0..<count {
+            if let ptr = CFArrayGetValueAtIndex(cfList, i) {
+                deviceList.append(UnsafeMutableRawPointer(mutating: ptr))
+            }
+        }
+        
         self.devices = deviceList
         
         for device in deviceList {
@@ -102,7 +120,7 @@ class MultitouchManager: ObservableObject {
             MTDeviceStart(device, 0)
         }
         isListening = true
-        print("👆 Started tracking Multitouch Trackpad")
+        print("👆 Started tracking Multitouch Trackpad with \(deviceList.count) devices")
     }
     
     func stopListening() {
