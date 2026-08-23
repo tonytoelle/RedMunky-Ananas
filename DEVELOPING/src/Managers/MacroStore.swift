@@ -42,6 +42,10 @@ class MacroStore: ObservableObject {
     // Key switch toggle state: maps trigger ID -> current state (false = primary, true = alternate)
     var keySwitchStates: [UUID: Bool] = [:]
     
+    // Clipboard for copy-paste operations
+    @Published var copiedMacroURL: URL? = nil
+    @Published var copiedActions: [MacroActionItem] = []
+    
     var selectedActionID: UUID? {
         get { selectedActionIDs.first }
         set {
@@ -766,6 +770,80 @@ class MacroStore: ObservableObject {
             return CGPoint(x: cocoaPt.x, y: screenH - cocoaPt.y)
         }()
         DispatchQueue.global(qos: .userInitiated).async { InputSimulator.execute(items: items, preRecordedOrigin: originPos) }
+    }
+
+    func pasteCopiedMacro(toFolder destDir: URL) {
+        guard let copiedURL = copiedMacroURL else { return }
+        let baseName = copiedURL.deletingPathExtension().lastPathComponent
+        var newName = "\(baseName) copy"
+        var newURL = destDir.appendingPathComponent("\(newName).shortking")
+        var copyIndex = 2
+        while FileManager.default.fileExists(atPath: newURL.path) {
+            newName = "\(baseName) copy \(copyIndex)"
+            newURL = destDir.appendingPathComponent("\(newName).shortking")
+            copyIndex += 1
+        }
+        
+        do {
+            try FileManager.default.copyItem(at: copiedURL, to: newURL)
+            self.selectedFilePath = newURL.path
+            self.selectedFolderPath = nil
+            loadMacros()
+        } catch {
+            print("❌ Failed to paste macro: \(error)")
+        }
+    }
+
+    func moveSelectionUp(expandedFolders: Set<String>) {
+        let visible = getVisiblePaths(expandedFolders: expandedFolders)
+        guard !visible.isEmpty else { return }
+        let current = selectedFilePath ?? selectedFolderPath
+        let currentIndex = current.flatMap { visible.firstIndex(of: $0) } ?? -1
+        
+        if currentIndex > 0 {
+            selectPath(visible[currentIndex - 1])
+        }
+    }
+    
+    func moveSelectionDown(expandedFolders: Set<String>) {
+        let visible = getVisiblePaths(expandedFolders: expandedFolders)
+        guard !visible.isEmpty else { return }
+        let current = selectedFilePath ?? selectedFolderPath
+        let currentIndex = current.flatMap { visible.firstIndex(of: $0) } ?? -1
+        
+        if currentIndex < visible.count - 1 {
+            selectPath(visible[currentIndex + 1])
+        }
+    }
+    
+    private func selectPath(_ path: String) {
+        if path.hasSuffix(".shortking") {
+            selectedFilePath = path
+            selectedFolderPath = nil
+        } else {
+            selectedFolderPath = path
+            selectedFilePath = nil
+        }
+    }
+    
+    func getVisiblePaths(expandedFolders: Set<String>) -> [String] {
+        return getVisiblePathsRecursively(nodes: treeNodes, expandedFolders: expandedFolders)
+    }
+    
+    private func getVisiblePathsRecursively(nodes: [FileSystemNode], expandedFolders: Set<String>) -> [String] {
+        var paths: [String] = []
+        for node in nodes {
+            switch node {
+            case .folder(_, let url, _, let children):
+                paths.append(url.path)
+                if expandedFolders.contains(url.path) {
+                    paths.append(contentsOf: getVisiblePathsRecursively(nodes: children, expandedFolders: expandedFolders))
+                }
+            case .macro(let item):
+                paths.append(item.fileURL.path)
+            }
+        }
+        return paths
     }
 }
 

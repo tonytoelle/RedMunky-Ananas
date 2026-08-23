@@ -427,6 +427,32 @@ struct ActionCardView: View {
                 }
             }
             
+            Button("Copy Action") {
+                if let selected = MacroStore.shared.selectedMacro {
+                    let selectedItems = selected.actionItems.filter { store.selectedActionIDs.contains($0.id) }
+                    if !selectedItems.isEmpty {
+                        store.copiedActions = selectedItems
+                    } else {
+                        store.copiedActions = [item]
+                    }
+                }
+            }
+            
+            Button("Paste Action") {
+                if let selected = MacroStore.shared.selectedMacro,
+                   !store.copiedActions.isEmpty {
+                    store.registerUndoState(for: selected)
+                    let clonedPasted = store.copiedActions.map { MacroActionItem(action: $0.action, repeatCount: $0.repeatCount) }
+                    if let idx = selected.actionItems.firstIndex(where: { $0.id == item.id }) {
+                        selected.actionItems.insert(contentsOf: clonedPasted, at: idx + 1)
+                    } else {
+                        selected.actionItems.append(contentsOf: clonedPasted)
+                    }
+                    store.saveMacro(selected)
+                }
+            }
+            .disabled(store.copiedActions.isEmpty)
+            
             Button("Delete") {
                 onDelete()
             }

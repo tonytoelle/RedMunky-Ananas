@@ -1325,6 +1325,15 @@ struct SidebarNodeView: View {
 
                     Divider()
 
+                    if store.copiedMacroURL != nil {
+                        Button {
+                            store.pasteCopiedMacro(toFolder: url)
+                        } label: {
+                            Label("Paste Macro", systemImage: "doc.on.clipboard")
+                        }
+                        Divider()
+                    }
+
                     Button {
                         onPromptFolder(false, url, name)
                     } label: {
@@ -1474,6 +1483,22 @@ struct SidebarNodeView: View {
                     store.duplicateMacro(macro)
                 } label: {
                     Label("Duplicate", systemImage: "plus.square.on.square")
+                }
+                
+                Button {
+                    store.copiedMacroURL = macro.fileURL
+                    store.copiedActions = []
+                } label: {
+                    Label("Copy Macro", systemImage: "doc.on.doc")
+                }
+                
+                if store.copiedMacroURL != nil {
+                    Button {
+                        let parentFolderURL = macro.fileURL.deletingLastPathComponent()
+                        store.pasteCopiedMacro(toFolder: parentFolderURL)
+                    } label: {
+                        Label("Paste Macro", systemImage: "doc.on.clipboard")
+                    }
                 }
 
                 Button {
@@ -1897,6 +1922,18 @@ struct MainEditorView: View {
                                 return nil // consume
                             }
                         }
+                    }
+                } else if event.keyCode == 125 || event.keyCode == 126 { // Down or Up
+                    if let responder = NSApp.keyWindow?.firstResponder {
+                        if let tv = responder as? NSTextView, tv.isEditable { return event }
+                        if let tf = responder as? NSTextField, tf.isEditable { return event }
+                    }
+                    if event.keyCode == 125 { // Down
+                        store.moveSelectionDown(expandedFolders: expandedFolders)
+                        return nil // consume
+                    } else { // Up
+                        store.moveSelectionUp(expandedFolders: expandedFolders)
+                        return nil // consume
                     }
                 }
                 return event

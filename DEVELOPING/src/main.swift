@@ -77,6 +77,68 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDele
                 }
             }
             
+            // Handle Cmd+C (Copy)
+            if event.modifierFlags.contains(.command) && event.charactersIgnoringModifiers?.lowercased() == "c" {
+                if let responder = NSApp.keyWindow?.firstResponder {
+                    if let tv = responder as? NSTextView, tv.isEditable { return event }
+                    if let tf = responder as? NSTextField, tf.isEditable { return event }
+                }
+                
+                // 1. Copy selected action items if there are any
+                if !MacroStore.shared.selectedActionIDs.isEmpty, let selectedMacro = MacroStore.shared.selectedMacro {
+                    let itemsToCopy = selectedMacro.actionItems.filter { MacroStore.shared.selectedActionIDs.contains($0.id) }
+                    if !itemsToCopy.isEmpty {
+                        MacroStore.shared.copiedActions = itemsToCopy
+                        MacroStore.shared.copiedMacroURL = nil
+                        return nil // consumed
+                    }
+                }
+                
+                // 2. Otherwise copy the selected macro in the sidebar
+                if let selectedPath = MacroStore.shared.selectedFilePath {
+                    MacroStore.shared.copiedMacroURL = URL(fileURLWithPath: selectedPath)
+                    MacroStore.shared.copiedActions = []
+                    return nil // consumed
+                }
+            }
+            
+            // Handle Cmd+V (Paste)
+            if event.modifierFlags.contains(.command) && event.charactersIgnoringModifiers?.lowercased() == "v" {
+                if let responder = NSApp.keyWindow?.firstResponder {
+                    if let tv = responder as? NSTextView, tv.isEditable { return event }
+                    if let tf = responder as? NSTextField, tf.isEditable { return event }
+                }
+                
+                // 1. Paste copied action items if there are any
+                if !MacroStore.shared.copiedActions.isEmpty, let selectedMacro = MacroStore.shared.selectedMacro {
+                    MacroStore.shared.registerUndoState(for: selectedMacro)
+                    let clonedPasted = MacroStore.shared.copiedActions.map { MacroActionItem(action: $0.action, repeatCount: $0.repeatCount) }
+                    
+                    if let lastSelectedID = MacroStore.shared.lastSelectedActionID,
+                       let idx = selectedMacro.actionItems.firstIndex(where: { $0.id == lastSelectedID }) {
+                        selectedMacro.actionItems.insert(contentsOf: clonedPasted, at: idx + 1)
+                    } else {
+                        selectedMacro.actionItems.append(contentsOf: clonedPasted)
+                    }
+                    MacroStore.shared.saveMacro(selectedMacro)
+                    return nil // consumed
+                }
+                
+                // 2. Otherwise paste the copied macro
+                if MacroStore.shared.copiedMacroURL != nil {
+                    let destDir: URL
+                    if let folderPath = MacroStore.shared.selectedFolderPath {
+                        destDir = URL(fileURLWithPath: folderPath)
+                    } else if let filePath = MacroStore.shared.selectedFilePath {
+                        destDir = URL(fileURLWithPath: filePath).deletingLastPathComponent()
+                    } else {
+                        destDir = MacroStore.shared.watchDirectoryURL
+                    }
+                    MacroStore.shared.pasteCopiedMacro(toFolder: destDir)
+                    return nil // consumed
+                }
+            }
+            
             return event
         }
     }
