@@ -430,3 +430,50 @@ struct InlineDoAgainPicker: View {
     }
 }
 
+struct InlineOriginPicker: View {
+    @Binding var action: MacroAction
+    var onPreSave: () -> Void
+    var onSave: () -> Void
+    let detailWidth: CGFloat
+    
+    var body: some View {
+        if case .originAction(let currentType) = action {
+            Menu {
+                ForEach(OriginType.allCases, id: \.self) { type in
+                    Button(action: {
+                        onPreSave()
+                        action = .originAction(type: type)
+                        onSave()
+                    }) {
+                        HStack {
+                            Text(type.title)
+                            if currentType == type {
+                                Image(systemName: "checkmark")
+                            }
+                        }
+                    }
+                }
+            } label: {
+                HStack(spacing: 4) {
+                    Text(currentType.title)
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundColor(.pink)
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.system(size: 8))
+                        .foregroundColor(.pink)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color(white: 0.12))
+                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                )
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+        }
+    }
+}
+

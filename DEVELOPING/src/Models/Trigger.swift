@@ -222,6 +222,18 @@ struct SequencePoint: Identifiable, Equatable, Codable {
     }
 }
 
+enum OriginType: String, Codable, CaseIterable {
+    case cursor
+    case window
+    
+    var title: String {
+        switch self {
+        case .cursor: return "Cursor Position"
+        case .window: return "Window Size & Position"
+        }
+    }
+}
+
 enum MacroAction: Equatable {
     case click(point: CGPoint, button: CGMouseButton)
     case drag(start: CGPoint, end: CGPoint)
@@ -241,6 +253,7 @@ enum MacroAction: Equatable {
     case brightnessDown
     indirect case group(name: String, actions: [MacroActionItem])
     case windowTransform(p1: CGPoint, p2: CGPoint, p3: CGPoint, p4: CGPoint)
+    case originAction(type: OriginType)
 
     var iconName: String {
         switch self {
@@ -261,6 +274,7 @@ enum MacroAction: Equatable {
         case .brightnessDown: return "sun.min.fill"
         case .group:        return "folder"
         case .windowTransform: return "macwindow"
+        case .originAction:  return "scope"
         }
     }
     var color: Color {
@@ -280,6 +294,7 @@ enum MacroAction: Equatable {
         case .brightnessUp, .brightnessDown: return Color.orange
         case .group:        return Color.orange
         case .windowTransform: return Color(red: 0.1, green: 0.58, blue: 0.8)
+        case .originAction: return Color(red: 0.85, green: 0.15, blue: 0.45)
         }
     }
     var title: String {
@@ -301,6 +316,7 @@ enum MacroAction: Equatable {
         case .brightnessDown:       return "Brightness Down"
         case .group:                return "Group"
         case .windowTransform:      return "Window Transform"
+        case .originAction:         return "Origin"
         }
     }
     var details: String {
@@ -342,6 +358,8 @@ enum MacroAction: Equatable {
             return "Group: \"\(name)\" (\(actions.count) actions)"
         case .windowTransform(let p1, _, _, _):
             return "Window Transform coordinates starting at (\(Int(p1.x)), \(Int(p1.y)))"
+        case .originAction(let type):
+            return "Record current \(type == .cursor ? "cursor position" : "active window state") as origin"
         }
     }
     var parameterString: String {
@@ -389,6 +407,8 @@ enum MacroAction: Equatable {
             return "\(actions.count) actions"
         case .windowTransform:
             return "4 corners"
+        case .originAction(let type):
+            return type.title
         }
     }
     var scriptLine: String {
@@ -435,6 +455,8 @@ enum MacroAction: Equatable {
             return "ACTION: group \"\(name)\""
         case .windowTransform(let p1, let p2, let p3, let p4):
             return "ACTION: window_transform \(Int(p1.x)),\(Int(p1.y)) \(Int(p2.x)),\(Int(p2.y)) \(Int(p3.x)),\(Int(p3.y)) \(Int(p4.x)),\(Int(p4.y))"
+        case .originAction(let type):
+            return "ACTION: origin \(type.rawValue)"
         }
     }
     

@@ -280,6 +280,8 @@ struct ActionCardView: View {
                         InlineDelayEditView(action: $item.action, onPreSave: onPreSave, onSave: onSave, detailWidth: detailWidth)
                     case .pressKey, .pressShortcut:
                         InlineKeyRecorder(action: $item.action, onPreSave: onPreSave, onSave: onSave, detailWidth: detailWidth)
+                    case .originAction:
+                        InlineOriginPicker(action: $item.action, onPreSave: onPreSave, onSave: onSave, detailWidth: detailWidth)
                     case .doAgain:
                         if let selected = MacroStore.shared.selectedMacro {
                             InlineDoAgainPicker(action: $item.action, actionItems: selected.actionItems, currentIndex: index, onPreSave: onPreSave, onSave: onSave, detailWidth: detailWidth)

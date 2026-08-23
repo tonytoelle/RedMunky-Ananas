@@ -73,7 +73,7 @@ class InputSimulator {
         
         // Use pre-recorded origin if provided (captured on main thread before dispatch),
         // otherwise capture now as fallback.
-        let originQuartzPos: CGPoint = preRecordedOrigin ?? {
+        var originQuartzPos: CGPoint = preRecordedOrigin ?? {
             if let loc = CGEvent(source: nil)?.location, loc != .zero {
                 return loc
             }
@@ -82,7 +82,7 @@ class InputSimulator {
             return CGPoint(x: cocoaPt.x, y: screenH - cocoaPt.y)
         }()
         
-        let originWindowRect: CGRect? = preRecordedWindowRect ?? {
+        var originWindowRect: CGRect? = preRecordedWindowRect ?? {
             return InputSimulator.getFrontmostWindowRect()
         }()
         
@@ -102,17 +102,17 @@ class InputSimulator {
         usleep(60000) // 60ms
         releaseModifiers()
 
-        executeSubActions(items: items, originQuartzPos: originQuartzPos, originWindowRect: originWindowRect)
+        executeSubActions(items: items, originQuartzPos: &originQuartzPos, originWindowRect: &originWindowRect)
     }
 
-    private static func executeSubActions(items: [MacroActionItem], originQuartzPos: CGPoint, originWindowRect: CGRect?) {
+    private static func executeSubActions(items: [MacroActionItem], originQuartzPos: inout CGPoint, originWindowRect: inout CGRect?) {
         for item in items {
             let repeats = max(1, item.repeatCount)
             for _ in 0..<repeats {
                 guard !isEmergencyStopped else { return }
                 switch item.action {
                 case .group(_, let subActions):
-                    executeSubActions(items: subActions, originQuartzPos: originQuartzPos, originWindowRect: originWindowRect)
+                    executeSubActions(items: subActions, originQuartzPos: &originQuartzPos, originWindowRect: &originWindowRect)
                     
                 case .click(let point, let button):
                     let dT: CGEventType = button == .left ? .leftMouseDown : .rightMouseDown
@@ -407,6 +407,24 @@ class InputSimulator {
                     let origin = CGPoint(x: p1.x, y: p1.y)
                     let size = CGSize(width: abs(p2.x - p1.x), height: abs(p3.y - p1.y))
                     InputSimulator.transformFrontmostWindow(origin: origin, size: size)
+                    
+                case .originAction(let type):
+                    guard !isEmergencyStopped else { return }
+                    if type == .cursor {
+                        if let loc = CGEvent(source: nil)?.location, loc != .zero {
+                            originQuartzPos = loc
+                        } else {
+                            let cp = NSEvent.mouseLocation
+                            let sh = NSScreen.main?.frame.height ?? 1080
+                            originQuartzPos = CGPoint(x: cp.x, y: sh - cp.y)
+                        }
+                        print("📍 Cursor origin recorded manually at \(originQuartzPos)")
+                    } else if type == .window {
+                        if let rect = InputSimulator.getFrontmostWindowRect() {
+                            originWindowRect = rect
+                            print("🪟 Window origin recorded manually at \(rect)")
+                        }
+                    }
                 }
             }
         }

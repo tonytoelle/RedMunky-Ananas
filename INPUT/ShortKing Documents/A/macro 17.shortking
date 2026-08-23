@@ -1,5 +1,6 @@
 # ShortKing Macro Script
-TRIGGER: cmd+shift+l
+TRIGGER: cmd+l
 
 # Actions:
 ACTION: window_transform 1045,98 1797,98 1797,1168 1045,1168
+ACTION: do_again window_origin

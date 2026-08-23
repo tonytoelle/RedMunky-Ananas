@@ -252,6 +252,14 @@ class ShortKingParser {
             return .pasteText(text: t)
         case "press":
             if parts.count >= 2, let code = KeyMap.keyCode(for: parts[1]) { return .pressKey(keyCode: code) }
+        case "origin":
+            if parts.count >= 2 {
+                let typeStr = parts[1].lowercased()
+                if typeStr == "window" {
+                    return .originAction(type: .window)
+                }
+            }
+            return .originAction(type: .cursor)
         case "press_shortcut":
             if parts.count >= 2, let trig = parseTrigger(parts[1]) { return .pressShortcut(trigger: trig) }
         case "restore_cursor", "restore_origin", "move_to_origin", "do_again":
