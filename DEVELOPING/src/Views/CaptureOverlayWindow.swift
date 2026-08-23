@@ -1339,9 +1339,10 @@ class ExecutionCursorOverlayWindow: NSPanel {
                    defer: false)
         isOpaque = false
         backgroundColor = .clear
-        level = .statusBar
+        level = .screenSaver
         ignoresMouseEvents = true
         hasShadow = false
+        isFloatingPanel = true
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
 
         let imageView = NSImageView(frame: NSRect(x: 0, y: 0, width: contentRect.width, height: contentRect.height))
