@@ -216,3 +216,57 @@ func updateMacroFinderIcon(for fileURL: URL, trigger: Trigger) {
 // ==========================================
 // MARK: - File System Hierarchy Tree
 // ==========================================
+
+func generateAppIcon() -> NSImage {
+    let size = NSSize(width: 512, height: 512)
+    let image = NSImage(size: size)
+    image.lockFocus()
+    
+    // 1. Clean squircle background (Apple standard macOS app / document icon squircle)
+    let bgRect = NSRect(origin: .zero, size: size)
+    let bgPath = NSBezierPath(roundedRect: bgRect, xRadius: 110, yRadius: 110)
+    NSColor(red: 0.13, green: 0.13, blue: 0.14, alpha: 1.0).set()
+    bgPath.fill()
+    
+    // 2. Center keycap (larger than the ones in shortcut files to look like a main app icon)
+    let keycapWidth: CGFloat = 240
+    let keycapHeight: CGFloat = 240
+    let x = (size.width - keycapWidth) / 2
+    let y = (size.height - keycapHeight) / 2
+    
+    let rect = NSRect(x: x, y: y, width: keycapWidth, height: keycapHeight)
+    let path = NSBezierPath(roundedRect: rect, xRadius: 46, yRadius: 46)
+    
+    // Keycap background
+    NSColor(white: 0.22, alpha: 1.0).set()
+    path.fill()
+    
+    // Keycap subtle border
+    path.lineWidth = 5.0
+    NSColor(white: 0.35, alpha: 1.0).set()
+    path.stroke()
+    
+    // Crown emoji
+    let fontSize: CGFloat = 110
+    let font = NSFont.systemFont(ofSize: fontSize, weight: .bold)
+    let style = NSMutableParagraphStyle()
+    style.alignment = .center
+    let attrs: [NSAttributedString.Key: Any] = [
+        .font: font,
+        .foregroundColor: NSColor.white,
+        .paragraphStyle: style
+    ]
+    
+    let attrString = NSAttributedString(string: "👑", attributes: attrs)
+    let stringSize = attrString.size()
+    let textRect = NSRect(
+        x: rect.origin.x,
+        y: rect.origin.y + (rect.height - stringSize.height) / 2,
+        width: rect.width,
+        height: stringSize.height
+    )
+    attrString.draw(in: textRect)
+    
+    image.unlockFocus()
+    return image
+}

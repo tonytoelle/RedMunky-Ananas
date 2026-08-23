@@ -21,6 +21,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDele
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         AppDelegate.shared = self
+        NSApp.applicationIconImage = generateAppIcon()
         CarbonHotKeyManager.shared.installHandlerIfNeeded()
         PermissionManager.shared.checkStatus()
         LaunchAtLoginManager.shared.enableAutoStart()
