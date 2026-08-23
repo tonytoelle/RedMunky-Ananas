@@ -1,10 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
-  <!-- 1. Squircle background (Apple standard macOS app icon squircle) -->
-  <rect width="512" height="512" rx="110" ry="110" fill="#212124"/>
+  <!-- 1. Squircle background (Solid purple matching the action card color) -->
+  <rect width="512" height="512" rx="110" ry="110" fill="#5247B7"/>
   
-  <!-- 2. Centered keycap -->
-  <rect x="136" y="136" width="240" height="240" rx="46" ry="46" fill="#383838" stroke="#595959" stroke-width="5"/>
-  
-  <!-- 3. Crown emoji -->
-  <text x="256" y="270" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="110" text-anchor="middle" dominant-baseline="middle">👑</text>
+  <!-- 2. Flat White Crown Symbol in center -->
+  <path d="M 136,360 L 136,230 L 196,285 L 256,170 L 316,285 L 376,230 L 376,360 Z" fill="#FFFFFF"/>
+  <circle cx="136" cy="218" r="14" fill="#FFFFFF"/>
+  <circle cx="256" cy="156" r="16" fill="#FFFFFF"/>
+  <circle cx="376" cy="218" r="14" fill="#FFFFFF"/>
 </svg>
