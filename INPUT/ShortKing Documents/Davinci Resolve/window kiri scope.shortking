@@ -1,5 +1,5 @@
 # ShortKing Macro Script
-TRIGGER: opt+left
+TRIGGER: cmd+left
 
 # Actions:
 ACTION: window_transform 0,34 353,34 353,1162 0,1162

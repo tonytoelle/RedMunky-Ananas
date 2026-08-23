@@ -393,33 +393,40 @@ class MacroStore: ObservableObject {
         let activeBundle = frontApp?.bundleIdentifier ?? ""
         let activeName = frontApp?.localizedName ?? ""
         
-        for macro in macros {
-            guard macro.isEnabled else { continue }
+        // Track which key combos are already registered by global macros
+        // Key: "\(keyCode)-\(modifiers)" to uniquely identify a hotkey combo
+        var registeredKeyCombos = Set<String>()
+        
+        // Helper to create a unique key for a trigger combo
+        func comboKey(for trig: Trigger) -> String {
+            var mods = ""
+            if trig.requireCmd { mods += "C" }
+            if trig.requireShift { mods += "S" }
+            if trig.requireOption { mods += "O" }
+            if trig.requireControl { mods += "X" }
+            return "\(trig.keyCode)-\(mods)"
+        }
+        
+        // Helper to register a macro's triggers
+        func registerTriggers(for macro: MacroItem, trackCombo: Bool) {
             let items = macro.actionItems
-            let folderConfig = macro.parentFolderConfig
-            
-            // App targeting restriction check
-            if let cfg = folderConfig, cfg.isRestrictedToApps && !cfg.targetApps.isEmpty {
-                let matches = cfg.targetApps.contains { target in
-                    target.bundleId == activeBundle || target.name.localizedCaseInsensitiveCompare(activeName) == .orderedSame
-                }
-                // Skip registering hotkey globally if active app doesn't match targeting list
-                if !matches {
-                    continue
-                }
-            }
-            
             for trig in macro.triggers {
-                // Skip registering brightness keys (144, 145) with Carbon, since they are handled via Event Tap
-                if trig.keyCode == 144 || trig.keyCode == 145 {
-                    continue
+                if trig.keyCode == 144 || trig.keyCode == 145 { continue }
+                
+                let combo = comboKey(for: trig)
+                
+                // If this combo is already registered by a global macro, skip
+                if registeredKeyCombos.contains(combo) { continue }
+                
+                if trackCombo {
+                    registeredKeyCombos.insert(combo)
                 }
+                
                 let trigID = trig.id
                 let trigMode = trig.mode
                 let altItems = trig.alternateActionItems
                 CarbonHotKeyManager.shared.register(trigger: trig) { [weak self] in
                     print("🚀 Executing: \(macro.fileName)")
-                    // Capture cursor origin NOW before background dispatch
                     let originPos: CGPoint = {
                         if let loc = CGEvent(source: nil)?.location, loc != .zero { return loc }
                         let cp = NSEvent.mouseLocation
@@ -428,7 +435,6 @@ class MacroStore: ObservableObject {
                     }()
                     let windowRect = InputSimulator.getFrontmostWindowRect()
                     
-                    // Determine which action set to run for key switch triggers
                     let executionItems: [MacroActionItem]
                     if trigMode == .keySwitch && !altItems.isEmpty {
                         let useAlternate = self?.keySwitchStates[trigID] ?? false
@@ -444,6 +450,31 @@ class MacroStore: ObservableObject {
                     }
                 }
             }
+        }
+        
+        // PASS 1: Register GLOBAL macros first (no folder app restriction)
+        for macro in macros {
+            guard macro.isEnabled else { continue }
+            let folderConfig = macro.parentFolderConfig
+            let isAppRestricted = folderConfig?.isRestrictedToApps == true && !(folderConfig?.targetApps.isEmpty ?? true)
+            
+            if !isAppRestricted {
+                registerTriggers(for: macro, trackCombo: true)
+            }
+        }
+        
+        // PASS 2: Register APP-SPECIFIC macros only if their target app matches AND key combo is not already taken by global
+        for macro in macros {
+            guard macro.isEnabled else { continue }
+            let folderConfig = macro.parentFolderConfig
+            guard let cfg = folderConfig, cfg.isRestrictedToApps && !cfg.targetApps.isEmpty else { continue }
+            
+            let matches = cfg.targetApps.contains { target in
+                target.bundleId == activeBundle || target.name.localizedCaseInsensitiveCompare(activeName) == .orderedSame
+            }
+            if !matches { continue }
+            
+            registerTriggers(for: macro, trackCombo: false)
         }
     }
 

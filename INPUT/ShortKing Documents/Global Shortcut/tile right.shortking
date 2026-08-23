@@ -2,4 +2,4 @@
 TRIGGER: cmd+right
 
 # Actions:
-ACTION: custom_action "~/tile_right.sh"
+ACTION: window_transform 901,32 1799,32 1799,1168 901,1168

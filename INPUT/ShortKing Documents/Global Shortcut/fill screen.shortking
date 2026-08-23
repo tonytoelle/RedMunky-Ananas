@@ -2,4 +2,4 @@
 TRIGGER: cmd+up
 
 # Actions:
-ACTION: custom_action "~/fill_screen.sh"
+ACTION: window_transform 0,28 1799,28 1799,1168 0,1168

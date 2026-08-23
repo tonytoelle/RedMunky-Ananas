@@ -2,4 +2,4 @@
 TRIGGER: cmd+left
 
 # Actions:
-ACTION: custom_action "~/tile_left.sh"
+ACTION: window_transform 0,32 900,32 900,1168 0,1168
