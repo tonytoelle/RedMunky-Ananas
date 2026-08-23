@@ -145,6 +145,8 @@ class InputSimulator {
                     }
                     let dT: CGEventType = button == .left ? .leftMouseDown : .rightMouseDown
                     let uT: CGEventType = button == .left ? .leftMouseUp   : .rightMouseUp
+                    CGWarpMouseCursorPosition(clickPt)
+                    usleep(15000)
                     let d = CGEvent(mouseEventSource: source, mouseType: dT, mouseCursorPosition: clickPt, mouseButton: button)
                     let u = CGEvent(mouseEventSource: source, mouseType: uT, mouseCursorPosition: clickPt, mouseButton: button)
                     d?.flags = []
