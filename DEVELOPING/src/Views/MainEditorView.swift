@@ -1953,6 +1953,31 @@ struct MainEditorView: View {
                             return nil // consume
                         }
                     }
+                } else if event.keyCode == 51 || event.keyCode == 117 { // Delete or Backspace
+                    if let responder = NSApp.keyWindow?.firstResponder {
+                        if let tv = responder as? NSTextView, tv.isEditable { return event }
+                        if let tf = responder as? NSTextField, tf.isEditable { return event }
+                    }
+                    if store.focusedPane == .left {
+                        let pathsToDelete: [String] = {
+                            if !selectedPaths.isEmpty {
+                                return Array(selectedPaths)
+                            } else if let filePath = store.selectedFilePath {
+                                return [filePath]
+                            } else if let folderPath = store.selectedFolderPath {
+                                return [folderPath]
+                            }
+                            return []
+                        }()
+                        
+                        if !pathsToDelete.isEmpty {
+                            store.deleteItems(paths: pathsToDelete)
+                            selectedPaths.removeAll()
+                            store.selectedFilePath = nil
+                            store.selectedFolderPath = nil
+                            return nil // consume
+                        }
+                    }
                 }
                 return event
             }
