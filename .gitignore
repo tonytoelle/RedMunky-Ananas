@@ -1,3 +1,5 @@
 .DS_Store
 DEVELOPING/bin/
 .agents/
+*.log
+DEVELOPING/src/temp_build.swift

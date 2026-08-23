@@ -1,9 +1,19 @@
 #!/bin/bash
 set -e
+BUILD_START=$(date +%s)
 
 # Dapatkan path direktori DEVELOPING
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 APP_NAME="ShortKing"
+
+# Mode: --release untuk optimasi penuh (public build), default = dev (cepat)
+if [[ "$1" == "--release" ]]; then
+    SWIFT_OPT="-O"
+    echo "🚀 MODE: RELEASE (optimasi penuh untuk publik)"
+else
+    SWIFT_OPT="-Onone"
+    echo "⚡ MODE: DEV (kompilasi super cepat)"
+fi
 APP_BUNDLE="$DIR/bin/$APP_NAME.app"
 MACOS_DIR="$APP_BUNDLE/Contents/MacOS"
 RESOURCES_DIR="$APP_BUNDLE/Contents/Resources"
@@ -22,7 +32,7 @@ find "$DIR/src" -name "*.swift" ! -name "temp_build.swift" | while read -r file;
 done > "$TEMP_BUILD_FILE"
 
 echo "🔨 Mengkompilasi Swift Macro Engine..."
-swiftc "$TEMP_BUILD_FILE" -o "$MACOS_DIR/$APP_NAME" -Onone -F /System/Library/PrivateFrameworks -framework DisplayServices
+swiftc "$TEMP_BUILD_FILE" -o "$MACOS_DIR/$APP_NAME" $SWIFT_OPT -F /System/Library/PrivateFrameworks -framework DisplayServices
 rm -f "$TEMP_BUILD_FILE"
 
 echo "📝 Membuat Info.plist untuk $APP_NAME.app..."
@@ -112,3 +122,6 @@ open "$APP_BUNDLE"
 
 echo "✅ Sukses! Aplikasi native macOS siap di:"
 echo "👉 $APP_BUNDLE"
+
+BUILD_END=$(date +%s)
+echo "⏱️  Build selesai dalam $((BUILD_END - BUILD_START)) detik"
