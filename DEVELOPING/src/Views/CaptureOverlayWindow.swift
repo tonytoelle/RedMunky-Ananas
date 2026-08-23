@@ -153,7 +153,19 @@ struct CaptureOverlaySwiftUIView: View {
                 // CONNECTING PATH LINES BETWEEN PINS (Color Gradient)
                 // ─────────────────────────────────────────────
                 if case .windowTransform = state.mode {
-                    if state.points.count >= 2 {
+                    if state.points.count == 1 {
+                        let p1 = state.points[0].point
+                        let cursor = state.quartzLocation
+                        let rect = CGRect(
+                            x: min(p1.x, cursor.x),
+                            y: min(p1.y, cursor.y),
+                            width: abs(cursor.x - p1.x),
+                            height: abs(cursor.y - p1.y)
+                        )
+                        Path { path in path.addRect(rect) }
+                            .stroke(Color.blue, style: StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
+                            .allowsHitTesting(false)
+                    } else if state.points.count >= 2 {
                         let p1 = state.points[0].point
                         let p3 = state.points[1].point
                         let minX = min(p1.x, p3.x)
@@ -765,7 +777,6 @@ class CaptureOverlayHostingView: NSView {
     private var globalMouseMonitor: Any?
     private var localMouseMonitor: Any?
     private var stateModel = CaptureOverlayState()
-    private var isDrawingNewRect = false
     
     init(mode: CaptureOverlayWindow.Mode,
          initialPoints: [SequencePoint] = [],
@@ -1157,17 +1168,7 @@ class CaptureOverlayHostingView: NSView {
     override func mouseUp(with event: NSEvent) {
         let wasDragging = (stateModel.activeDraggingIndex != nil)
         stateModel.activeDraggingIndex = nil
-        if isDrawingNewRect {
-            isDrawingNewRect = false
-            stateModel.phase = .editing
-            stateModel.selectedPointIndex = nil
-            stateModel.notifyPointsCommitted()
-            CaptureOverlayHostingView.safeUnhideCursor()
-            // Keep window interactive and key so Enter/Esc work
-            window?.ignoresMouseEvents = false
-            window?.makeKey()
-            window?.makeFirstResponder(self)
-        } else if wasDragging {
+        if wasDragging {
             stateModel.notifyPointsCommitted()
         }
     }
@@ -1221,13 +1222,21 @@ class CaptureOverlayHostingView: NSView {
                 stateModel.notifyPointsCommitted()
                 
             case .windowTransform:
-                stateModel.points = [newPt, newPt]
-                stateModel.selectedPointIndex = 1
-                stateModel.activeDraggingIndex = 1
-                isDrawingNewRect = true
-                stateModel.isFollowingCursor = false
-                window?.ignoresMouseEvents = false
-                stateModel.notifyPointsRealtime()
+                if stateModel.points.isEmpty {
+                    stateModel.points.append(newPt)
+                    stateModel.selectedPointIndex = 0
+                    stateModel.notifyPointsCommitted()
+                } else {
+                    stateModel.points.append(newPt)
+                    stateModel.isFollowingCursor = false
+                    stateModel.phase = .editing
+                    stateModel.selectedPointIndex = nil
+                    stateModel.notifyPointsCommitted()
+                    CaptureOverlayHostingView.safeUnhideCursor()
+                    window?.ignoresMouseEvents = false
+                    window?.makeKey()
+                    window?.makeFirstResponder(self)
+                }
             }
         } else {
             // Edit phase: handled when clicking directly on a pin
