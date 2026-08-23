@@ -452,18 +452,7 @@ class MacroStore: ObservableObject {
             }
         }
         
-        // PASS 1: Register GLOBAL macros first (no folder app restriction)
-        for macro in macros {
-            guard macro.isEnabled else { continue }
-            let folderConfig = macro.parentFolderConfig
-            let isAppRestricted = folderConfig?.isRestrictedToApps == true && !(folderConfig?.targetApps.isEmpty ?? true)
-            
-            if !isAppRestricted {
-                registerTriggers(for: macro, trackCombo: true)
-            }
-        }
-        
-        // PASS 2: Register APP-SPECIFIC macros only if their target app matches AND key combo is not already taken by global
+        // PASS 1: Register APP-SPECIFIC macros first (if target app matches current active app)
         for macro in macros {
             guard macro.isEnabled else { continue }
             let folderConfig = macro.parentFolderConfig
@@ -474,7 +463,18 @@ class MacroStore: ObservableObject {
             }
             if !matches { continue }
             
-            registerTriggers(for: macro, trackCombo: false)
+            registerTriggers(for: macro, trackCombo: true)
+        }
+        
+        // PASS 2: Register GLOBAL macros only if key combo is not already taken by active app-specific macro
+        for macro in macros {
+            guard macro.isEnabled else { continue }
+            let folderConfig = macro.parentFolderConfig
+            let isAppRestricted = folderConfig?.isRestrictedToApps == true && !(folderConfig?.targetApps.isEmpty ?? true)
+            
+            if !isAppRestricted {
+                registerTriggers(for: macro, trackCombo: false)
+            }
         }
     }
 

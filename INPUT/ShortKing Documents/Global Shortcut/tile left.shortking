@@ -2,4 +2,4 @@
 TRIGGER: cmd+left
 
 # Actions:
-ACTION: window_transform 0,32 900,32 900,1168 0,1168
+ACTION: window_transform 0,32 841,32 841,1168 0,1168
