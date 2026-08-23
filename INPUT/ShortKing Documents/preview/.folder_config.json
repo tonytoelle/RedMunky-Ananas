@@ -1,1 +1,1 @@
-{"colorName":"orange","isRestrictedToApps":true,"customAppIconBundleId":"com.apple.Preview","targetApps":[{"name":"Preview","bundleId":"com.apple.Preview"}],"iconName":"folder.fill"}
+{"iconName":"folder.fill","isRestrictedToApps":true,"targetApps":[{"name":"Preview","bundleId":"com.apple.Preview"}],"colorName":"orange","customAppIconBundleId":"com.apple.Preview"}

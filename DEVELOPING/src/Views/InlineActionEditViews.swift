@@ -394,10 +394,7 @@ struct InlineDoAgainPicker: View {
                 HStack(spacing: 4) {
                     Text(targetLabel(for: currentTarget))
                         .font(.system(size: 11, weight: .bold))
-                        .foregroundColor(.cyan)
-                    Image(systemName: "chevron.up.chevron.down")
-                        .font(.system(size: 8))
-                        .foregroundColor(.cyan)
+                        .foregroundColor(getTargetColor(for: currentTarget))
                 }
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
@@ -411,6 +408,26 @@ struct InlineDoAgainPicker: View {
             .menuStyle(.borderlessButton)
             .fixedSize()
         }
+    }
+    
+    private func getTargetColor(for target: DoAgainTarget) -> Color {
+        let items = actionItems
+        switch target {
+        case .origin:
+            return Color(red: 0.28, green: 0.52, blue: 0.92)
+        case .originWindow:
+            return Color(red: 0.1, green: 0.58, blue: 0.8)
+        case .step(let idx):
+            let targetIdx = idx - 1
+            if targetIdx >= 0 && targetIdx < items.count {
+                return items[targetIdx].action.color
+            }
+        case .action(let tid):
+            if let targetItem = items.first(where: { $0.id == tid }) {
+                return targetItem.action.color
+            }
+        }
+        return .cyan
     }
     
     private func targetLabel(for target: DoAgainTarget) -> String {
@@ -457,9 +474,6 @@ struct InlineOriginPicker: View {
                 HStack(spacing: 4) {
                     Text(currentType.title)
                         .font(.system(size: 11, weight: .bold))
-                        .foregroundColor(.pink)
-                    Image(systemName: "chevron.up.chevron.down")
-                        .font(.system(size: 8))
                         .foregroundColor(.pink)
                 }
                 .padding(.horizontal, 8)

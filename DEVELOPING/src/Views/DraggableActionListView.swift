@@ -35,10 +35,10 @@ struct ActionCardView: View {
                 // Squircle Icon with step ID inside
                 ZStack(alignment: .center) {
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(item.action.color)
+                        .fill(getActionColor(for: item.action))
                         .frame(width: 32, height: 32)
                     
-                    Image(systemName: item.action.iconName)
+                    Image(systemName: getActionIcon(for: item.action))
                         .foregroundColor(.white)
                         .font(.system(size: 13, weight: .semibold))
                         .offset(x: item.repeatCount > 1 ? -2 : 0, y: item.repeatCount > 1 ? 2 : 0)
@@ -537,6 +537,50 @@ struct ActionCardView: View {
         item.action = .group(name: localGroupName, actions: subActions)
         onSave()
     }
+    
+    private func getActionColor(for action: MacroAction) -> Color {
+        if case .doAgain(let target) = action {
+            let actionItems = store.selectedMacro?.actionItems ?? []
+            switch target {
+            case .origin:
+                return Color(red: 0.28, green: 0.52, blue: 0.92)
+            case .originWindow:
+                return Color(red: 0.1, green: 0.58, blue: 0.8)
+            case .step(let idx):
+                let targetIdx = idx - 1
+                if targetIdx >= 0 && targetIdx < actionItems.count {
+                    return getActionColor(for: actionItems[targetIdx].action)
+                }
+            case .action(let tid):
+                if let targetItem = actionItems.first(where: { $0.id == tid }) {
+                    return getActionColor(for: targetItem.action)
+                }
+            }
+        }
+        return action.color
+    }
+
+    private func getActionIcon(for action: MacroAction) -> String {
+        if case .doAgain(let target) = action {
+            let actionItems = store.selectedMacro?.actionItems ?? []
+            switch target {
+            case .origin:
+                return "cursorarrow.motionlines"
+            case .originWindow:
+                return "macwindow"
+            case .step(let idx):
+                let targetIdx = idx - 1
+                if targetIdx >= 0 && targetIdx < actionItems.count {
+                    return getActionIcon(for: actionItems[targetIdx].action)
+                }
+            case .action(let tid):
+                if let targetItem = actionItems.first(where: { $0.id == tid }) {
+                    return getActionIcon(for: targetItem.action)
+                }
+            }
+        }
+        return action.iconName
+    }
 }
 
 // ==========================================
@@ -574,31 +618,7 @@ struct DraggableActionList: View {
                 .padding(.vertical, 4)
             }
             
-            // Show implicit "Origin Recorded" indicator when a doAgain(.origin) action exists
-            if actionItems.contains(where: { if case .doAgain(let t) = $0.action, case .origin = t { return true }; return false }) {
-                HStack(spacing: 6) {
-                    Image(systemName: "smallcircle.filled.circle")
-                        .font(.system(size: 9))
-                        .foregroundColor(Color(red: 0.12, green: 0.58, blue: 0.65).opacity(0.7))
-                    Text("Cursor origin auto-recorded")
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundColor(.secondary.opacity(0.6))
-                    Spacer()
-                    Image(systemName: "eye.slash")
-                        .font(.system(size: 8))
-                        .foregroundColor(.secondary.opacity(0.35))
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 5)
-                .background(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(Color(red: 0.12, green: 0.58, blue: 0.65).opacity(0.06))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .strokeBorder(Color(red: 0.12, green: 0.58, blue: 0.65).opacity(0.12), lineWidth: 1, antialiased: true)
-                        )
-                )
-            }
+            // Removed implicit origin indicator
             
             ForEach(actionItems) { actionItem in
                 let itemID = actionItem.id
