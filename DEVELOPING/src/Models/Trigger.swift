@@ -321,7 +321,11 @@ enum MacroAction: Equatable {
     }
     var details: String {
         switch self {
-        case .click(let p, let b):  return "Click \(b == .left ? "Left Button" : "Right Button") at coordinates (\(Int(p.x)), \(Int(p.y)))"
+        case .click(let p, let b):
+            if p.x == -9999 && p.y == -9999 {
+                return "Click \(b == .left ? "Left Button" : "Right Button") at current position"
+            }
+            return "Click \(b == .left ? "Left Button" : "Right Button") at coordinates (\(Int(p.x)), \(Int(p.y)))"
         case .drag(let s, let e):   return "Drag cursor from (\(Int(s.x)), \(Int(s.y))) to (\(Int(e.x)), \(Int(e.y)))"
         case .path(let pts):        return "\(pts.count) steps cursor sequence"
         case .delay(let ms):        return "Wait \(ms) milliseconds before next step"
@@ -413,7 +417,11 @@ enum MacroAction: Equatable {
     }
     var scriptLine: String {
         switch self {
-        case .click(let p, let b):  return b == .left ? "ACTION: click \(Int(p.x)) \(Int(p.y))" : "ACTION: right_click \(Int(p.x)) \(Int(p.y))"
+        case .click(let p, let b):
+            if p.x == -9999 && p.y == -9999 {
+                return b == .left ? "ACTION: click current" : "ACTION: right_click current"
+            }
+            return b == .left ? "ACTION: click \(Int(p.x)) \(Int(p.y))" : "ACTION: right_click \(Int(p.x)) \(Int(p.y))"
         case .drag(let s, let e):   return "ACTION: drag \(Int(s.x)) \(Int(s.y)) to \(Int(e.x)) \(Int(e.y))"
         case .path(let pts):
             let pStr = pts.map { pt -> String in

@@ -197,10 +197,16 @@ class ShortKingParser {
                 }
             }
         case "click":
+            if parts.count >= 2 && parts[1].lowercased() == "current" {
+                return .click(point: CGPoint(x: -9999, y: -9999), button: .left)
+            }
             if parts.count >= 3, let x = Double(parts[1]), let y = Double(parts[2]) {
                 return .click(point: CGPoint(x: x, y: y), button: .left)
             }
         case "right_click":
+            if parts.count >= 2 && parts[1].lowercased() == "current" {
+                return .click(point: CGPoint(x: -9999, y: -9999), button: .right)
+            }
             if parts.count >= 3, let x = Double(parts[1]), let y = Double(parts[2]) {
                 return .click(point: CGPoint(x: x, y: y), button: .right)
             }

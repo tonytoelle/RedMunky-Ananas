@@ -14,6 +14,7 @@ struct ClickEditView: View {
     @State private var xStr = ""
     @State private var yStr = ""
     @State private var buttonType: CGMouseButton = .left
+    @State private var clickAtCurrent = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -28,32 +29,40 @@ struct ClickEditView: View {
                 
                 Spacer()
                 
-                Button("📍 Recapture") {
-                    let curPt: CGPoint? = (Double(xStr) != nil && Double(yStr) != nil) ? CGPoint(x: Double(xStr)!, y: Double(yStr)!) : nil
-                    CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .click(button: buttonType, initialPoint: curPt)) { newPoint in
-                        let xv = Int(newPoint.x)
-                        let yv = Int(newPoint.y)
-                        xStr = String(xv)
-                        yStr = String(yv)
-                        save()
+                if !clickAtCurrent {
+                    Button("📍 Recapture") {
+                        let curPt: CGPoint? = (Double(xStr) != nil && Double(yStr) != nil) ? CGPoint(x: Double(xStr)!, y: Double(yStr)!) : nil
+                        CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .click(button: buttonType, initialPoint: curPt)) { newPoint in
+                            let xv = Int(newPoint.x)
+                            let yv = Int(newPoint.y)
+                            xStr = String(xv)
+                            yStr = String(yv)
+                            save()
+                        }
                     }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
             }
             
-            HStack(spacing: 12) {
-                HStack(spacing: 4) {
-                    Text("X:").font(.system(size: 11)).foregroundColor(.secondary)
-                    TextField("", text: $xStr)
-                        .textFieldStyle(.roundedBorder)
-                        .frame(width: 60)
-                }
-                HStack(spacing: 4) {
-                    Text("Y:").font(.system(size: 11)).foregroundColor(.secondary)
-                    TextField("", text: $yStr)
-                        .textFieldStyle(.roundedBorder)
-                        .frame(width: 60)
+            Toggle("Click at current position", isOn: $clickAtCurrent)
+                .font(.system(size: 11))
+                .toggleStyle(.checkbox)
+            
+            if !clickAtCurrent {
+                HStack(spacing: 12) {
+                    HStack(spacing: 4) {
+                        Text("X:").font(.system(size: 11)).foregroundColor(.secondary)
+                        TextField("", text: $xStr)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 60)
+                    }
+                    HStack(spacing: 4) {
+                        Text("Y:").font(.system(size: 11)).foregroundColor(.secondary)
+                        TextField("", text: $yStr)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 60)
+                    }
                 }
             }
         }
@@ -61,10 +70,29 @@ struct ClickEditView: View {
             if case .click(let point, let button) = action {
                 let xv = Int(point.x)
                 let yv = Int(point.y)
-                xStr = String(xv)
-                yStr = String(yv)
                 buttonType = button
+                if xv == -9999 && yv == -9999 {
+                    clickAtCurrent = true
+                    xStr = "-9999"
+                    yStr = "-9999"
+                } else {
+                    clickAtCurrent = false
+                    xStr = String(xv)
+                    yStr = String(yv)
+                }
             }
+        }
+        .onChange(of: clickAtCurrent) { _, newValue in
+            if newValue {
+                xStr = "-9999"
+                yStr = "-9999"
+            } else {
+                if xStr == "-9999" && yStr == "-9999" {
+                    xStr = "0"
+                    yStr = "0"
+                }
+            }
+            save()
         }
         .onChange(of: xStr) { _, _ in save() }
         .onChange(of: yStr) { _, _ in save() }
@@ -72,8 +100,8 @@ struct ClickEditView: View {
     }
 
     private func save() {
-        let x = Double(xStr) ?? 0
-        let y = Double(yStr) ?? 0
+        let x = clickAtCurrent ? -9999.0 : (Double(xStr) ?? 0.0)
+        let y = clickAtCurrent ? -9999.0 : (Double(yStr) ?? 0.0)
         action = .click(point: CGPoint(x: x, y: y), button: buttonType)
         onSave()
     }

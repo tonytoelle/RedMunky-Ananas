@@ -135,10 +135,16 @@ class InputSimulator {
                     executeSubActions(items: subActions, originQuartzPos: &originQuartzPos, originWindowRect: &originWindowRect, macroID: macroID)
                     
                 case .click(let point, let button):
+                    let clickPt: CGPoint
+                    if point.x == -9999 && point.y == -9999 {
+                        clickPt = CGEvent(source: nil)?.location ?? .zero
+                    } else {
+                        clickPt = point
+                    }
                     let dT: CGEventType = button == .left ? .leftMouseDown : .rightMouseDown
                     let uT: CGEventType = button == .left ? .leftMouseUp   : .rightMouseUp
-                    let d = CGEvent(mouseEventSource: source, mouseType: dT, mouseCursorPosition: point, mouseButton: button)
-                    let u = CGEvent(mouseEventSource: source, mouseType: uT, mouseCursorPosition: point, mouseButton: button)
+                    let d = CGEvent(mouseEventSource: source, mouseType: dT, mouseCursorPosition: clickPt, mouseButton: button)
+                    let u = CGEvent(mouseEventSource: source, mouseType: uT, mouseCursorPosition: clickPt, mouseButton: button)
                     d?.flags = []
                     u?.flags = []
                     d?.post(tap: .cghidEventTap)
