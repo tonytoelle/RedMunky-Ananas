@@ -2,3 +2,8 @@
 TRIGGER: cmd+shift+k
 
 # Actions:
+ACTION: click 1503 507
+ACTION: click 0 0
+ACTION: click 0 0
+ACTION: click 1768 257
+ACTION: click 1768 257

@@ -379,6 +379,7 @@ struct ActionCardView: View {
         .contentShape(Rectangle())
         .onTapGesture {
             let modifiers = NSEvent.modifierFlags
+            store.focusedPane = .right
             if let selected = MacroStore.shared.selectedMacro {
                 store.handleActionSelect(item.id, items: selected.actionItems, modifiers: modifiers)
             }

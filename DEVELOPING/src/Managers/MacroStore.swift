@@ -7,6 +7,10 @@ import CoreImage
 import CoreImage.CIFilterBuiltins
 import ServiceManagement
 
+enum FocusedPane {
+    case left, right
+}
+
 class MacroStore: ObservableObject {
     static let shared = MacroStore()
 
@@ -41,6 +45,8 @@ class MacroStore: ObservableObject {
     @Published var lastSelectedActionID: UUID? = nil
     // Key switch toggle state: maps trigger ID -> current state (false = primary, true = alternate)
     var keySwitchStates: [UUID: Bool] = [:]
+    
+    @Published var focusedPane: FocusedPane = .left
     
     // Clipboard for copy-paste operations
     @Published var copiedMacroURL: URL? = nil
@@ -844,6 +850,36 @@ class MacroStore: ObservableObject {
             }
         }
         return paths
+    }
+
+    func moveActionSelectionUp() {
+        guard let selected = selectedMacro else { return }
+        let items = selected.actionItems
+        guard !items.isEmpty else { return }
+        
+        let currentID = lastSelectedActionID ?? selectedActionIDs.first
+        let currentIndex = currentID.flatMap { id in items.firstIndex(where: { $0.id == id }) } ?? -1
+        
+        if currentIndex > 0 {
+            let prevItem = items[currentIndex - 1]
+            selectedActionIDs = [prevItem.id]
+            lastSelectedActionID = prevItem.id
+        }
+    }
+    
+    func moveActionSelectionDown() {
+        guard let selected = selectedMacro else { return }
+        let items = selected.actionItems
+        guard !items.isEmpty else { return }
+        
+        let currentID = lastSelectedActionID ?? selectedActionIDs.first
+        let currentIndex = currentID.flatMap { id in items.firstIndex(where: { $0.id == id }) } ?? -1
+        
+        if currentIndex < items.count - 1 {
+            let nextItem = items[currentIndex + 1]
+            selectedActionIDs = [nextItem.id]
+            lastSelectedActionID = nextItem.id
+        }
     }
 }
 

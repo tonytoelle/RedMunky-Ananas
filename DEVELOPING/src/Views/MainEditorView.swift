@@ -1634,6 +1634,7 @@ struct MainEditorView: View {
     }
 
     func handleSelect(path: String, modifiers: NSEvent.ModifierFlags) {
+        store.focusedPane = .left
         if modifiers.contains(.command) {
             if selectedPaths.contains(path) {
                 selectedPaths.remove(path)
@@ -1928,12 +1929,29 @@ struct MainEditorView: View {
                         if let tv = responder as? NSTextView, tv.isEditable { return event }
                         if let tf = responder as? NSTextField, tf.isEditable { return event }
                     }
-                    if event.keyCode == 125 { // Down
-                        store.moveSelectionDown(expandedFolders: expandedFolders)
+                    if store.focusedPane == .right {
+                        if event.keyCode == 125 {
+                            store.moveActionSelectionDown()
+                        } else {
+                            store.moveActionSelectionUp()
+                        }
                         return nil // consume
-                    } else { // Up
-                        store.moveSelectionUp(expandedFolders: expandedFolders)
-                        return nil // consume
+                    } else {
+                        if event.keyCode == 125 { // Down
+                            store.moveSelectionDown(expandedFolders: expandedFolders)
+                            if let current = store.selectedFilePath ?? store.selectedFolderPath {
+                                selectedPaths = [current]
+                                lastClickedPath = current
+                            }
+                            return nil // consume
+                        } else { // Up
+                            store.moveSelectionUp(expandedFolders: expandedFolders)
+                            if let current = store.selectedFilePath ?? store.selectedFolderPath {
+                                selectedPaths = [current]
+                                lastClickedPath = current
+                            }
+                            return nil // consume
+                        }
                     }
                 }
                 return event
