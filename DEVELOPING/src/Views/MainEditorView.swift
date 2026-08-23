@@ -416,36 +416,35 @@ struct MacroInspectorView: View {
                                 .help("Close Action Drawer")
                             }
                             
-                            ScrollView(.vertical, showsIndicators: false) {
-                                LazyVGrid(columns: [GridItem(.adaptive(minimum: 50, maximum: 60), spacing: 8)], spacing: 8) {
-                                    ForEach(SearchableActionDef.allActions) { actionDef in
-                                        Button {
-                                            let isAlt = hasKeySwitchTrigger && activeActionTarget == .alternate
-                                            let tIdx = isAlt ? (macro.triggers.first(where: { $0.mode == .keySwitch })?.alternateActionItems.count ?? 0) : macro.actionItems.count
-                                            insertAction(typeName: actionDef.title, targetIndex: tIdx, isAlternate: isAlt)
-                                        } label: {
-                                            VStack(spacing: 4) {
-                                                ZStack {
-                                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                                        .fill(actionDef.color)
-                                                        .frame(width: 32, height: 32)
-                                                    Image(systemName: actionDef.icon)
-                                                        .foregroundColor(.white)
-                                                        .font(.system(size: 14, weight: .semibold))
-                                                }
-                                                Text(actionDef.title)
-                                                    .font(.system(size: 9))
-                                                    .foregroundColor(.secondary)
-                                                    .lineLimit(1)
+                            LazyVGrid(columns: [GridItem(.adaptive(minimum: 56, maximum: 66), spacing: 8)], spacing: 10) {
+                                ForEach(SearchableActionDef.allActions) { actionDef in
+                                    Button {
+                                        let isAlt = hasKeySwitchTrigger && activeActionTarget == .alternate
+                                        let tIdx = isAlt ? (macro.triggers.first(where: { $0.mode == .keySwitch })?.alternateActionItems.count ?? 0) : macro.actionItems.count
+                                        insertAction(typeName: actionDef.title, targetIndex: tIdx, isAlternate: isAlt)
+                                    } label: {
+                                        VStack(spacing: 4) {
+                                            ZStack {
+                                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                                    .fill(actionDef.color)
+                                                    .frame(width: 32, height: 32)
+                                                Image(systemName: actionDef.icon)
+                                                    .foregroundColor(.white)
+                                                    .font(.system(size: 14, weight: .semibold))
                                             }
+                                            Text(actionDef.title)
+                                                .font(.system(size: 9))
+                                                .foregroundColor(.secondary)
+                                                .lineLimit(2)
+                                                .multilineTextAlignment(.center)
+                                                .frame(width: 56, height: 24, alignment: .top)
                                         }
-                                        .buttonStyle(.plain)
-                                        .help(actionDef.title)
                                     }
+                                    .buttonStyle(.plain)
+                                    .help(actionDef.title)
                                 }
-                                .padding(.vertical, 4)
                             }
-                            .frame(height: 100)
+                            .padding(.vertical, 4)
                         }
                         .padding(10)
                         .background(Color.black.opacity(0.15))
