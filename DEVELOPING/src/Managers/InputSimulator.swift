@@ -122,24 +122,23 @@ class InputSimulator {
         usleep(60000) // 60ms
         releaseModifiers()
 
-        executeSubActions(items: items, originQuartzPos: &originQuartzPos, originWindowRect: &originWindowRect, macroID: macroID)
+        executeSubActions(items: items, originQuartzPos: &originQuartzPos, originWindowRect: &originWindowRect, macroID: macroID, cursorRestorePos: macroStartCursorPos)
     }
 
-    private static func executeSubActions(items: [MacroActionItem], originQuartzPos: inout CGPoint, originWindowRect: inout CGRect?, macroID: UUID?) {
+    private static func executeSubActions(items: [MacroActionItem], originQuartzPos: inout CGPoint, originWindowRect: inout CGRect?, macroID: UUID?, cursorRestorePos: CGPoint) {
         for item in items {
             let repeats = max(1, item.repeatCount)
             for _ in 0..<repeats {
                 guard !isEmergencyStopped else { return }
                 switch item.action {
                 case .group(_, let subActions):
-                    executeSubActions(items: subActions, originQuartzPos: &originQuartzPos, originWindowRect: &originWindowRect, macroID: macroID)
+                    executeSubActions(items: subActions, originQuartzPos: &originQuartzPos, originWindowRect: &originWindowRect, macroID: macroID, cursorRestorePos: cursorRestorePos)
                     
                 case .click(let point, let button):
                     let clickPt: CGPoint
                     if point.x == -9999 && point.y == -9999 {
-                        let cp = NSEvent.mouseLocation
-                        let screenHeight = NSScreen.screens.first?.frame.height ?? 1080
-                        clickPt = CGPoint(x: cp.x, y: screenHeight - cp.y)
+                        // Use the cursor position from before macro started (real cursor is off-screen during execution)
+                        clickPt = cursorRestorePos
                     } else {
                         clickPt = point
                     }
