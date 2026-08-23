@@ -587,10 +587,9 @@ struct MacroInspectorView: View {
                 },
                 onClickRealTime: { _ in }
             )
-        case .windowTransform(let p1, let p2, let p3, _):
-            let initialPoints: [SequencePoint] = (p1 == .zero && p2 == .zero) ? [] : [
+        case .windowTransform(let p1, _, let p3, _):
+            let initialPoints: [SequencePoint] = (p1 == .zero && p3 == .zero) ? [] : [
                 SequencePoint(point: p1, type: .click),
-                SequencePoint(point: p2, type: .click),
                 SequencePoint(point: p3, type: .click)
             ]
             CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .windowTransform(initialPoints: initialPoints)) { np1, np2, np3, np4 in

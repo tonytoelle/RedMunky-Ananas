@@ -140,6 +140,7 @@ struct CaptureOverlaySwiftUIView: View {
     @ObservedObject var state: CaptureOverlayState
     @State private var dragStartOffset: CGSize = .zero
     @State private var pinDragStartPoint: CGPoint? = nil
+    @State private var areaDragStartPoints: (CGPoint, CGPoint)? = nil
     
     var body: some View {
         GeometryReader { geo in
@@ -155,9 +156,15 @@ struct CaptureOverlaySwiftUIView: View {
                     if state.points.count == 1 {
                         let p1 = state.points[0].point
                         let cursor = state.quartzLocation
+                        let rect = CGRect(
+                            x: min(p1.x, cursor.x),
+                            y: min(p1.y, cursor.y),
+                            width: abs(cursor.x - p1.x),
+                            height: abs(cursor.y - p1.y)
+                        )
+                        
                         Path { path in
-                            path.move(to: p1)
-                            path.addLine(to: cursor)
+                            path.addRect(rect)
                         }
                         .stroke(Color.blue, style: StrokeStyle(lineWidth: 2, dash: [4, 4]))
                         .allowsHitTesting(false)
@@ -165,38 +172,48 @@ struct CaptureOverlaySwiftUIView: View {
                         circlePin(at: p1, label: "1", color: .blue)
                     } else if state.points.count == 2 {
                         let p1 = state.points[0].point
-                        let p2 = state.points[1].point
-                        let cursor = state.quartzLocation
-                        let p4 = CGPoint(x: p1.x, y: cursor.y)
+                        let p3 = state.points[1].point
+                        let rect = CGRect(
+                            x: min(p1.x, p3.x),
+                            y: min(p1.y, p3.y),
+                            width: abs(p3.x - p1.x),
+                            height: abs(p3.y - p1.y)
+                        )
                         
+                        // Transparent blue draggable area inside the rectangle
+                        Rectangle()
+                            .fill(Color.blue.opacity(0.15))
+                            .frame(width: rect.width, height: rect.height)
+                            .position(x: rect.midX, y: rect.midY)
+                            .gesture(
+                                DragGesture(minimumDistance: 1, coordinateSpace: .global)
+                                    .onChanged { val in
+                                        guard !state.isPassThroughMode else { return }
+                                        if areaDragStartPoints == nil {
+                                            areaDragStartPoints = (state.points[0].point, state.points[1].point)
+                                        }
+                                        if let (origP1, origP3) = areaDragStartPoints {
+                                            // Translate both coordinates by drag translation
+                                            state.points[0].point = CGPoint(
+                                                x: max(0, min(origP1.x + val.translation.width, geo.size.width)),
+                                                y: max(0, min(origP1.y + val.translation.height, geo.size.height))
+                                            )
+                                            state.points[1].point = CGPoint(
+                                                x: max(0, min(origP3.x + val.translation.width, geo.size.width)),
+                                                y: max(0, min(origP3.y + val.translation.height, geo.size.height))
+                                            )
+                                            state.notifyPointsRealtime()
+                                        }
+                                    }
+                                    .onEnded { _ in
+                                        areaDragStartPoints = nil
+                                        state.notifyPointsCommitted()
+                                    }
+                            )
+                        
+                        // Dashed rectangle border
                         Path { path in
-                            path.move(to: p1)
-                            path.addLine(to: p2)
-                            path.move(to: p2)
-                            path.addLine(to: cursor)
-                            path.move(to: cursor)
-                            path.addLine(to: p4)
-                            path.move(to: p4)
-                            path.addLine(to: p1)
-                        }
-                        .stroke(Color.blue, style: StrokeStyle(lineWidth: 2, dash: [4, 4]))
-                        .allowsHitTesting(false)
-                        
-                        circlePin(at: p1, label: "1", color: .blue)
-                        circlePin(at: p2, label: "2", color: .blue)
-                        circlePin(at: p4, label: "4 (auto)", color: .blue.opacity(0.6))
-                    } else if state.points.count == 3 {
-                        let p1 = state.points[0].point
-                        let p2 = state.points[1].point
-                        let p3 = state.points[2].point
-                        let p4 = CGPoint(x: p1.x, y: p3.y)
-                        
-                        Path { path in
-                            path.move(to: p1)
-                            path.addLine(to: p2)
-                            path.addLine(to: p3)
-                            path.addLine(to: p4)
-                            path.addLine(to: p1)
+                            path.addRect(rect)
                         }
                         .stroke(Color.blue, style: StrokeStyle(lineWidth: 2, dash: [4, 4]))
                         .allowsHitTesting(false)
@@ -308,7 +325,8 @@ struct CaptureOverlaySwiftUIView: View {
                                 Circle()
                                     .fill(Color.blue)
                                     .frame(width: 8, height: 8)
-                                Text("\(idx + 1)")
+                                let label = (idx == 1) ? "3" : "\(idx + 1)"
+                                Text(label)
                                     .font(.system(size: 8, weight: .heavy, design: .rounded))
                                     .foregroundColor(.white)
                                     .padding(.horizontal, 4)
@@ -370,11 +388,17 @@ struct CaptureOverlaySwiftUIView: View {
                     }
                 }
                 
-                if case .windowTransform = state.mode, state.points.count == 3 {
+                if case .windowTransform = state.mode, state.points.count == 2 {
                     let p1 = state.points[0].point
-                    let p3 = state.points[2].point
+                    let p3 = state.points[1].point
+                    let p2 = CGPoint(x: p3.x, y: p1.y)
                     let p4 = CGPoint(x: p1.x, y: p3.y)
-                    circlePin(at: p4, label: "4 (auto)", color: .blue.opacity(0.6))
+                    
+                    circlePin(at: p2, label: "2 (auto)", color: .blue.opacity(0.55))
+                        .opacity(state.isPassThroughMode ? 0.35 : 1.0)
+                        .allowsHitTesting(false)
+                        
+                    circlePin(at: p4, label: "4 (auto)", color: .blue.opacity(0.55))
                         .opacity(state.isPassThroughMode ? 0.35 : 1.0)
                         .allowsHitTesting(false)
                 }
