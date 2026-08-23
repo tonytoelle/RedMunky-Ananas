@@ -2,4 +2,4 @@
 TRIGGER: cmd+down
 
 # Actions:
-ACTION: custom_action "~/minimize.sh"
+ACTION: press_shortcut cmd+m

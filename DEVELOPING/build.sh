@@ -13,8 +13,17 @@ rm -rf "$APP_BUNDLE"
 mkdir -p "$MACOS_DIR"
 mkdir -p "$RESOURCES_DIR"
 
+echo "🔨 Menggabungkan file Swift untuk kompilasi super cepat..."
+TEMP_BUILD_FILE="$DIR/src/temp_build.swift"
+rm -f "$TEMP_BUILD_FILE"
+find "$DIR/src" -name "*.swift" ! -name "temp_build.swift" | while read -r file; do
+    cat "$file"
+    echo ""
+done > "$TEMP_BUILD_FILE"
+
 echo "🔨 Mengkompilasi Swift Macro Engine..."
-swiftc "$DIR/src/main.swift" -o "$MACOS_DIR/$APP_NAME" -O -F /System/Library/PrivateFrameworks -framework DisplayServices
+swiftc "$TEMP_BUILD_FILE" -o "$MACOS_DIR/$APP_NAME" -Onone -F /System/Library/PrivateFrameworks -framework DisplayServices
+rm -f "$TEMP_BUILD_FILE"
 
 echo "📝 Membuat Info.plist untuk $APP_NAME.app..."
 cat <<EOF > "$APP_BUNDLE/Contents/Info.plist"
