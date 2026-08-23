@@ -3,3 +3,5 @@ TRIGGER: f2
 
 # Actions:
 ACTION: right_click current
+ACTION: press w
+ACTION: press enter

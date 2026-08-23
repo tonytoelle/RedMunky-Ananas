@@ -106,15 +106,17 @@ class InputSimulator {
             return preRecordedWindowRect ?? InputSimulator.getFrontmostWindowRect()
         }()
         
-        // Show ghost cursor at origin position for the duration of execution
+        // Show ghost cursor at origin position FIRST (synchronous — blocks until visible)
         ExecutionCursorOverlayWindow.show(at: originQuartzPos)
         
-        // Warp real cursor off-screen to make it look invisible during execution
+        // Now hide the real system cursor and warp it off-screen
+        NSCursor.hide()
         CGWarpMouseCursorPosition(CGPoint(x: 99999, y: 99999))
         
         defer {
-            // Restore real cursor back to its absolute original position before macro started
+            // Restore: warp real cursor back FIRST, then unhide it, then remove ghost
             CGWarpMouseCursorPosition(macroStartCursorPos)
+            NSCursor.unhide()
             ExecutionCursorOverlayWindow.hide()
         }
         

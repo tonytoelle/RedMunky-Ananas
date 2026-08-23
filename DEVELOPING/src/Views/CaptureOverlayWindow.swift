@@ -1273,24 +1273,19 @@ class CaptureOverlayHostingView: NSView {
 class ExecutionCursorOverlayWindow: NSPanel {
     static var shared: ExecutionCursorOverlayWindow?
 
-    // Show the ghost cursor at the given Quartz (top-left origin) point
+    // Show the ghost cursor at the given Quartz (top-left origin) point — SYNCHRONOUS on main thread
     static func show(at quartzPoint: CGPoint) {
-        DispatchQueue.main.async {
+        let work = {
             shared?.close()
             shared = nil
 
-            // Find which screen contains this point
-            let screen = NSScreen.screens.first {
-                let f = $0.frame
-                return f.contains(CGPoint(x: quartzPoint.x, y: f.height - quartzPoint.y + f.minY))
-            } ?? NSScreen.main
+            let primaryScreenH = NSScreen.screens.first?.frame.height ?? 1080
 
-            let screenFrame = screen?.frame ?? NSRect(x: 0, y: 0, width: 1920, height: 1080)
-            // Convert Quartz top-left → Cocoa bottom-left
+            // Convert Quartz top-left → Cocoa bottom-left using primary screen height
             let cocoaX = quartzPoint.x
-            let cocoaY = screenFrame.maxY - quartzPoint.y
+            let cocoaY = primaryScreenH - quartzPoint.y
 
-            // Fetch the system cursor scale factor (defaults to 1.0, e.g. normal size)
+            // Fetch the system cursor scale factor (defaults to 1.0)
             let scaleFactor: CGFloat = {
                 if let val = CFPreferencesCopyAppValue("mouseDriverCursorSize" as CFString, "com.apple.universalaccess" as CFString) as? Float {
                     return CGFloat(val)
@@ -1298,26 +1293,42 @@ class ExecutionCursorOverlayWindow: NSPanel {
                 return 1.0
             }()
 
-            let cursorImage = NSCursor.arrow.image
+            let cursor = NSCursor.arrow
+            let cursorImage = cursor.image
+            let hotSpot = cursor.hotSpot // e.g. (5, 4) for arrow — system-provided, exact
             let baseSize = cursorImage.size
             let targetW = baseSize.width * scaleFactor
             let targetH = baseSize.height * scaleFactor
+            let scaledHotX = hotSpot.x * scaleFactor
+            let scaledHotY = hotSpot.y * scaleFactor
 
-            // Offset the window slightly (5px left, 4px up) to align the cursor arrow's tip/hotspot with the target coordinate
-            let offsetLeft = 5.0 * scaleFactor
-            let offsetTop = 4.0 * scaleFactor
-            let frame = NSRect(x: cocoaX - offsetLeft, y: (cocoaY - targetH) + offsetTop, width: targetW, height: targetH)
+            // Position window so hotSpot lands exactly on the Cocoa coordinate
+            // NSImage hotSpot: origin at top-left of image
+            // NSWindow frame: origin at bottom-left
+            let winX = cocoaX - scaledHotX
+            let winY = cocoaY - (targetH - scaledHotY)
+            let frame = NSRect(x: winX, y: winY, width: targetW, height: targetH)
 
             let win = ExecutionCursorOverlayWindow(contentRect: frame, cursorImage: cursorImage)
             win.orderFrontRegardless()
             shared = win
         }
+        if Thread.isMainThread {
+            work()
+        } else {
+            DispatchQueue.main.sync { work() }
+        }
     }
 
     static func hide() {
-        DispatchQueue.main.async {
+        let work = {
             shared?.close()
             shared = nil
+        }
+        if Thread.isMainThread {
+            work()
+        } else {
+            DispatchQueue.main.sync { work() }
         }
     }
 
