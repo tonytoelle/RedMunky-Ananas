@@ -246,24 +246,30 @@ struct ActionCardView: View {
                                 }
                             }
                     case .windowTransform(let p1, let p2, let p3, _):
-                        Text("(\(Int(p1.x)),\(Int(p1.y))) → (\(Int(p2.x)),\(Int(p2.y))) → (\(Int(p3.x)),\(Int(p3.y)))")
-                            .font(.system(size: 12, weight: .medium, design: .monospaced))
-                            .foregroundColor(.secondary)
+                        Button(action: {
+                            let initialPoints: [SequencePoint] = (p1 == .zero && p2 == .zero) ? [] : [
+                                SequencePoint(point: p1, type: .click),
+                                SequencePoint(point: p2, type: .click),
+                                SequencePoint(point: p3, type: .click)
+                            ]
+                            CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .windowTransform(initialPoints: initialPoints)) { np1, np2, np3, np4 in
+                                onPreSave()
+                                item.action = .windowTransform(p1: np1, p2: np2, p3: np3, p4: np4)
+                                onSave()
+                            }
+                        }) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "pencil")
+                                Text("Edit Area")
+                            }
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(.white)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
-                            .background(isItemEditing ? Color(white: 0.12) : Color.clear)
+                            .background(Color.white.opacity(0.12))
                             .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                    .stroke(isItemEditing ? Color.white.opacity(0.1) : Color.clear, lineWidth: 1)
-                            )
-                            .onTapGesture {
-                                CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .windowTransform) { np1, np2, np3, np4 in
-                                    onPreSave()
-                                    item.action = .windowTransform(p1: np1, p2: np2, p3: np3, p4: np4)
-                                    onSave()
-                                }
-                            }
+                        }
+                        .buttonStyle(.plain)
                     case .typeText, .pasteText:
                         InlineTextEditView(action: $item.action, onPreSave: onPreSave, onSave: onSave, detailWidth: detailWidth)
                     case .openFile:

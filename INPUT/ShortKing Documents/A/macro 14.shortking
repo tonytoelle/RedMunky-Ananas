@@ -1,6 +1,0 @@
-# ShortKing Macro Script
-TRIGGER: cmd+shift+l
-
-# Actions:
-ACTION: path 394,1110:click*2 533,1034:drag 611,1083:drag 814,881:click 674,957:drag 592,894:drag
-ACTION: do_again

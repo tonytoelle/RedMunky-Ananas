@@ -586,9 +586,14 @@ struct MacroInspectorView: View {
                 },
                 onClickRealTime: { _ in }
             )
-        case .windowTransform:
-            CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .windowTransform) { p1, p2, p3, p4 in
-                updateActionItem(id: actionItem.id, action: .windowTransform(p1: p1, p2: p2, p3: p3, p4: p4), isAlternate: isAlternate, switchTriggerIndex: switchTriggerIndex)
+        case .windowTransform(let p1, let p2, let p3, _):
+            let initialPoints: [SequencePoint] = (p1 == .zero && p2 == .zero) ? [] : [
+                SequencePoint(point: p1, type: .click),
+                SequencePoint(point: p2, type: .click),
+                SequencePoint(point: p3, type: .click)
+            ]
+            CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .windowTransform(initialPoints: initialPoints)) { np1, np2, np3, np4 in
+                updateActionItem(id: actionItem.id, action: .windowTransform(p1: np1, p2: np2, p3: np3, p4: np4), isAlternate: isAlternate, switchTriggerIndex: switchTriggerIndex)
             }
         default:
             break
