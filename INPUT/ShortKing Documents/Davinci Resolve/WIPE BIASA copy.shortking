@@ -1,0 +1,6 @@
+# ShortKing Macro Script
+TRIGGER: \
+
+# Actions:
+ACTION: press_shortcut opt+w
+ACTION: click 1463 573

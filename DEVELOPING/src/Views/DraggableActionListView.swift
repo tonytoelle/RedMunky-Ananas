@@ -130,30 +130,34 @@ struct ActionCardView: View {
                     let isItemEditing = store.selectedActionIDs.contains(item.id)
                     switch item.action {
                     case .click(let point, let button):
-                        Text(item.action.parameterString)
-                            .font(.system(size: 12, weight: .medium, design: .monospaced))
-                            .foregroundColor(.secondary)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(isItemEditing ? Color(white: 0.12) : Color.clear)
-                            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                    .stroke(isItemEditing ? Color.white.opacity(0.1) : Color.clear, lineWidth: 1)
-                            )
-                            .onTapGesture {
-                                CaptureOverlayWindow.shared = CaptureOverlayWindow(
-                                    mode: .click(button: button, initialPoint: point),
-                                    onClickCaptured: { newPoint in
-                                        onPreSave()
-                                        item.action = .click(point: newPoint, button: button)
-                                        onSave()
-                                    },
-                                    onClickRealTime: { tempPoint in
-                                        item.action = .click(point: tempPoint, button: button)
-                                    }
+                        if isItemEditing {
+                            InlineClickEditView(action: $item.action, onPreSave: onPreSave, onSave: onSave, detailWidth: detailWidth)
+                        } else {
+                            Text(item.action.parameterString)
+                                .font(.system(size: 12, weight: .medium, design: .monospaced))
+                                .foregroundColor(.secondary)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Color.clear)
+                                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                        .stroke(Color.clear, lineWidth: 1)
                                 )
-                            }
+                                .onTapGesture {
+                                    CaptureOverlayWindow.shared = CaptureOverlayWindow(
+                                        mode: .click(button: button, initialPoint: point.x == -9999 ? nil : point),
+                                        onClickCaptured: { newPoint in
+                                            onPreSave()
+                                            item.action = .click(point: newPoint, button: button)
+                                            onSave()
+                                        },
+                                        onClickRealTime: { tempPoint in
+                                            item.action = .click(point: tempPoint, button: button)
+                                        }
+                                    )
+                                }
+                        }
                     case .drag(let start, let end):
                         Text(item.action.parameterString)
                             .font(.system(size: 12, weight: .medium, design: .monospaced))

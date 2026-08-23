@@ -5,3 +5,4 @@ TRIGGER_MODE: key_switch
 # Actions:
 ACTION: origin window
 ACTION: window_transform 336,5 878,5 878,1169 336,1169
+ACTION: click 1251 646

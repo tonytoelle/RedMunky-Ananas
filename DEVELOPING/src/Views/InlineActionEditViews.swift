@@ -491,3 +491,124 @@ struct InlineOriginPicker: View {
     }
 }
 
+struct InlineClickEditView: View {
+    @Binding var action: MacroAction
+    var onPreSave: () -> Void
+    var onSave: () -> Void
+    let detailWidth: CGFloat
+    
+    @State private var xStr = ""
+    @State private var yStr = ""
+    @State private var buttonType: CGMouseButton = .left
+    @State private var clickAtCurrent = false
+    
+    var body: some View {
+        HStack(spacing: 8) {
+            // Button Type Selector
+            Menu {
+                Button("Left Click") { setButton(.left) }
+                Button("Right Click") { setButton(.right) }
+            } label: {
+                Text(buttonType == .left ? "Left Click" : "Right Click")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundColor(.blue)
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            
+            // Toggle for Current Position
+            Toggle(isOn: $clickAtCurrent) {
+                Text("Current Pos")
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+            }
+            .toggleStyle(.checkbox)
+            
+            if !clickAtCurrent {
+                HStack(spacing: 4) {
+                    TextField("X", text: $xStr)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 12, weight: .medium, design: .monospaced))
+                        .frame(width: 45)
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 2)
+                        .background(Color(white: 0.12))
+                        .clipShape(RoundedRectangle(cornerRadius: 4))
+                        .onSubmit { save() }
+                    
+                    TextField("Y", text: $yStr)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 12, weight: .medium, design: .monospaced))
+                        .frame(width: 45)
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 2)
+                        .background(Color(white: 0.12))
+                        .clipShape(RoundedRectangle(cornerRadius: 4))
+                        .onSubmit { save() }
+                }
+                
+                Button("📍") {
+                    let curPt = CGPoint(x: Double(xStr) ?? 0, y: Double(yStr) ?? 0)
+                    CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .click(button: buttonType, initialPoint: curPt)) { newPoint in
+                        xStr = String(Int(newPoint.x))
+                        yStr = String(Int(newPoint.y))
+                        save()
+                    }
+                }
+                .buttonStyle(.plain)
+            } else {
+                Text("(current location)")
+                    .font(.system(size: 11))
+                    .italic()
+                    .foregroundColor(.secondary)
+            }
+        }
+        .onAppear {
+            loadValues()
+        }
+        .onChange(of: action) { _, _ in
+            loadValues()
+        }
+        .onChange(of: clickAtCurrent) { _, newValue in
+            if newValue {
+                xStr = "-9999"
+                yStr = "-9999"
+            } else {
+                if xStr == "-9999" && yStr == "-9999" {
+                    xStr = "0"
+                    yStr = "0"
+                }
+            }
+            save()
+        }
+    }
+    
+    private func loadValues() {
+        if case .click(let point, let button) = action {
+            buttonType = button
+            if point.x == -9999 && point.y == -9999 {
+                clickAtCurrent = true
+                xStr = "-9999"
+                yStr = "-9999"
+            } else {
+                clickAtCurrent = false
+                xStr = String(Int(point.x))
+                yStr = String(Int(point.y))
+            }
+        }
+    }
+    
+    private func setButton(_ b: CGMouseButton) {
+        buttonType = b
+        save()
+    }
+    
+    private func save() {
+        onPreSave()
+        let x = clickAtCurrent ? -9999.0 : (Double(xStr) ?? 0.0)
+        let y = clickAtCurrent ? -9999.0 : (Double(yStr) ?? 0.0)
+        action = .click(point: CGPoint(x: x, y: y), button: buttonType)
+        onSave()
+    }
+}
+

@@ -369,6 +369,9 @@ enum MacroAction: Equatable {
     var parameterString: String {
         switch self {
         case .click(let point, _):
+            if point.x == -9999 && point.y == -9999 {
+                return "current"
+            }
             return "\(Int(point.x)), \(Int(point.y))"
         case .drag(let start, let end):
             return "(\(Int(start.x)), \(Int(start.y))) → (\(Int(end.x)), \(Int(end.y)))"
