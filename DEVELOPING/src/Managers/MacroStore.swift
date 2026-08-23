@@ -177,8 +177,29 @@ class MacroStore: ObservableObject {
     private var eventTap: CFMachPort?
 
     init() {
-        let defaultPath = "/Users/tonytoelle/Documents/PROJECTS/RedMunky - ShortKing/INPUT/ShortKing Documents"
-        let savedPath = UserDefaults.standard.string(forKey: "watchDirectoryPath") ?? defaultPath
+        let fileManager = FileManager.default
+        let documentsURL = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first!
+        let defaultPathURL = documentsURL.appendingPathComponent("ShortKing")
+        let defaultPath = defaultPathURL.path
+
+        if !fileManager.fileExists(atPath: defaultPath) {
+            try? fileManager.createDirectory(at: defaultPathURL, withIntermediateDirectories: true, attributes: nil)
+            if let bundleResourceURL = Bundle.main.resourceURL?.appendingPathComponent("DefaultDocuments") {
+                if let items = try? fileManager.contentsOfDirectory(at: bundleResourceURL, includingPropertiesForKeys: nil, options: []) {
+                    for item in items {
+                        let destURL = defaultPathURL.appendingPathComponent(item.lastPathComponent)
+                        try? fileManager.copyItem(at: item, to: destURL)
+                    }
+                }
+            }
+        }
+
+        var savedPath = UserDefaults.standard.string(forKey: "watchDirectoryPath") ?? defaultPath
+        if savedPath.contains("tonytoelle/Documents/PROJECTS") || !fileManager.fileExists(atPath: savedPath) {
+            savedPath = defaultPath
+            UserDefaults.standard.set(savedPath, forKey: "watchDirectoryPath")
+        }
+
         self.watchDirectoryURL = URL(fileURLWithPath: savedPath)
 
         loadMacros()

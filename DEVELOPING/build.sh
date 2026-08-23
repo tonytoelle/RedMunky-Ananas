@@ -91,6 +91,11 @@ iconutil -c icns "$DIR/AppIcon.iconset" -o "$RESOURCES_DIR/AppIcon.icns"
 rm -rf "$DIR/AppIcon.iconset"
 rm -f temp_icon_1024.png
 
+echo "🔨 Menyalin dokumen default ke dalam Resources..."
+mkdir -p "$RESOURCES_DIR/DefaultDocuments"
+cp -R "$DIR/../INPUT/ShortKing Documents/" "$RESOURCES_DIR/DefaultDocuments/"
+
+
 echo "🔨 Menggabungkan file Swift untuk kompilasi super cepat..."
 TEMP_BUILD_FILE="$DIR/src/temp_build.swift"
 rm -f "$TEMP_BUILD_FILE"
@@ -176,6 +181,7 @@ cat <<EOF > "$APP_BUNDLE/Contents/Info.plist"
 EOF
 
 echo "🔏 Menandatangani App Bundle (Ad-hoc Code Signing)..."
+xattr -cr "$APP_BUNDLE"
 codesign --force --deep --sign - "$APP_BUNDLE"
 
 echo "🔄 Menghentikan aplikasi yang sedang berjalan (jika ada)..."
