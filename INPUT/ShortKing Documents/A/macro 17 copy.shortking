@@ -1,8 +1,7 @@
 # ShortKing Macro Script
 TRIGGER: cmd+l
-TRIGGER_MODE: key_switch
 
 # Actions:
-ACTION: origin window
-ACTION: window_transform 336,5 878,5 878,1169 336,1169
-ACTION: click current
+ACTION: origin cursor
+ACTION: path 380,1110:move 497,1054:drag 521,950:drag 606,991:drag 671,924:drag 672,1055:drag
+ACTION: do_again window_origin
