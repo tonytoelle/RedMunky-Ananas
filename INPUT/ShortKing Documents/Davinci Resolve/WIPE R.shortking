@@ -1,0 +1,5 @@
+# ShortKing Macro Script
+TRIGGER: f2
+
+# Actions:
+ACTION: right_click current

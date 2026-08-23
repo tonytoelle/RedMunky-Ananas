@@ -137,7 +137,9 @@ class InputSimulator {
                 case .click(let point, let button):
                     let clickPt: CGPoint
                     if point.x == -9999 && point.y == -9999 {
-                        clickPt = CGEvent(source: nil)?.location ?? .zero
+                        let cp = NSEvent.mouseLocation
+                        let screenHeight = NSScreen.screens.first?.frame.height ?? 1080
+                        clickPt = CGPoint(x: cp.x, y: screenHeight - cp.y)
                     } else {
                         clickPt = point
                     }
