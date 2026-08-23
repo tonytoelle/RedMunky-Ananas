@@ -255,10 +255,14 @@ class ShortKingParser {
         case "press_shortcut":
             if parts.count >= 2, let trig = parseTrigger(parts[1]) { return .pressShortcut(trigger: trig) }
         case "restore_cursor", "restore_origin", "move_to_origin", "do_again":
-            if parts.count >= 2, let last = parts.last, last.hasPrefix("step_") {
-                let numStr = last.replacingOccurrences(of: "step_", with: "")
-                if let idx = Int(numStr) {
-                    return .doAgain(target: .step(idx))
+            if parts.count >= 2, let last = parts.last {
+                if last.hasPrefix("step_") {
+                    let numStr = last.replacingOccurrences(of: "step_", with: "")
+                    if let idx = Int(numStr) {
+                        return .doAgain(target: .step(idx))
+                    }
+                } else if last == "window_origin" {
+                    return .doAgain(target: .originWindow)
                 }
             }
             return .doAgain(target: .origin)
@@ -304,6 +308,8 @@ class ShortKingParser {
                 switch target {
                 case .origin:
                     line = "\(prefix): do_again"
+                case .originWindow:
+                    line = "\(prefix): do_again window_origin"
                 case .step(let idx):
                     line = "\(prefix): do_again step_\(idx)"
                 case .action(let tid):

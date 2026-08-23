@@ -170,11 +170,13 @@ struct MacroActionItem: Identifiable, Equatable {
 
 enum DoAgainTarget: Equatable {
     case origin
+    case originWindow
     case step(Int)
     case action(UUID)
     
     var isOrigin: Bool {
         if case .origin = self { return true }
+        if case .originWindow = self { return true }
         return false
     }
 }
@@ -315,6 +317,8 @@ enum MacroAction: Equatable {
             switch target {
             case .origin:
                 return "Move cursor back to position before macro started"
+            case .originWindow:
+                return "Restore active window size & position to state before macro started"
             case .step(let idx):
                 return "Move cursor to coordinates of Action \(idx)"
             case .action:
@@ -359,7 +363,9 @@ enum MacroAction: Equatable {
         case .doAgain(let target):
             switch target {
             case .origin:
-                return "Origin"
+                return "Move Cursor to Origin"
+            case .originWindow:
+                return "Origin Window Transformation"
             case .step(let idx):
                 return "Action \(idx)"
             case .action:
@@ -404,6 +410,8 @@ enum MacroAction: Equatable {
             switch target {
             case .origin:
                 return "ACTION: do_again"
+            case .originWindow:
+                return "ACTION: do_again window_origin"
             case .step(let idx):
                 return "ACTION: do_again step_\(idx)"
             case .action:

@@ -243,8 +243,9 @@ class MacroStore: ObservableObject {
                         let sh = NSScreen.main?.frame.height ?? 1080
                         return CGPoint(x: cp.x, y: sh - cp.y)
                     }()
+                    let windowRect = InputSimulator.getFrontmostWindowRect()
                     DispatchQueue.global(qos: .userInitiated).async {
-                        InputSimulator.execute(items: items, preRecordedOrigin: originPos)
+                        InputSimulator.execute(items: items, preRecordedOrigin: originPos, preRecordedWindowRect: windowRect)
                     }
                 }
             }
@@ -425,6 +426,7 @@ class MacroStore: ObservableObject {
                         let sh = NSScreen.main?.frame.height ?? 1080
                         return CGPoint(x: cp.x, y: sh - cp.y)
                     }()
+                    let windowRect = InputSimulator.getFrontmostWindowRect()
                     
                     // Determine which action set to run for key switch triggers
                     let executionItems: [MacroActionItem]
@@ -438,7 +440,7 @@ class MacroStore: ObservableObject {
                     }
                     
                     DispatchQueue.global(qos: .userInitiated).async {
-                        InputSimulator.execute(items: executionItems, preRecordedOrigin: originPos)
+                        InputSimulator.execute(items: executionItems, preRecordedOrigin: originPos, preRecordedWindowRect: windowRect)
                     }
                 }
             }
@@ -775,7 +777,8 @@ class MacroStore: ObservableObject {
             let screenH = NSScreen.main?.frame.height ?? 1080
             return CGPoint(x: cocoaPt.x, y: screenH - cocoaPt.y)
         }()
-        DispatchQueue.global(qos: .userInitiated).async { InputSimulator.execute(items: items, preRecordedOrigin: originPos) }
+        let windowRect = InputSimulator.getFrontmostWindowRect()
+        DispatchQueue.global(qos: .userInitiated).async { InputSimulator.execute(items: items, preRecordedOrigin: originPos, preRecordedWindowRect: windowRect) }
     }
 
     func pasteCopiedMacro(toFolder destDir: URL) {

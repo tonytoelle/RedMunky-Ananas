@@ -353,8 +353,21 @@ struct InlineDoAgainPicker: View {
                     onSave()
                 }) {
                     HStack {
-                        Text("Origin (Start Position)")
+                        Text("Move Cursor to Origin")
                         if currentTarget == .origin {
+                            Image(systemName: "checkmark")
+                        }
+                    }
+                }
+                
+                Button(action: {
+                    onPreSave()
+                    action = .doAgain(target: .originWindow)
+                    onSave()
+                }) {
+                    HStack {
+                        Text("Origin Window Transformation")
+                        if currentTarget == .originWindow {
                             Image(systemName: "checkmark")
                         }
                     }
@@ -403,7 +416,9 @@ struct InlineDoAgainPicker: View {
     private func targetLabel(for target: DoAgainTarget) -> String {
         switch target {
         case .origin:
-            return "Origin"
+            return "Move Cursor to Origin"
+        case .originWindow:
+            return "Origin Window Transformation"
         case .step(let idx):
             return "Action \(idx)"
         case .action(let tid):

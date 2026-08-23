@@ -68,7 +68,7 @@ class InputSimulator {
         eventUp?.cgEvent?.post(tap: .cghidEventTap)
     }
 
-    static func execute(items: [MacroActionItem], preRecordedOrigin: CGPoint? = nil) {
+    static func execute(items: [MacroActionItem], preRecordedOrigin: CGPoint? = nil, preRecordedWindowRect: CGRect? = nil) {
         isEmergencyStopped = false
         
         // Use pre-recorded origin if provided (captured on main thread before dispatch),
@@ -80,6 +80,10 @@ class InputSimulator {
             let cocoaPt = NSEvent.mouseLocation
             let screenH = NSScreen.main?.frame.height ?? 1080
             return CGPoint(x: cocoaPt.x, y: screenH - cocoaPt.y)
+        }()
+        
+        let originWindowRect: CGRect? = preRecordedWindowRect ?? {
+            return InputSimulator.getFrontmostWindowRect()
         }()
         
         // Show ghost cursor at origin position for the duration of execution
@@ -98,17 +102,17 @@ class InputSimulator {
         usleep(60000) // 60ms
         releaseModifiers()
 
-        executeSubActions(items: items, originQuartzPos: originQuartzPos)
+        executeSubActions(items: items, originQuartzPos: originQuartzPos, originWindowRect: originWindowRect)
     }
 
-    private static func executeSubActions(items: [MacroActionItem], originQuartzPos: CGPoint) {
+    private static func executeSubActions(items: [MacroActionItem], originQuartzPos: CGPoint, originWindowRect: CGRect?) {
         for item in items {
             let repeats = max(1, item.repeatCount)
             for _ in 0..<repeats {
                 guard !isEmergencyStopped else { return }
                 switch item.action {
                 case .group(_, let subActions):
-                    executeSubActions(items: subActions, originQuartzPos: originQuartzPos)
+                    executeSubActions(items: subActions, originQuartzPos: originQuartzPos, originWindowRect: originWindowRect)
                     
                 case .click(let point, let button):
                     let dT: CGEventType = button == .left ? .leftMouseDown : .rightMouseDown
@@ -301,37 +305,48 @@ class InputSimulator {
 
                 case .doAgain(let target):
                     guard !isEmergencyStopped else { return }
-                    var targetPos = originQuartzPos
-                    switch target {
-                    case .origin:
-                        targetPos = originQuartzPos
-                    case .step(let idx):
-                        let targetIdx = idx - 1
-                        if targetIdx >= 0 && targetIdx < items.count {
-                            let targetItem = items[targetIdx]
-                            if case .click(let point, _) = targetItem.action {
-                                targetPos = point
-                            } else if case .drag(let start, _) = targetItem.action {
-                                targetPos = start
-                            } else if case .moveCursor(let point) = targetItem.action {
-                                targetPos = point
+                    if case .originWindow = target {
+                        if let rect = originWindowRect {
+                            InputSimulator.transformFrontmostWindow(origin: rect.origin, size: rect.size)
+                            usleep(50000)
+                        } else {
+                            print("🪟 No original window rect captured")
+                        }
+                    } else {
+                        var targetPos = originQuartzPos
+                        switch target {
+                        case .origin:
+                            targetPos = originQuartzPos
+                        case .originWindow:
+                            break // Handled above
+                        case .step(let idx):
+                            let targetIdx = idx - 1
+                            if targetIdx >= 0 && targetIdx < items.count {
+                                let targetItem = items[targetIdx]
+                                if case .click(let point, _) = targetItem.action {
+                                    targetPos = point
+                                } else if case .drag(let start, _) = targetItem.action {
+                                    targetPos = start
+                                } else if case .moveCursor(let point) = targetItem.action {
+                                    targetPos = point
+                                }
+                            }
+                        case .action(let tid):
+                            if let targetItem = items.first(where: { $0.id == tid }) {
+                                if case .click(let point, _) = targetItem.action {
+                                    targetPos = point
+                                } else if case .drag(let start, _) = targetItem.action {
+                                    targetPos = start
+                                } else if case .moveCursor(let point) = targetItem.action {
+                                    targetPos = point
+                                }
                             }
                         }
-                    case .action(let tid):
-                        if let targetItem = items.first(where: { $0.id == tid }) {
-                            if case .click(let point, _) = targetItem.action {
-                                targetPos = point
-                            } else if case .drag(let start, _) = targetItem.action {
-                                targetPos = start
-                            } else if case .moveCursor(let point) = targetItem.action {
-                                targetPos = point
-                            }
-                        }
+                        let moveEvent = CGEvent(mouseEventSource: source, mouseType: .mouseMoved, mouseCursorPosition: targetPos, mouseButton: .left)
+                        moveEvent?.flags = []
+                        moveEvent?.post(tap: .cghidEventTap)
+                        usleep(30000)
                     }
-                    let moveEvent = CGEvent(mouseEventSource: source, mouseType: .mouseMoved, mouseCursorPosition: targetPos, mouseButton: .left)
-                    moveEvent?.flags = []
-                    moveEvent?.post(tap: .cghidEventTap)
-                    usleep(30000)
 
                 case .moveCursor(let point):
                     guard !isEmergencyStopped else { return }
@@ -453,6 +468,45 @@ class InputSimulator {
         }
         
         print("🪟 Window transformed to origin: \(origin), size: \(size)")
+    }
+    
+    static func getFrontmostWindowRect() -> CGRect? {
+        guard let frontApp = NSWorkspace.shared.frontmostApplication else {
+            return nil
+        }
+        
+        let appElement = AXUIElementCreateApplication(frontApp.processIdentifier)
+        
+        var windowValue: AnyObject?
+        let windowResult = AXUIElementCopyAttributeValue(appElement, kAXFocusedWindowAttribute as CFString, &windowValue)
+        
+        let windowElement: AXUIElement
+        if windowResult == .success, let win = windowValue {
+            windowElement = win as! AXUIElement
+        } else {
+            var windowsValue: AnyObject?
+            let listResult = AXUIElementCopyAttributeValue(appElement, kAXWindowsAttribute as CFString, &windowsValue)
+            guard listResult == .success, let windowsList = windowsValue as? [AXUIElement], let firstWindow = windowsList.first else {
+                return nil
+            }
+            windowElement = firstWindow
+        }
+        
+        var positionValue: AnyObject?
+        var sizeValue: AnyObject?
+        
+        guard AXUIElementCopyAttributeValue(windowElement, kAXPositionAttribute as CFString, &positionValue) == .success,
+              AXUIElementCopyAttributeValue(windowElement, kAXSizeAttribute as CFString, &sizeValue) == .success else {
+            return nil
+        }
+        
+        var position: CGPoint = .zero
+        var size: CGSize = .zero
+        
+        AXValueGetValue(positionValue as! AXValue, .cgPoint, &position)
+        AXValueGetValue(sizeValue as! AXValue, .cgSize, &size)
+        
+        return CGRect(origin: position, size: size)
     }
 }
 
