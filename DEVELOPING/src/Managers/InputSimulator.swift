@@ -386,8 +386,12 @@ class InputSimulator {
                     guard !isEmergencyStopped else { return }
                     InputSimulator.adjustBrightness(delta: -0.0625)
                     
-                case .windowTransform(let p1, let p2, let p3, let p4):
-                    print("🪟 Window transform executing. Corners: \(p1), \(p2), \(p3), \(p4)")
+                case .windowTransform(let p1, let p2, let p3, _):
+                    guard !isEmergencyStopped else { return }
+                    // p1 = top-left, p2 = top-right, p3 = bottom-right, p4 = bottom-left
+                    let origin = CGPoint(x: p1.x, y: p1.y)
+                    let size = CGSize(width: abs(p2.x - p1.x), height: abs(p3.y - p1.y))
+                    InputSimulator.transformFrontmostWindow(origin: origin, size: size)
                 }
             }
         }
@@ -396,6 +400,59 @@ class InputSimulator {
     static func execute(actions: [MacroAction]) {
         let items = actions.map { MacroActionItem(action: $0) }
         execute(items: items)
+    }
+    
+    // MARK: - Window Transform via Accessibility API
+    
+    static func transformFrontmostWindow(origin: CGPoint, size: CGSize) {
+        guard let frontApp = NSWorkspace.shared.frontmostApplication else {
+            print("🪟 No frontmost app found")
+            return
+        }
+        
+        let appElement = AXUIElementCreateApplication(frontApp.processIdentifier)
+        
+        // Get the focused window
+        var windowValue: AnyObject?
+        let windowResult = AXUIElementCopyAttributeValue(appElement, kAXFocusedWindowAttribute as CFString, &windowValue)
+        
+        if windowResult != .success {
+            // Fallback: try to get the first window from windows list
+            var windowsValue: AnyObject?
+            let listResult = AXUIElementCopyAttributeValue(appElement, kAXWindowsAttribute as CFString, &windowsValue)
+            guard listResult == .success, let windowsList = windowsValue as? [AXUIElement], let firstWindow = windowsList.first else {
+                print("🪟 Could not get any window from app: \(frontApp.localizedName ?? "unknown")")
+                return
+            }
+            windowValue = firstWindow
+        }
+        
+        guard let window = windowValue else {
+            print("🪟 Window value is nil")
+            return
+        }
+        
+        let windowElement = window as! AXUIElement
+        
+        // Set position
+        var position = origin
+        if let posValue = AXValueCreate(.cgPoint, &position) {
+            let posResult = AXUIElementSetAttributeValue(windowElement, kAXPositionAttribute as CFString, posValue)
+            if posResult != .success {
+                print("🪟 Failed to set position: \(posResult.rawValue)")
+            }
+        }
+        
+        // Set size
+        var windowSize = size
+        if let sizeValue = AXValueCreate(.cgSize, &windowSize) {
+            let sizeResult = AXUIElementSetAttributeValue(windowElement, kAXSizeAttribute as CFString, sizeValue)
+            if sizeResult != .success {
+                print("🪟 Failed to set size: \(sizeResult.rawValue)")
+            }
+        }
+        
+        print("🪟 Window transformed to origin: \(origin), size: \(size)")
     }
 }
 
