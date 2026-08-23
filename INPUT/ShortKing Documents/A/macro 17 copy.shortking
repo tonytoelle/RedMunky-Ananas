@@ -4,3 +4,4 @@ TRIGGER_MODE: key_switch
 
 # Actions:
 ACTION: origin window
+ACTION: window_transform 427,353 814,353 814,353 427,353
