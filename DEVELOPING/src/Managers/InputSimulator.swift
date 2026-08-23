@@ -106,8 +106,8 @@ class InputSimulator {
             return preRecordedWindowRect ?? InputSimulator.getFrontmostWindowRect()
         }()
         
-        // Show ghost cursor at origin position FIRST (synchronous — blocks until visible)
-        ExecutionCursorOverlayWindow.show(at: originQuartzPos)
+        // Show ghost cursor at the start cursor position FIRST (synchronous — blocks until visible)
+        ExecutionCursorOverlayWindow.show(at: macroStartCursorPos)
         
         // Warp real cursor off-screen to make it look invisible during execution
         CGWarpMouseCursorPosition(CGPoint(x: 99999, y: 99999))
