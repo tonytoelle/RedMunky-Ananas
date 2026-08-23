@@ -912,6 +912,20 @@ class CaptureOverlayHostingView: NSView {
             stateModel.quartzLocation = quartzPt
             win.makeFirstResponder(self)
             
+            if localKeyMonitor == nil {
+                localKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+                    guard let self = self else { return event }
+                    if event.keyCode == 53 { // Escape
+                        self.stateModel.onCancelAction?()
+                        return nil
+                    } else if event.keyCode == 36 || event.keyCode == 76 { // Enter / Return
+                        self.stateModel.onConfirmAll?()
+                        return nil
+                    }
+                    return event
+                }
+            }
+            
             if globalMouseMonitor == nil {
                 globalMouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged, .rightMouseDragged, .scrollWheel]) { [weak self] event in
                     guard let self = self, let win = self.window else { return }
@@ -950,6 +964,18 @@ class CaptureOverlayHostingView: NSView {
         }
     }
     
+    override var acceptsFirstResponder: Bool { true }
+    
+    override func keyDown(with event: NSEvent) {
+        if event.keyCode == 53 {
+            stateModel.onCancelAction?()
+        } else if event.keyCode == 36 || event.keyCode == 76 {
+            stateModel.onConfirmAll?()
+        } else {
+            super.keyDown(with: event)
+        }
+    }
+
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
         if let t = trackingArea { removeTrackingArea(t) }
