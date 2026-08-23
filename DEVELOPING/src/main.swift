@@ -25,6 +25,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDele
         CarbonHotKeyManager.shared.installHandlerIfNeeded()
         PermissionManager.shared.checkStatus()
         LaunchAtLoginManager.shared.enableAutoStart()
+        if UserDefaults.standard.bool(forKey: "enableThreeFingerMiddleClick") {
+            MultitouchManager.shared.startListening()
+        }
         setupMainMenu()
         setupMenuBar()
         showEditorWindow()

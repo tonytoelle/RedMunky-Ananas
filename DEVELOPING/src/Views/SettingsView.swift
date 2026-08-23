@@ -50,6 +50,7 @@ struct SettingsView: View {
     @AppStorage("alwaysOnTop") private var alwaysOnTop: Bool = false
     @AppStorage("showInMenuBar") private var showInMenuBar: Bool = true
     @AppStorage("showInDock") private var showInDock: Bool = true
+    @AppStorage("enableThreeFingerMiddleClick") private var enableThreeFingerMiddleClick: Bool = false
 
     // Emergency & Feedback Settings
     @AppStorage("soundOnEmergency") private var soundOnEmergency: Bool = true
@@ -282,6 +283,24 @@ struct SettingsView: View {
                     )
                 )
             }
+        }
+        // Trackpad Middle Click Card
+        settingsCard(title: "Trackpad Gestures", icon: "hand.tap.fill", iconColor: .orange) {
+            toggleRow(
+                title: "Enable 3-Finger Tap for Middle Click",
+                subtitle: "Tapping the trackpad with 3 fingers will execute a middle click (Button 2) at the current cursor position.",
+                isOn: Binding(
+                    get: { enableThreeFingerMiddleClick },
+                    set: { newValue in
+                        enableThreeFingerMiddleClick = newValue
+                        if newValue {
+                            MultitouchManager.shared.startListening()
+                        } else {
+                            MultitouchManager.shared.stopListening()
+                        }
+                    }
+                )
+            )
         }
 
         // Macro Watch Directory Card
