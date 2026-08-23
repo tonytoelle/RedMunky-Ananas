@@ -141,6 +141,8 @@ struct CaptureOverlaySwiftUIView: View {
     @State private var dragStartOffset: CGSize = .zero
     @State private var pinDragStartPoint: CGPoint? = nil
     @State private var areaDragStartPoints: (CGPoint, CGPoint)? = nil
+    @State private var cornerDragStart: (Int, CGPoint, CGPoint)? = nil  // (cornerIdx, origP1, origP3)
+    @State private var edgeDragStart: (Int, CGPoint, CGPoint)? = nil    // (edgeIdx, origP1, origP3)
     
     var body: some View {
         GeometryReader { geo in
@@ -153,34 +155,16 @@ struct CaptureOverlaySwiftUIView: View {
                 // CONNECTING PATH LINES BETWEEN PINS (Color Gradient)
                 // ─────────────────────────────────────────────
                 if case .windowTransform = state.mode {
-                    if state.points.count == 1 {
-                        let p1 = state.points[0].point
-                        let cursor = state.quartzLocation
-                        let rect = CGRect(
-                            x: min(p1.x, cursor.x),
-                            y: min(p1.y, cursor.y),
-                            width: abs(cursor.x - p1.x),
-                            height: abs(cursor.y - p1.y)
-                        )
-                        
-                        Path { path in
-                            path.addRect(rect)
-                        }
-                        .stroke(Color.blue, style: StrokeStyle(lineWidth: 2, dash: [4, 4]))
-                        .allowsHitTesting(false)
-                        
-                        circlePin(at: p1, label: "1", color: .blue)
-                    } else if state.points.count == 2 {
+                    if state.points.count >= 2 {
                         let p1 = state.points[0].point
                         let p3 = state.points[1].point
-                        let rect = CGRect(
-                            x: min(p1.x, p3.x),
-                            y: min(p1.y, p3.y),
-                            width: abs(p3.x - p1.x),
-                            height: abs(p3.y - p1.y)
-                        )
+                        let minX = min(p1.x, p3.x)
+                        let minY = min(p1.y, p3.y)
+                        let maxX = max(p1.x, p3.x)
+                        let maxY = max(p1.y, p3.y)
+                        let rect = CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
                         
-                        // Transparent blue overlay area inside the rectangle
+                        // Fill overlay (draggable in edit mode)
                         Rectangle()
                             .fill(Color.blue.opacity(state.phase == .editing ? 0.12 : 0.08))
                             .frame(width: rect.width, height: rect.height)
@@ -189,8 +173,7 @@ struct CaptureOverlaySwiftUIView: View {
                             .gesture(
                                 DragGesture(minimumDistance: 1, coordinateSpace: .global)
                                     .onChanged { val in
-                                        guard state.phase == .editing else { return }
-                                        guard !state.isPassThroughMode else { return }
+                                        guard state.phase == .editing, !state.isPassThroughMode else { return }
                                         if areaDragStartPoints == nil {
                                             areaDragStartPoints = (state.points[0].point, state.points[1].point)
                                         }
@@ -212,12 +195,116 @@ struct CaptureOverlaySwiftUIView: View {
                                     }
                             )
                         
-                        // Dashed rectangle border
-                        Path { path in
-                            path.addRect(rect)
+                        // Dashed border
+                        Path { path in path.addRect(rect) }
+                            .stroke(Color.blue, style: StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
+                            .allowsHitTesting(false)
+                        
+                        // ── tldraw-style corner handles ──
+                        if state.phase == .editing {
+                            let corners: [(CGPoint, Int, Int)] = [
+                                // (position, xSource: 0=p1.x 1=p3.x, ySource: 0=p1.y 1=p3.y)
+                                (CGPoint(x: p1.x, y: p1.y), 0, 0),
+                                (CGPoint(x: p3.x, y: p1.y), 1, 0),
+                                (CGPoint(x: p3.x, y: p3.y), 1, 1),
+                                (CGPoint(x: p1.x, y: p3.y), 0, 1),
+                            ]
+                            ForEach(0..<4, id: \.self) { ci in
+                                let corner = corners[ci]
+                                let handleSize: CGFloat = 10
+                                RoundedRectangle(cornerRadius: 2, style: .continuous)
+                                    .fill(Color.white)
+                                    .frame(width: handleSize, height: handleSize)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 2, style: .continuous)
+                                            .stroke(Color.blue, lineWidth: 1.5)
+                                    )
+                                    .shadow(color: .black.opacity(0.25), radius: 2, y: 1)
+                                    .position(corner.0)
+                                    .gesture(
+                                        DragGesture(minimumDistance: 1, coordinateSpace: .global)
+                                            .onChanged { val in
+                                                if cornerDragStart == nil {
+                                                    cornerDragStart = (ci, state.points[0].point, state.points[1].point)
+                                                }
+                                                guard let (_, origP1, origP3) = cornerDragStart else { return }
+                                                let xSrc = corner.1
+                                                let ySrc = corner.2
+                                                let origX = xSrc == 0 ? origP1.x : origP3.x
+                                                let origY = ySrc == 0 ? origP1.y : origP3.y
+                                                let newX = max(0, min(origX + val.translation.width, geo.size.width))
+                                                let newY = max(0, min(origY + val.translation.height, geo.size.height))
+                                                if xSrc == 0 {
+                                                    state.points[0].point.x = newX
+                                                } else {
+                                                    state.points[1].point.x = newX
+                                                }
+                                                if ySrc == 0 {
+                                                    state.points[0].point.y = newY
+                                                } else {
+                                                    state.points[1].point.y = newY
+                                                }
+                                                state.notifyPointsRealtime()
+                                            }
+                                            .onEnded { _ in
+                                                cornerDragStart = nil
+                                                state.notifyPointsCommitted()
+                                            }
+                                    )
+                            }
+                            
+                            // ── Edge midpoint handles ──
+                            let edgeMids: [(CGPoint, Bool, Int)] = [
+                                // (position, isHorizontal, source: 0=p1 1=p3)
+                                (CGPoint(x: (minX + maxX) / 2, y: p1.y), false, 0), // top
+                                (CGPoint(x: p3.x, y: (minY + maxY) / 2), true, 1),  // right
+                                (CGPoint(x: (minX + maxX) / 2, y: p3.y), false, 1), // bottom
+                                (CGPoint(x: p1.x, y: (minY + maxY) / 2), true, 0),  // left
+                            ]
+                            ForEach(0..<4, id: \.self) { ei in
+                                let edge = edgeMids[ei]
+                                let w: CGFloat = edge.1 ? 6 : 12
+                                let h: CGFloat = edge.1 ? 12 : 6
+                                RoundedRectangle(cornerRadius: 2, style: .continuous)
+                                    .fill(Color.white)
+                                    .frame(width: w, height: h)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 2, style: .continuous)
+                                            .stroke(Color.blue, lineWidth: 1.5)
+                                    )
+                                    .shadow(color: .black.opacity(0.25), radius: 2, y: 1)
+                                    .position(edge.0)
+                                    .gesture(
+                                        DragGesture(minimumDistance: 1, coordinateSpace: .global)
+                                            .onChanged { val in
+                                                if edgeDragStart == nil {
+                                                    edgeDragStart = (ei, state.points[0].point, state.points[1].point)
+                                                }
+                                                guard let (_, origP1, origP3) = edgeDragStart else { return }
+                                                let isH = edge.1
+                                                let src = edge.2
+                                                if isH {
+                                                    // Horizontal edge: only move X
+                                                    let origX = src == 0 ? origP1.x : origP3.x
+                                                    let newX = max(0, min(origX + val.translation.width, geo.size.width))
+                                                    if src == 0 { state.points[0].point.x = newX }
+                                                    else { state.points[1].point.x = newX }
+                                                } else {
+                                                    // Vertical edge: only move Y
+                                                    let origY = src == 0 ? origP1.y : origP3.y
+                                                    let newY = max(0, min(origY + val.translation.height, geo.size.height))
+                                                    if src == 0 { state.points[0].point.y = newY }
+                                                    else { state.points[1].point.y = newY }
+                                                }
+                                                state.notifyPointsRealtime()
+                                            }
+                                            .onEnded { _ in
+                                                edgeDragStart = nil
+                                                state.notifyPointsCommitted()
+                                            }
+                                    )
+                            }
                         }
-                        .stroke(Color.blue, style: StrokeStyle(lineWidth: 2, dash: [4, 4]))
-                        .allowsHitTesting(false)
                     }
                 } else if state.points.count > 1 {
                     ForEach(0..<(state.points.count - 1), id: \.self) { idx in
@@ -311,22 +398,15 @@ struct CaptureOverlaySwiftUIView: View {
                 // ─────────────────────────────────────────────
                 // PINS RENDERING (Compact Clean Minimal Circles)
                 // ─────────────────────────────────────────────
-                ForEach(Array(state.points.enumerated()), id: \.element.id) { idx, item in
-                    let isHovered = state.hoveredIndex == idx
-                    let isDragging = state.activeDraggingIndex == idx
-                    let isSelected = state.selectedPointIndex == idx
-                    
-                    Group {
-                        if case .windowTransform = state.mode {
-                            pinMarker(
-                                number: "\(idx + 1)",
-                                type: .click,
-                                isSelected: isSelected,
-                                isHovered: isHovered,
-                                isDragging: isDragging,
-                                repeatCount: item.repeatCount
-                            )
-                        } else {
+                // PINS RENDERING (Compact Clean Minimal Circles)
+                // ─────────────────────────────────────────────
+                if !state.mode.isWindowTransform {
+                    ForEach(Array(state.points.enumerated()), id: \.element.id) { idx, item in
+                        let isHovered = state.hoveredIndex == idx
+                        let isDragging = state.activeDraggingIndex == idx
+                        let isSelected = state.selectedPointIndex == idx
+                        
+                        Group {
                             pinMarker(
                                 number: "\(idx + 1)",
                                 type: item.type,
@@ -336,33 +416,33 @@ struct CaptureOverlaySwiftUIView: View {
                                 repeatCount: item.repeatCount
                             )
                         }
-                    }
-                    .position(x: item.point.x, y: item.point.y)
-                    .opacity(state.isPassThroughMode ? 0.35 : 1.0)
-                    .allowsHitTesting(!state.isPassThroughMode)
-                    .gesture(
-                        DragGesture(minimumDistance: 1, coordinateSpace: .global)
-                            .onChanged { val in
-                                state.activeDraggingIndex = idx
-                                state.selectedPointIndex = idx
-                                if pinDragStartPoint == nil {
-                                    pinDragStartPoint = item.point
+                        .position(x: item.point.x, y: item.point.y)
+                        .opacity(state.isPassThroughMode ? 0.35 : 1.0)
+                        .allowsHitTesting(!state.isPassThroughMode)
+                        .gesture(
+                            DragGesture(minimumDistance: 1, coordinateSpace: .global)
+                                .onChanged { val in
+                                    state.activeDraggingIndex = idx
+                                    state.selectedPointIndex = idx
+                                    if pinDragStartPoint == nil {
+                                        pinDragStartPoint = item.point
+                                    }
+                                    if let startPt = pinDragStartPoint {
+                                        let newX = max(0, min(startPt.x + val.translation.width, geo.size.width))
+                                        let newY = max(0, min(startPt.y + val.translation.height, geo.size.height))
+                                        
+                                        state.points[idx].point = CGPoint(x: newX, y: newY)
+                                    }
                                 }
-                                if let startPt = pinDragStartPoint {
-                                    let newX = max(0, min(startPt.x + val.translation.width, geo.size.width))
-                                    let newY = max(0, min(startPt.y + val.translation.height, geo.size.height))
-                                    
-                                    state.points[idx].point = CGPoint(x: newX, y: newY)
+                                .onEnded { _ in
+                                    state.activeDraggingIndex = nil
+                                    pinDragStartPoint = nil
+                                    state.notifyPointsCommitted()
                                 }
-                            }
-                            .onEnded { _ in
-                                state.activeDraggingIndex = nil
-                                pinDragStartPoint = nil
-                                state.notifyPointsCommitted()
-                            }
-                    )
-                    .onTapGesture {
-                        state.selectedPointIndex = idx
+                        )
+                        .onTapGesture {
+                            state.selectedPointIndex = idx
+                        }
                     }
                 }
                 
@@ -915,6 +995,17 @@ class CaptureOverlayHostingView: NSView {
                 }
             }
             
+            if globalKeyMonitor == nil {
+                globalKeyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
+                    guard let self = self else { return }
+                    if event.keyCode == 53 { // Escape
+                        self.stateModel.onCancelAction?()
+                    } else if event.keyCode == 36 || event.keyCode == 76 { // Enter / Return
+                        self.stateModel.onConfirmAll?()
+                    }
+                }
+            }
+            
             if globalMouseMonitor == nil {
                 globalMouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged, .rightMouseDragged, .scrollWheel]) { [weak self] event in
                     guard let self = self, let win = self.window else { return }
@@ -1137,7 +1228,11 @@ class CaptureOverlayHostingView: NSView {
             stateModel.phase = .editing
             stateModel.selectedPointIndex = nil
             stateModel.notifyPointsCommitted()
-            updatePassthrough(quartzPt: stateModel.quartzLocation)
+            CaptureOverlayHostingView.safeUnhideCursor()
+            // Keep window interactive and key so Enter/Esc work
+            window?.ignoresMouseEvents = false
+            window?.makeKey()
+            window?.makeFirstResponder(self)
         } else if wasDragging {
             stateModel.notifyPointsCommitted()
         }
@@ -1323,6 +1418,11 @@ class CaptureOverlayWindow: NSPanel {
         case drag(initialStart: CGPoint? = nil, initialEnd: CGPoint? = nil)
         case sequence(initialPoints: [SequencePoint] = [])
         case windowTransform(initialPoints: [SequencePoint] = [])
+        
+        var isWindowTransform: Bool {
+            if case .windowTransform = self { return true }
+            return false
+        }
     }
     
     private var mode: Mode
