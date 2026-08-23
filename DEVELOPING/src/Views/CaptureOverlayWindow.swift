@@ -180,20 +180,21 @@ struct CaptureOverlaySwiftUIView: View {
                             height: abs(p3.y - p1.y)
                         )
                         
-                        // Transparent blue draggable area inside the rectangle
+                        // Transparent blue overlay area inside the rectangle
                         Rectangle()
-                            .fill(Color.blue.opacity(0.15))
+                            .fill(Color.blue.opacity(state.phase == .editing ? 0.12 : 0.08))
                             .frame(width: rect.width, height: rect.height)
                             .position(x: rect.midX, y: rect.midY)
+                            .allowsHitTesting(state.phase == .editing)
                             .gesture(
                                 DragGesture(minimumDistance: 1, coordinateSpace: .global)
                                     .onChanged { val in
+                                        guard state.phase == .editing else { return }
                                         guard !state.isPassThroughMode else { return }
                                         if areaDragStartPoints == nil {
                                             areaDragStartPoints = (state.points[0].point, state.points[1].point)
                                         }
                                         if let (origP1, origP3) = areaDragStartPoints {
-                                            // Translate both coordinates by drag translation
                                             state.points[0].point = CGPoint(
                                                 x: max(0, min(origP1.x + val.translation.width, geo.size.width)),
                                                 y: max(0, min(origP1.y + val.translation.height, geo.size.height))
@@ -317,24 +318,14 @@ struct CaptureOverlaySwiftUIView: View {
                     
                     Group {
                         if case .windowTransform = state.mode {
-                            ZStack {
-                                Circle()
-                                    .stroke(isSelected ? Color.white : Color.white.opacity(0.8), lineWidth: isSelected ? 2.5 : 1.5)
-                                    .frame(width: isSelected ? 30 : 26, height: isSelected ? 30 : 26)
-                                    .shadow(color: Color.black.opacity(0.35), radius: 2)
-                                Circle()
-                                    .fill(Color.blue)
-                                    .frame(width: 8, height: 8)
-                                let label = (idx == 1) ? "3" : "\(idx + 1)"
-                                Text(label)
-                                    .font(.system(size: 8, weight: .heavy, design: .rounded))
-                                    .foregroundColor(.white)
-                                    .padding(.horizontal, 4)
-                                    .padding(.vertical, 1)
-                                    .background(Color.black.opacity(0.65))
-                                    .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
-                                    .offset(y: -18)
-                            }
+                            pinMarker(
+                                number: "\(idx + 1)",
+                                type: .click,
+                                isSelected: isSelected,
+                                isHovered: isHovered,
+                                isDragging: isDragging,
+                                repeatCount: item.repeatCount
+                            )
                         } else {
                             pinMarker(
                                 number: "\(idx + 1)",
@@ -362,19 +353,6 @@ struct CaptureOverlaySwiftUIView: View {
                                     let newY = max(0, min(startPt.y + val.translation.height, geo.size.height))
                                     
                                     state.points[idx].point = CGPoint(x: newX, y: newY)
-                                    
-                                    if case .windowTransform = state.mode {
-                                        if idx == 0 {
-                                            state.points[1].point.y = newY
-                                        } else if idx == 1 {
-                                            state.points[0].point.y = newY
-                                            if state.points.count >= 3 {
-                                                state.points[2].point.x = newX
-                                            }
-                                        } else if idx == 2 {
-                                            state.points[1].point.x = newX
-                                        }
-                                    }
                                 }
                             }
                             .onEnded { _ in
@@ -388,20 +366,6 @@ struct CaptureOverlaySwiftUIView: View {
                     }
                 }
                 
-                if case .windowTransform = state.mode, state.points.count == 2 {
-                    let p1 = state.points[0].point
-                    let p3 = state.points[1].point
-                    let p2 = CGPoint(x: p3.x, y: p1.y)
-                    let p4 = CGPoint(x: p1.x, y: p3.y)
-                    
-                    circlePin(at: p2, label: "2 (auto)", color: .blue.opacity(0.55))
-                        .opacity(state.isPassThroughMode ? 0.35 : 1.0)
-                        .allowsHitTesting(false)
-                        
-                    circlePin(at: p4, label: "4 (auto)", color: .blue.opacity(0.55))
-                        .opacity(state.isPassThroughMode ? 0.35 : 1.0)
-                        .allowsHitTesting(false)
-                }
                 
                 // ─────────────────────────────────────────────
                 // FLOATING COMPACT HUD CARD (Hover-based visibility, sequence only)
@@ -1062,6 +1026,22 @@ class CaptureOverlayHostingView: NSView {
             }
         }
         
+        // Check if cursor is inside the windowTransform rectangle area
+        if case .windowTransform = stateModel.mode, stateModel.points.count == 2 {
+            let p1 = stateModel.points[0].point
+            let p3 = stateModel.points[1].point
+            let rect = CGRect(
+                x: min(p1.x, p3.x) - 4,
+                y: min(p1.y, p3.y) - 4,
+                width: abs(p3.x - p1.x) + 8,
+                height: abs(p3.y - p1.y) + 8
+            )
+            if rect.contains(quartzPt) {
+                win.ignoresMouseEvents = false
+                return
+            }
+        }
+        
         // Check HUD card
         if stateModel.isHudVisible {
             let hud = stateModel.lastHudCenter
@@ -1078,15 +1058,7 @@ class CaptureOverlayHostingView: NSView {
     private func updateMouse(event: NSEvent) {
         let winLoc = event.locationInWindow
         let screenHeight = NSScreen.screens.first?.frame.height ?? 1080
-        var quartzPt = CGPoint(x: winLoc.x, y: screenHeight - winLoc.y)
-        
-        if case .windowTransform = stateModel.mode {
-            if stateModel.points.count == 1 {
-                quartzPt.y = stateModel.points[0].point.y
-            } else if stateModel.points.count == 2 {
-                quartzPt.x = stateModel.points[1].point.x
-            }
-        }
+        let quartzPt = CGPoint(x: winLoc.x, y: screenHeight - winLoc.y)
         
         stateModel.currentLocation = winLoc
         stateModel.quartzLocation = quartzPt
