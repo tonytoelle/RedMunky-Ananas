@@ -298,6 +298,7 @@ struct InlineKeyRecorder: View {
     
     func startRecording() {
         isRecording = true
+        CarbonHotKeyManager.shared.unregisterAll()
         monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
             let f = event.modifierFlags
             let kc = event.keyCode
@@ -333,6 +334,7 @@ struct InlineKeyRecorder: View {
             NSEvent.removeMonitor(m)
             monitor = nil
         }
+        MacroStore.shared.registerAllCarbonHotKeys()
     }
 }
 

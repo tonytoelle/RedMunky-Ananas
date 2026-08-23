@@ -1,0 +1,8 @@
+# ShortKing Macro Script
+TRIGGER: f4
+
+# Actions:
+ACTION: path 924,810:click 983,842:click
+ACTION: do_again
+ACTION: click current
+ACTION: press_shortcut shift+ctrl+q
