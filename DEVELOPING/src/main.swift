@@ -297,10 +297,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDele
         NSApp.mainMenu = mainMenu
     }
 
-    // MARK: - Status Bar Menu (System Tray Icon)
     func setupMenuBar() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        statusItem.button?.title = "👑 SK"
+        if let crownImage = NSImage(systemSymbolName: "crown.fill", accessibilityDescription: nil) {
+            let symbolConfig = NSImage.SymbolConfiguration(pointSize: 14, weight: .semibold)
+            if let configuredImage = crownImage.withSymbolConfiguration(symbolConfig) {
+                configuredImage.isTemplate = true
+                statusItem.button?.image = configuredImage
+            }
+        } else {
+            statusItem.button?.title = "👑"
+        }
         statusMenu = NSMenu()
         statusMenu.delegate = self
         statusItem.menu = statusMenu
