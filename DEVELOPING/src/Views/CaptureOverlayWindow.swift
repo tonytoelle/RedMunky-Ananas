@@ -141,8 +141,6 @@ struct CaptureOverlaySwiftUIView: View {
     @State private var dragStartOffset: CGSize = .zero
     @State private var pinDragStartPoint: CGPoint? = nil
     @State private var areaDragStartPoints: (CGPoint, CGPoint)? = nil
-    @State private var cornerDragStart: (Int, CGPoint, CGPoint)? = nil  // (cornerIdx, origP1, origP3)
-    @State private var edgeDragStart: (Int, CGPoint, CGPoint)? = nil    // (edgeIdx, origP1, origP3)
     
     var body: some View {
         GeometryReader { geo in
@@ -200,109 +198,40 @@ struct CaptureOverlaySwiftUIView: View {
                             .stroke(Color.blue, style: StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
                             .allowsHitTesting(false)
                         
-                        // ── tldraw-style corner handles ──
+                        // ── 2 Diagonal round pins without labels ──
                         if state.phase == .editing {
-                            let corners: [(CGPoint, Int, Int)] = [
-                                // (position, xSource: 0=p1.x 1=p3.x, ySource: 0=p1.y 1=p3.y)
-                                (CGPoint(x: p1.x, y: p1.y), 0, 0),
-                                (CGPoint(x: p3.x, y: p1.y), 1, 0),
-                                (CGPoint(x: p3.x, y: p3.y), 1, 1),
-                                (CGPoint(x: p1.x, y: p3.y), 0, 1),
-                            ]
-                            ForEach(0..<4, id: \.self) { ci in
-                                let corner = corners[ci]
-                                let handleSize: CGFloat = 10
-                                RoundedRectangle(cornerRadius: 2, style: .continuous)
-                                    .fill(Color.white)
-                                    .frame(width: handleSize, height: handleSize)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 2, style: .continuous)
-                                            .stroke(Color.blue, lineWidth: 1.5)
-                                    )
-                                    .shadow(color: .black.opacity(0.25), radius: 2, y: 1)
-                                    .position(corner.0)
+                            ForEach(0..<2, id: \.self) { idx in
+                                let isSelected = state.selectedPointIndex == idx
+                                Circle()
+                                    .stroke(Color.white, lineWidth: isSelected ? 3.0 : 2.0)
+                                    .background(Circle().fill(Color.blue))
+                                    .frame(width: isSelected ? 24 : 20, height: isSelected ? 24 : 20)
+                                    .shadow(color: Color.black.opacity(0.35), radius: 2)
+                                    .position(state.points[idx].point)
                                     .gesture(
                                         DragGesture(minimumDistance: 1, coordinateSpace: .global)
                                             .onChanged { val in
-                                                if cornerDragStart == nil {
-                                                    cornerDragStart = (ci, state.points[0].point, state.points[1].point)
+                                                state.activeDraggingIndex = idx
+                                                state.selectedPointIndex = idx
+                                                if pinDragStartPoint == nil {
+                                                    pinDragStartPoint = state.points[idx].point
                                                 }
-                                                guard let (_, origP1, origP3) = cornerDragStart else { return }
-                                                let xSrc = corner.1
-                                                let ySrc = corner.2
-                                                let origX = xSrc == 0 ? origP1.x : origP3.x
-                                                let origY = ySrc == 0 ? origP1.y : origP3.y
-                                                let newX = max(0, min(origX + val.translation.width, geo.size.width))
-                                                let newY = max(0, min(origY + val.translation.height, geo.size.height))
-                                                if xSrc == 0 {
-                                                    state.points[0].point.x = newX
-                                                } else {
-                                                    state.points[1].point.x = newX
+                                                if let startPt = pinDragStartPoint {
+                                                    let newX = max(0, min(startPt.x + val.translation.width, geo.size.width))
+                                                    let newY = max(0, min(startPt.y + val.translation.height, geo.size.height))
+                                                    state.points[idx].point = CGPoint(x: newX, y: newY)
+                                                    state.notifyPointsRealtime()
                                                 }
-                                                if ySrc == 0 {
-                                                    state.points[0].point.y = newY
-                                                } else {
-                                                    state.points[1].point.y = newY
-                                                }
-                                                state.notifyPointsRealtime()
                                             }
                                             .onEnded { _ in
-                                                cornerDragStart = nil
+                                                state.activeDraggingIndex = nil
+                                                pinDragStartPoint = nil
                                                 state.notifyPointsCommitted()
                                             }
                                     )
-                            }
-                            
-                            // ── Edge midpoint handles ──
-                            let edgeMids: [(CGPoint, Bool, Int)] = [
-                                // (position, isHorizontal, source: 0=p1 1=p3)
-                                (CGPoint(x: (minX + maxX) / 2, y: p1.y), false, 0), // top
-                                (CGPoint(x: p3.x, y: (minY + maxY) / 2), true, 1),  // right
-                                (CGPoint(x: (minX + maxX) / 2, y: p3.y), false, 1), // bottom
-                                (CGPoint(x: p1.x, y: (minY + maxY) / 2), true, 0),  // left
-                            ]
-                            ForEach(0..<4, id: \.self) { ei in
-                                let edge = edgeMids[ei]
-                                let w: CGFloat = edge.1 ? 6 : 12
-                                let h: CGFloat = edge.1 ? 12 : 6
-                                RoundedRectangle(cornerRadius: 2, style: .continuous)
-                                    .fill(Color.white)
-                                    .frame(width: w, height: h)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 2, style: .continuous)
-                                            .stroke(Color.blue, lineWidth: 1.5)
-                                    )
-                                    .shadow(color: .black.opacity(0.25), radius: 2, y: 1)
-                                    .position(edge.0)
-                                    .gesture(
-                                        DragGesture(minimumDistance: 1, coordinateSpace: .global)
-                                            .onChanged { val in
-                                                if edgeDragStart == nil {
-                                                    edgeDragStart = (ei, state.points[0].point, state.points[1].point)
-                                                }
-                                                guard let (_, origP1, origP3) = edgeDragStart else { return }
-                                                let isH = edge.1
-                                                let src = edge.2
-                                                if isH {
-                                                    // Horizontal edge: only move X
-                                                    let origX = src == 0 ? origP1.x : origP3.x
-                                                    let newX = max(0, min(origX + val.translation.width, geo.size.width))
-                                                    if src == 0 { state.points[0].point.x = newX }
-                                                    else { state.points[1].point.x = newX }
-                                                } else {
-                                                    // Vertical edge: only move Y
-                                                    let origY = src == 0 ? origP1.y : origP3.y
-                                                    let newY = max(0, min(origY + val.translation.height, geo.size.height))
-                                                    if src == 0 { state.points[0].point.y = newY }
-                                                    else { state.points[1].point.y = newY }
-                                                }
-                                                state.notifyPointsRealtime()
-                                            }
-                                            .onEnded { _ in
-                                                edgeDragStart = nil
-                                                state.notifyPointsCommitted()
-                                            }
-                                    )
+                                    .onTapGesture {
+                                        state.selectedPointIndex = idx
+                                    }
                             }
                         }
                     }

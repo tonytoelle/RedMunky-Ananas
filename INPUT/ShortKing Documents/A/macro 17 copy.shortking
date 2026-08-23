@@ -4,7 +4,3 @@ TRIGGER_MODE: key_switch
 
 # Actions:
 ACTION: origin window
-ACTION: window_transform 0,0 0,0 0,0 0,0
-
-# Alternate Actions:
-ALT_ACTION: do_again window_origin
