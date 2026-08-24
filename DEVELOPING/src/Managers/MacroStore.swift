@@ -480,27 +480,49 @@ class MacroStore: ObservableObject {
             }
         }
         
+        // Helper to check if a macro is restricted to apps and matches the current active app
+        func getRestrictionStatus(for macro: MacroItem) -> (isRestricted: Bool, matchesActiveApp: Bool) {
+            guard let cfg = macro.parentFolderConfig else {
+                return (false, false)
+            }
+            
+            // Check explicit restrictions
+            let hasExplicitApps = cfg.isRestrictedToApps && !cfg.targetApps.isEmpty
+            // Check implicit restriction via custom folder app icon
+            let hasImplicitApp = cfg.customAppIconBundleId != nil && !cfg.customAppIconBundleId!.isEmpty
+            
+            let isRestricted = hasExplicitApps || hasImplicitApp
+            
+            var matches = false
+            if hasExplicitApps {
+                matches = cfg.targetApps.contains { target in
+                    target.bundleId == activeBundle || target.name.localizedCaseInsensitiveCompare(activeName) == .orderedSame
+                }
+            }
+            
+            if !matches, let bundleId = cfg.customAppIconBundleId, !bundleId.isEmpty {
+                matches = (bundleId == activeBundle)
+            }
+            
+            return (isRestricted, matches)
+        }
+        
         // PASS 1: Register APP-SPECIFIC macros first (if target app matches current active app)
         for macro in macros {
             guard macro.isEnabled else { continue }
-            let folderConfig = macro.parentFolderConfig
-            guard let cfg = folderConfig, cfg.isRestrictedToApps && !cfg.targetApps.isEmpty else { continue }
+            let status = getRestrictionStatus(for: macro)
             
-            let matches = cfg.targetApps.contains { target in
-                target.bundleId == activeBundle || target.name.localizedCaseInsensitiveCompare(activeName) == .orderedSame
+            if status.isRestricted && status.matchesActiveApp {
+                registerTriggers(for: macro, trackCombo: true)
             }
-            if !matches { continue }
-            
-            registerTriggers(for: macro, trackCombo: true)
         }
         
         // PASS 2: Register GLOBAL macros only if key combo is not already taken by active app-specific macro
         for macro in macros {
             guard macro.isEnabled else { continue }
-            let folderConfig = macro.parentFolderConfig
-            let isAppRestricted = folderConfig?.isRestrictedToApps == true && !(folderConfig?.targetApps.isEmpty ?? true)
+            let status = getRestrictionStatus(for: macro)
             
-            if !isAppRestricted {
+            if !status.isRestricted {
                 registerTriggers(for: macro, trackCombo: true)
             }
         }
