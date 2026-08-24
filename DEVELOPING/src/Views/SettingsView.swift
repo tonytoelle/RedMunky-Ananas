@@ -184,7 +184,7 @@ struct SettingsView: View {
             .frame(minWidth: 480)
             .background(Color(white: 0.14))
         }
-        .frame(width: 740, height: 530)
+        .frame(minWidth: 700, idealWidth: 740, maxWidth: .infinity, minHeight: 480, idealHeight: 530, maxHeight: .infinity)
     }
 
     // Sidebar Row

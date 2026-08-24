@@ -1915,6 +1915,10 @@ struct MainEditorView: View {
             }
             
             keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+                if event.modifierFlags.contains(.command) && event.charactersIgnoringModifiers?.lowercased() == "f" {
+                    isSearchFocused = true
+                    return nil // consume
+                }
                 if event.keyCode == 123 || event.keyCode == 124 {
                     let targetPath = store.selectedFolderPath ?? selectedPaths.first
                     if let path = targetPath, !path.hasSuffix(".shortking") {

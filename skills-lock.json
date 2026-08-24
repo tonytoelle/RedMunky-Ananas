@@ -7,6 +7,12 @@
       "skillPath": "skills/liquid-glass-design/SKILL.md",
       "computedHash": "bbfb0a30ce18048f07072183d844b005ca729f27784096455ea7f8add25b92d3"
     },
+    "macos-design-guidelines": {
+      "source": "ehmo/platform-design-skills",
+      "sourceType": "github",
+      "skillPath": "skills/macos/SKILL.md",
+      "computedHash": "fdbeb208feb60e5ed08226e4e1e714eade6cfe6530ad27c792992823de63ca0d"
+    },
     "macos-settings-ui": {
       "source": "fayazara/macos-app-skills",
       "sourceType": "github",
