@@ -34,9 +34,75 @@ struct DropShelfView: View {
                     
                     Spacer()
                     
-                    // Minimize/Dismiss Button (v)
-                    Button {
-                        manager.closeShelf()
+                    // Minimize/Dismiss Button (v) with Dropover actions menu
+                    Menu {
+                        if let firstPath = manager.heldItems.first {
+                            let url = URL(fileURLWithPath: firstPath)
+                            let fileName = url.lastPathComponent
+                            
+                            Menu("Open With") {
+                                Button("Antigravity IDE") {
+                                    NSWorkspace.shared.open([url], withApplicationAt: URL(fileURLWithPath: "/Applications/Antigravity.app"), configuration: NSWorkspace.OpenConfiguration())
+                                }
+                                Button("CotEditor") {
+                                    NSWorkspace.shared.open([url], withApplicationAt: URL(fileURLWithPath: "/Applications/CotEditor.app"), configuration: NSWorkspace.OpenConfiguration())
+                                }
+                                Button("Notes") {
+                                    NSWorkspace.shared.open([url], withApplicationAt: URL(fileURLWithPath: "/System/Applications/Notes.app"), configuration: NSWorkspace.OpenConfiguration())
+                                }
+                                Button("Safari") {
+                                    NSWorkspace.shared.open([url], withApplicationAt: URL(fileURLWithPath: "/System/Volumes/Preboot/Cryptexes/App/System/Applications/Safari.app"), configuration: NSWorkspace.OpenConfiguration())
+                                }
+                                Button("TextEdit") {
+                                    NSWorkspace.shared.open([url], withApplicationAt: URL(fileURLWithPath: "/System/Applications/TextEdit.app"), configuration: NSWorkspace.OpenConfiguration())
+                                }
+                            }
+                            
+                            Button("Show in Finder") {
+                                NSWorkspace.shared.activateFileViewerSelecting([url])
+                            }
+                            
+                            Button("Quick Look") {
+                                NSWorkspace.shared.open(url)
+                            }
+                            
+                            Divider()
+                            
+                            Button("Copy \"\(fileName)\"") {
+                                let pasteboard = NSPasteboard.general
+                                pasteboard.clearContents()
+                                pasteboard.writeObjects([url as NSURL])
+                            }
+                            
+                            Button("Copy to...") {
+                                let panel = NSOpenPanel()
+                                panel.canChooseFiles = false
+                                panel.canChooseDirectories = true
+                                panel.allowsMultipleSelection = false
+                                if panel.runModal() == .OK, let targetDir = panel.url {
+                                    let dest = targetDir.appendingPathComponent(fileName)
+                                    try? FileManager.default.copyItem(at: url, to: dest)
+                                }
+                            }
+                            
+                            Button("Move to...") {
+                                let panel = NSOpenPanel()
+                                panel.canChooseFiles = false
+                                panel.canChooseDirectories = true
+                                panel.allowsMultipleSelection = false
+                                if panel.runModal() == .OK, let targetDir = panel.url {
+                                    let dest = targetDir.appendingPathComponent(fileName)
+                                    try? FileManager.default.moveItem(at: url, to: dest)
+                                    manager.closeShelf()
+                                }
+                            }
+                        }
+                        
+                        Divider()
+                        
+                        Button("Clear Shelf") {
+                            manager.closeShelf()
+                        }
                     } label: {
                         Image(systemName: "chevron.down")
                             .font(.system(size: 11, weight: .bold))
@@ -45,6 +111,7 @@ struct DropShelfView: View {
                             .background(Color.white.opacity(0.1))
                             .clipShape(Circle())
                     }
+                    .menuStyle(.button)
                     .buttonStyle(.plain)
                 }
                 .padding(.horizontal, 14)
@@ -107,6 +174,10 @@ struct DropShelfView: View {
                                         .shadow(radius: 1)
                                 }
                             }
+                            .onDrag {
+                                let stringData = manager.heldItems.joined(separator: "\n") as NSString
+                                return NSItemProvider(object: stringData)
+                            }
                             
                             // Filename Label
                             Text(manager.heldItems.count > 1 ? "\(manager.heldItems.count) items selected" : fileName)
@@ -126,10 +197,6 @@ struct DropShelfView: View {
                         }
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .contentShape(Rectangle())
-                        .onDrag {
-                            let stringData = manager.heldItems.joined(separator: "\n") as NSString
-                            return NSItemProvider(object: stringData)
-                        }
                     }
                 }
                 .onDrop(of: [.plainText, .utf8PlainText, .fileURL], isTargeted: $isTargeted) { providers in
