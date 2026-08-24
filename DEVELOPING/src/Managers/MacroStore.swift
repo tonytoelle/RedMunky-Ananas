@@ -219,14 +219,20 @@ class MacroStore: ObservableObject {
         
         NSWorkspace.shared.notificationCenter.addObserver(
             self,
-            selector: #selector(handleAppChange),
+            selector: #selector(handleAppChange(_:)),
             name: NSWorkspace.didActivateApplicationNotification,
             object: nil
         )
     }
     
-    @objc private func handleAppChange() {
-        registerAllCarbonHotKeys()
+    @objc private func handleAppChange(_ notification: Notification) {
+        // Delay registration slightly to ensure NSWorkspace.shared.frontmostApplication has updated to the new app
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+            if let app = NSWorkspace.shared.frontmostApplication {
+                print("📱 Active App Changed to: \(app.localizedName ?? "") (\(app.bundleIdentifier ?? ""))")
+            }
+            self?.registerAllCarbonHotKeys()
+        }
     }
 
     func triggerMacroBySpecialKey(name: String) {
@@ -415,9 +421,13 @@ class MacroStore: ObservableObject {
                 
                 let combo = comboKey(for: trig)
                 
-                // If this combo is already registered by a global macro, skip
-                if registeredKeyCombos.contains(combo) { continue }
+                // If this combo is already registered by a higher priority macro, skip
+                if registeredKeyCombos.contains(combo) {
+                    print("⚠️ Combo \(combo) (\(trig.displayString)) already registered. Skipping macro: \(macro.fileName)")
+                    continue
+                }
                 
+                print("🔑 Registering hotkey combo \(combo) (\(trig.displayString)) for macro: \(macro.fileName)")
                 if trackCombo {
                     registeredKeyCombos.insert(combo)
                 }
@@ -473,7 +483,7 @@ class MacroStore: ObservableObject {
             let isAppRestricted = folderConfig?.isRestrictedToApps == true && !(folderConfig?.targetApps.isEmpty ?? true)
             
             if !isAppRestricted {
-                registerTriggers(for: macro, trackCombo: false)
+                registerTriggers(for: macro, trackCombo: true)
             }
         }
     }
