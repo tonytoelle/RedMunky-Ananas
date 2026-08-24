@@ -7,8 +7,8 @@ struct DropShelfView: View {
     
     var body: some View {
         ZStack {
-            // Background WindowDragView to make it draggable by window background
-            WindowDragView()
+            // Background WindowDragArea to make it draggable by window background
+            WindowDragArea()
             
             // Visual Effect Background (HUD window style translucent black card)
             RoundedRectangle(cornerRadius: 24, style: .continuous)
@@ -230,5 +230,20 @@ struct DropShelfView: View {
         }
         .frame(width: 180, height: 180)
         .ignoresSafeArea()
+    }
+}
+
+struct WindowDragArea: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView {
+        return WindowDragNSView()
+    }
+    func updateNSView(_ nsView: NSView, context: Context) {}
+}
+
+class WindowDragNSView: NSView {
+    override func mouseDown(with event: NSEvent) {
+        if let window = self.window {
+            window.performDrag(with: event)
+        }
     }
 }
