@@ -285,6 +285,180 @@ struct MacroInspectorView: View {
         )
     }
 
+    private var alternateActionItemsBinding: Binding<[MacroActionItem]> {
+        Binding(
+            get: {
+                if let idx = self.macro.triggers.firstIndex(where: { $0.mode == .keySwitch }) {
+                    return self.macro.triggers[idx].alternateActionItems
+                }
+                return []
+            },
+            set: { newValue in
+                if let idx = self.macro.triggers.firstIndex(where: { $0.mode == .keySwitch }) {
+                    self.macro.triggers[idx].alternateActionItems = newValue
+                    self.store.saveMacro(self.macro)
+                }
+            }
+        )
+    }
+
+    @ViewBuilder
+    private var primaryActionsArea: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Image(systemName: "bolt.fill")
+                    .foregroundColor(.purple)
+                    .font(.system(size: 12))
+                Text("Primary Action")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.white)
+            }
+            
+            DraggableActionList(actionItems: $macro.actionItems, onSave: {
+                store.saveMacro(macro)
+            }, onInsertTemplate: { typeName, targetIndex in
+                insertAction(typeName: typeName, targetIndex: targetIndex, isAlternate: false)
+            }, detailWidth: detailWidth)
+        }
+        .padding(10)
+        .background(Color.white.opacity(activeActionTarget == .primary ? 0.03 : 0.01))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color.purple.opacity(activeActionTarget == .primary ? 0.3 : 0.1), lineWidth: 1)
+        )
+        .onTapGesture {
+            activeActionTarget = .primary
+        }
+    }
+
+    @ViewBuilder
+    private var alternateActionsArea: some View {
+        if macro.triggers.contains(where: { $0.mode == .keySwitch }) {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 6) {
+                    Image(systemName: "arrow.triangle.swap")
+                        .foregroundColor(Color(red: 0.1, green: 0.65, blue: 0.7))
+                        .font(.system(size: 12))
+                    Text("Alternate Action")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.white)
+                }
+                
+                DraggableActionList(actionItems: alternateActionItemsBinding, onSave: {
+                    store.saveMacro(macro)
+                }, onInsertTemplate: { typeName, targetIndex in
+                    insertAction(typeName: typeName, targetIndex: targetIndex, isAlternate: true)
+                }, detailWidth: detailWidth)
+            }
+            .padding(10)
+            .background(Color.white.opacity(activeActionTarget == .alternate ? 0.03 : 0.01))
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(Color(red: 0.1, green: 0.65, blue: 0.7).opacity(activeActionTarget == .alternate ? 0.3 : 0.1), lineWidth: 1)
+            )
+            .onTapGesture {
+                activeActionTarget = .alternate
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var actionSelectionDrawer: some View {
+        VStack(spacing: 12) {
+            if isActionDrawerOpen {
+                VStack(spacing: 10) {
+                    HStack(spacing: 10) {
+                        SpotlightSearchBar(placeholder: "Search actions...", items: SearchableActionDef.allActions) { actionDef in
+                            let isAlt = hasKeySwitchTrigger && activeActionTarget == .alternate
+                            let tIdx = isAlt ? (macro.triggers.first(where: { $0.mode == .keySwitch })?.alternateActionItems.count ?? 0) : macro.actionItems.count
+                            insertAction(typeName: actionDef.title, targetIndex: tIdx, isAlternate: isAlt)
+                        }
+                        
+                        Button {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                isActionDrawerOpen = false
+                            }
+                        } label: {
+                            Image(systemName: "chevron.up")
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundColor(.secondary)
+                                .frame(width: 24, height: 24)
+                                .background(Color.white.opacity(0.05))
+                                .clipShape(Circle())
+                        }
+                        .buttonStyle(.plain)
+                        .help("Close Action Drawer")
+                    }
+                    
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 56, maximum: 66), spacing: 8)], spacing: 10) {
+                        ForEach(SearchableActionDef.allActions) { actionDef in
+                            Button {
+                                let isAlt = hasKeySwitchTrigger && activeActionTarget == .alternate
+                                let tIdx = isAlt ? (macro.triggers.first(where: { $0.mode == .keySwitch })?.alternateActionItems.count ?? 0) : macro.actionItems.count
+                                insertAction(typeName: actionDef.title, targetIndex: tIdx, isAlternate: isAlt)
+                            } label: {
+                                VStack(spacing: 4) {
+                                    ZStack {
+                                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                            .fill(actionDef.color)
+                                            .frame(width: 32, height: 32)
+                                        Image(systemName: actionDef.icon)
+                                            .foregroundColor(.white)
+                                            .font(.system(size: 14, weight: .semibold))
+                                    }
+                                    Text(actionDef.title)
+                                        .font(.system(size: 9))
+                                        .foregroundColor(.secondary)
+                                        .lineLimit(2)
+                                        .multilineTextAlignment(.center)
+                                        .frame(width: 56, height: 24, alignment: .top)
+                                }
+                            }
+                            .buttonStyle(.plain)
+                            .help(actionDef.title)
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+                .padding(10)
+                .background(Color.black.opacity(0.15))
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(Color.white.opacity(0.04), lineWidth: 1)
+                )
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            } else {
+                HStack {
+                    Spacer()
+                    Button {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            isActionDrawerOpen = true
+                        }
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "plus.circle.fill")
+                                .font(.system(size: 13))
+                            Text("Add Action")
+                                .font(.system(size: 12, weight: .semibold))
+                        }
+                        .foregroundColor(.secondary)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .background(Color.white.opacity(0.05))
+                        .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    Spacer()
+                }
+                .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
+        .padding(.top, 8)
+    }
+
     // MARK: - Actions Section
     @ViewBuilder
     private var actionsSection: some View {
@@ -309,76 +483,8 @@ struct MacroInspectorView: View {
                 if hasKeySwitchTrigger {
                     // Two sub-areas: Actions and Alternate Actions
                     VStack(alignment: .leading, spacing: 16) {
-                        // PRIMARY ACTIONS AREA
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack(spacing: 6) {
-                                Image(systemName: "bolt.fill")
-                                    .foregroundColor(.purple)
-                                    .font(.system(size: 12))
-                                Text("Primary Action")
-                                    .font(.system(size: 12, weight: .semibold))
-                                    .foregroundColor(.white)
-                            }
-                            
-                            DraggableActionList(actionItems: $macro.actionItems, onSave: {
-                                store.saveMacro(macro)
-                            }, onInsertTemplate: { typeName, targetIndex in
-                                insertAction(typeName: typeName, targetIndex: targetIndex, isAlternate: false)
-                            }, detailWidth: detailWidth)
-                        }
-                        .padding(10)
-                        .background(Color.white.opacity(activeActionTarget == .primary ? 0.03 : 0.01))
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 8)
-                                .stroke(Color.purple.opacity(activeActionTarget == .primary ? 0.3 : 0.1), lineWidth: 1)
-                        )
-                        .onTapGesture {
-                            activeActionTarget = .primary
-                        }
-
-                        // ALTERNATE ACTIONS AREA
-                        if macro.triggers.contains(where: { $0.mode == .keySwitch }) {
-                            VStack(alignment: .leading, spacing: 8) {
-                                HStack(spacing: 6) {
-                                    Image(systemName: "arrow.triangle.swap")
-                                        .foregroundColor(Color(red: 0.1, green: 0.65, blue: 0.7))
-                                        .font(.system(size: 12))
-                                    Text("Alternate Action")
-                                        .font(.system(size: 12, weight: .semibold))
-                                        .foregroundColor(.white)
-                                }
-                                
-                                DraggableActionList(actionItems: Binding(
-                                    get: {
-                                        if let idx = macro.triggers.firstIndex(where: { $0.mode == .keySwitch }) {
-                                            return macro.triggers[idx].alternateActionItems
-                                        }
-                                        return []
-                                    },
-                                    set: { newValue in
-                                        if let idx = macro.triggers.firstIndex(where: { $0.mode == .keySwitch }) {
-                                            macro.triggers[idx].alternateActionItems = newValue
-                                            store.saveMacro(macro)
-                                        }
-                                    }
-                                ), onSave: {
-                                    store.saveMacro(macro)
-                                }, onInsertTemplate: { typeName, targetIndex in
-                                    insertAction(typeName: typeName, targetIndex: targetIndex, isAlternate: true)
-                                }, detailWidth: detailWidth)
-                            }
-                            .padding(10)
-                            .background(Color.white.opacity(activeActionTarget == .alternate ? 0.03 : 0.01))
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 8)
-                                    .stroke(Color(red: 0.1, green: 0.65, blue: 0.7).opacity(activeActionTarget == .alternate ? 0.3 : 0.1), lineWidth: 1)
-                            )
-                            .onTapGesture {
-                                activeActionTarget = .alternate
-                            }
-                        }
+                        primaryActionsArea
+                        alternateActionsArea
                     }
                 } else {
                     // Single actions area
@@ -389,98 +495,7 @@ struct MacroInspectorView: View {
                     }, detailWidth: detailWidth)
                 }
 
-                // Action Selection Drawer
-                VStack(spacing: 12) {
-                    if isActionDrawerOpen {
-                        VStack(spacing: 10) {
-                            HStack(spacing: 10) {
-                                SpotlightSearchBar(placeholder: "Search actions...", items: SearchableActionDef.allActions) { actionDef in
-                                    let isAlt = hasKeySwitchTrigger && activeActionTarget == .alternate
-                                    let tIdx = isAlt ? (macro.triggers.first(where: { $0.mode == .keySwitch })?.alternateActionItems.count ?? 0) : macro.actionItems.count
-                                    insertAction(typeName: actionDef.title, targetIndex: tIdx, isAlternate: isAlt)
-                                }
-                                
-                                Button {
-                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                                        isActionDrawerOpen = false
-                                    }
-                                } label: {
-                                    Image(systemName: "chevron.up")
-                                        .font(.system(size: 11, weight: .bold))
-                                        .foregroundColor(.secondary)
-                                        .frame(width: 24, height: 24)
-                                        .background(Color.white.opacity(0.05))
-                                        .clipShape(Circle())
-                                }
-                                .buttonStyle(.plain)
-                                .help("Close Action Drawer")
-                            }
-                            
-                            LazyVGrid(columns: [GridItem(.adaptive(minimum: 56, maximum: 66), spacing: 8)], spacing: 10) {
-                                ForEach(SearchableActionDef.allActions) { actionDef in
-                                    Button {
-                                        let isAlt = hasKeySwitchTrigger && activeActionTarget == .alternate
-                                        let tIdx = isAlt ? (macro.triggers.first(where: { $0.mode == .keySwitch })?.alternateActionItems.count ?? 0) : macro.actionItems.count
-                                        insertAction(typeName: actionDef.title, targetIndex: tIdx, isAlternate: isAlt)
-                                    } label: {
-                                        VStack(spacing: 4) {
-                                            ZStack {
-                                                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                                    .fill(actionDef.color)
-                                                    .frame(width: 32, height: 32)
-                                                Image(systemName: actionDef.icon)
-                                                    .foregroundColor(.white)
-                                                    .font(.system(size: 14, weight: .semibold))
-                                            }
-                                            Text(actionDef.title)
-                                                .font(.system(size: 9))
-                                                .foregroundColor(.secondary)
-                                                .lineLimit(2)
-                                                .multilineTextAlignment(.center)
-                                                .frame(width: 56, height: 24, alignment: .top)
-                                        }
-                                    }
-                                    .buttonStyle(.plain)
-                                    .help(actionDef.title)
-                                }
-                            }
-                            .padding(.vertical, 4)
-                        }
-                        .padding(10)
-                        .background(Color.black.opacity(0.15))
-                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .stroke(Color.white.opacity(0.04), lineWidth: 1)
-                        )
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
-                    } else {
-                        HStack {
-                            Spacer()
-                            Button {
-                                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                                    isActionDrawerOpen = true
-                                }
-                            } label: {
-                                HStack(spacing: 6) {
-                                    Image(systemName: "plus.circle.fill")
-                                        .font(.system(size: 13))
-                                    Text("Add Action")
-                                        .font(.system(size: 12, weight: .semibold))
-                                }
-                                .foregroundColor(.secondary)
-                                .padding(.horizontal, 14)
-                                .padding(.vertical, 8)
-                                .background(Color.white.opacity(0.05))
-                                .clipShape(Capsule())
-                            }
-                            .buttonStyle(.plain)
-                            Spacer()
-                        }
-                        .transition(.move(edge: .top).combined(with: .opacity))
-                    }
-                }
-                .padding(.top, 8)
+                actionSelectionDrawer
             }
         }
         .padding(.horizontal, 14)
