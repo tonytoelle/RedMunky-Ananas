@@ -7,9 +7,6 @@ struct DropShelfView: View {
     
     var body: some View {
         ZStack {
-            // Background WindowDragArea to make it draggable by window background
-            WindowDragArea()
-            
             // Visual Effect Background (HUD window style translucent black card)
             RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .fill(Color(white: 0.08).opacity(0.92))
@@ -18,7 +15,6 @@ struct DropShelfView: View {
                         .stroke(Color.white.opacity(0.12), lineWidth: 1)
                 )
                 .shadow(color: Color.black.opacity(0.5), radius: 15, x: 0, y: 8)
-                .allowsHitTesting(false)
             
             VStack(spacing: 0) {
                 // Header Area
@@ -153,35 +149,34 @@ struct DropShelfView: View {
                             let fileName = url.lastPathComponent
                             let ext = url.pathExtension.uppercased()
                             
-                            // Visual Document Card
-                            ZStack {
-                                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                    .fill(Color.white)
+                            // Visual Document Card (Handled by AppKit dragging source)
+                            DraggableCardContainer(filePaths: manager.heldItems) {
+                                ZStack {
+                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                        .fill(Color.white)
+                                        .frame(width: 60, height: 75)
+                                        .shadow(color: Color.black.opacity(0.3), radius: 6, x: 0, y: 3)
+                                    
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Color.gray.opacity(0.3).frame(height: 5)
+                                        Color.gray.opacity(0.3).frame(height: 3)
+                                        Color.gray.opacity(0.3).frame(height: 3)
+                                        Color.gray.opacity(0.3).frame(height: 3)
+                                        Spacer()
+                                    }
+                                    .padding(10)
                                     .frame(width: 60, height: 75)
-                                    .shadow(color: Color.black.opacity(0.3), radius: 6, x: 0, y: 3)
-                                
-                                VStack(alignment: .leading, spacing: 3) {
-                                    Color.gray.opacity(0.3).frame(height: 5)
-                                    Color.gray.opacity(0.3).frame(height: 3)
-                                    Color.gray.opacity(0.3).frame(height: 3)
-                                    Color.gray.opacity(0.3).frame(height: 3)
-                                    Spacer()
-                                }
-                                .padding(10)
-                                .frame(width: 60, height: 75)
-                                
-                                // File Badge Icon Overlay if not generic
-                                if ext == "SHORTKING" {
-                                    Image(systemName: "crown.fill")
-                                        .font(.system(size: 16))
-                                        .foregroundColor(.orange)
-                                        .shadow(radius: 1)
+                                    
+                                    // File Badge Icon Overlay if not generic
+                                    if ext == "SHORTKING" {
+                                        Image(systemName: "crown.fill")
+                                            .font(.system(size: 16))
+                                            .foregroundColor(.orange)
+                                            .shadow(radius: 1)
+                                    }
                                 }
                             }
-                            .onDrag {
-                                let stringData = manager.heldItems.joined(separator: "\n") as NSString
-                                return NSItemProvider(object: stringData)
-                            }
+                            .frame(width: 60, height: 75)
                             
                             // Filename Label
                             Text(manager.heldItems.count > 1 ? "\(manager.heldItems.count) items selected" : fileName)
@@ -189,7 +184,6 @@ struct DropShelfView: View {
                                 .foregroundColor(.white)
                                 .lineLimit(1)
                                 .padding(.horizontal, 12)
-                                .allowsHitTesting(false)
                             
                             // Item Type Tag capsule
                             Text(manager.heldItems.count > 1 ? "MULTIPLE" : (ext.isEmpty ? "FILE" : ext))
@@ -199,7 +193,6 @@ struct DropShelfView: View {
                                 .padding(.vertical, 3)
                                 .background(Color.white.opacity(0.12))
                                 .clipShape(Capsule())
-                                .allowsHitTesting(false)
                         }
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
@@ -233,17 +226,84 @@ struct DropShelfView: View {
     }
 }
 
-struct WindowDragArea: NSViewRepresentable {
-    func makeNSView(context: Context) -> NSView {
-        return WindowDragNSView()
+// ==========================================
+// MARK: - Native AppKit Dragging Source Container
+// ==========================================
+
+struct DraggableCardContainer<Content: View>: NSViewRepresentable {
+    let filePaths: [String]
+    let content: Content
+    
+    init(filePaths: [String], @ViewBuilder content: () -> Content) {
+        self.filePaths = filePaths
+        self.content = content()
     }
-    func updateNSView(_ nsView: NSView, context: Context) {}
+    
+    func makeNSView(context: Context) -> DraggableContainerNSView {
+        let view = DraggableContainerNSView()
+        view.filePaths = filePaths
+        let hosting = NSHostingView(rootView: content)
+        hosting.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(hosting)
+        NSLayoutConstraint.activate([
+            hosting.topAnchor.constraint(equalTo: view.topAnchor),
+            hosting.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            hosting.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            hosting.trailingAnchor.constraint(equalTo: view.trailingAnchor)
+        ])
+        view.hostingView = hosting
+        return view
+    }
+    
+    func updateNSView(_ nsView: DraggableContainerNSView, context: Context) {
+        nsView.filePaths = filePaths
+        if let hosting = nsView.hostingView as? NSHostingView<Content> {
+            hosting.rootView = content
+        }
+    }
 }
 
-class WindowDragNSView: NSView {
+class DraggableContainerNSView: NSView, NSDraggingSource {
+    var filePaths: [String] = []
+    var hostingView: NSView?
+    private var dragStartLocation: NSPoint?
+    
+    override var mouseDownCanMoveWindow: Bool {
+        return false // Prevents the OS from dragging the window when clicking/dragging the card!
+    }
+    
+    func draggingSession(_ session: NSDraggingSession, sourceOperationMaskFor context: NSDraggingContext) -> NSDragOperation {
+        return [.copy, .move, .generic]
+    }
+    
     override func mouseDown(with event: NSEvent) {
-        if let window = self.window {
-            window.performDrag(with: event)
+        dragStartLocation = event.locationInWindow
+    }
+    
+    override func mouseDragged(with event: NSEvent) {
+        guard let start = dragStartLocation else { return }
+        let current = event.locationInWindow
+        let dist = hypot(current.x - start.x, current.y - start.y)
+        guard dist > 3 else { return }
+        dragStartLocation = nil
+        
+        guard !filePaths.isEmpty else { return }
+        
+        let urls = filePaths.map { URL(fileURLWithPath: $0) }
+        let draggingItems: [NSDraggingItem] = urls.map { url in
+            let draggingItem = NSDraggingItem(pasteboardWriter: url as NSURL)
+            
+            let img = NSWorkspace.shared.icon(forFile: url.path)
+            img.size = NSSize(width: 48, height: 48)
+            let dragRect = NSRect(x: (self.bounds.width - 48)/2, y: (self.bounds.height - 48)/2, width: 48, height: 48)
+            draggingItem.setDraggingFrame(dragRect, contents: img)
+            return draggingItem
         }
+        
+        beginDraggingSession(with: draggingItems, event: event, source: self)
+    }
+    
+    override func mouseUp(with event: NSEvent) {
+        dragStartLocation = nil
     }
 }

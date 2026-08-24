@@ -18,7 +18,7 @@ class DropShelfWindow: NSPanel {
         self.isOpaque = false
         self.hasShadow = true
         self.isMovable = true
-        self.isMovableByWindowBackground = false
+        self.isMovableByWindowBackground = true
         self.contentView = contentView
     }
 }
