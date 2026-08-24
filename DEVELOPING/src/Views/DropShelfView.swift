@@ -306,4 +306,13 @@ class DraggableContainerNSView: NSView, NSDraggingSource {
     override func mouseUp(with event: NSEvent) {
         dragStartLocation = nil
     }
+    
+    func draggingSession(_ session: NSDraggingSession, endedAt screenPoint: NSPoint, operation: NSDragOperation) {
+        // If the item was successfully dropped and accepted (not cancelled)
+        if operation != [] {
+            DispatchQueue.main.async {
+                DropShelfManager.shared.closeShelf()
+            }
+        }
+    }
 }
