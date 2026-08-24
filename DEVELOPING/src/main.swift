@@ -33,6 +33,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDele
         showEditorWindow()
         startBinaryWatcher()
         installDeleteKeyMonitor()
+        DropShelfManager.shared.startMonitoring()
+    }
+    
+    func applicationWillTerminate(_ notification: Notification) {
+        DropShelfManager.shared.stopMonitoring()
     }
     
     private func installDeleteKeyMonitor() {
