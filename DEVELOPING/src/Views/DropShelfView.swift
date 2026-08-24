@@ -7,6 +7,9 @@ struct DropShelfView: View {
     
     var body: some View {
         ZStack {
+            // Background WindowDragView to make it draggable by window background
+            WindowDragView()
+            
             // Visual Effect Background (HUD window style translucent black card)
             RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .fill(Color(white: 0.08).opacity(0.92))
@@ -15,6 +18,7 @@ struct DropShelfView: View {
                         .stroke(Color.white.opacity(0.12), lineWidth: 1)
                 )
                 .shadow(color: Color.black.opacity(0.5), radius: 15, x: 0, y: 8)
+                .allowsHitTesting(false)
             
             VStack(spacing: 0) {
                 // Header Area
@@ -185,6 +189,7 @@ struct DropShelfView: View {
                                 .foregroundColor(.white)
                                 .lineLimit(1)
                                 .padding(.horizontal, 12)
+                                .allowsHitTesting(false)
                             
                             // Item Type Tag capsule
                             Text(manager.heldItems.count > 1 ? "MULTIPLE" : (ext.isEmpty ? "FILE" : ext))
@@ -194,9 +199,9 @@ struct DropShelfView: View {
                                 .padding(.vertical, 3)
                                 .background(Color.white.opacity(0.12))
                                 .clipShape(Capsule())
+                                .allowsHitTesting(false)
                         }
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .contentShape(Rectangle())
                     }
                 }
                 .onDrop(of: [.plainText, .utf8PlainText, .fileURL], isTargeted: $isTargeted) { providers in
