@@ -52,6 +52,10 @@ class MacroStore: ObservableObject {
     @Published var copiedMacroURL: URL? = nil
     @Published var copiedActions: [MacroActionItem] = []
     
+    // Caching active application info for robust app-specific hotkey overrides
+    var activeAppBundle: String = ""
+    var activeAppName: String = ""
+    
     var selectedActionID: UUID? {
         get { selectedActionIDs.first }
         set {
@@ -212,6 +216,12 @@ class MacroStore: ObservableObject {
         }
 
         self.watchDirectoryURL = URL(fileURLWithPath: savedPath)
+        
+        // Cache initial active app information
+        if let initialApp = NSWorkspace.shared.frontmostApplication {
+            self.activeAppBundle = initialApp.bundleIdentifier ?? ""
+            self.activeAppName = initialApp.localizedName ?? ""
+        }
 
         loadMacros()
         startWatching()
@@ -226,12 +236,21 @@ class MacroStore: ObservableObject {
     }
     
     @objc private func handleAppChange(_ notification: Notification) {
-        // Delay registration slightly to ensure NSWorkspace.shared.frontmostApplication has updated to the new app
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
-            if let app = NSWorkspace.shared.frontmostApplication {
-                print("📱 Active App Changed to: \(app.localizedName ?? "") (\(app.bundleIdentifier ?? ""))")
+        if let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication {
+            let bundle = app.bundleIdentifier ?? ""
+            let name = app.localizedName ?? ""
+            print("📱 Active App Changed Notification: \(name) (\(bundle))")
+            self.activeAppBundle = bundle
+            self.activeAppName = name
+            
+            // Re-register hotkeys on the main thread for the newly focused app
+            if Thread.isMainThread {
+                self.registerAllCarbonHotKeys()
+            } else {
+                DispatchQueue.main.async {
+                    self.registerAllCarbonHotKeys()
+                }
             }
-            self?.registerAllCarbonHotKeys()
         }
     }
 
@@ -395,9 +414,8 @@ class MacroStore: ObservableObject {
         }
         CarbonHotKeyManager.shared.unregisterAll()
         
-        let frontApp = NSWorkspace.shared.frontmostApplication
-        let activeBundle = frontApp?.bundleIdentifier ?? ""
-        let activeName = frontApp?.localizedName ?? ""
+        let activeBundle = self.activeAppBundle
+        let activeName = self.activeAppName
         
         // Track which key combos are already registered by global macros
         // Key: "\(keyCode)-\(modifiers)" to uniquely identify a hotkey combo

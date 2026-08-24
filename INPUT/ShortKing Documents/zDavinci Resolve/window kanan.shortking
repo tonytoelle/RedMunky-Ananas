@@ -1,5 +1,4 @@
 # ShortKing Macro Script
-ENABLED: false
 TRIGGER: cmd+right
 
 # Actions:
