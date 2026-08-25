@@ -5,3 +5,8 @@ TRIGGER: f4
 ACTION: path 924,810:click 983,842:click
 ACTION: do_again
 ACTION: click current
+ACTION: path 
+ACTION: path 373,267:move
+ACTION: right_click 1283 628
+ACTION: click 1268 676
+ACTION: click 834 830

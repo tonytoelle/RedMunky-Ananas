@@ -56,6 +56,7 @@ class CaptureOverlayState: ObservableObject {
     @Published var isHoveringHud: Bool = false
     @Published var lastHudCenter: CGPoint = .zero
     @Published var hudDragOffset: CGSize = CGSize(width: 100, height: 100) // Default relative distance offset
+    @Published var windowQuartzOrigin: CGPoint = .zero
     
     var isHudVisible: Bool {
         guard case .sequence = mode else { return false }
@@ -142,6 +143,20 @@ struct CaptureOverlaySwiftUIView: View {
     @State private var pinDragStartPoint: CGPoint? = nil
     @State private var areaDragStartPoints: (CGPoint, CGPoint)? = nil
     
+    private func localPoint(from quartzPt: CGPoint) -> CGPoint {
+        return CGPoint(
+            x: quartzPt.x - state.windowQuartzOrigin.x,
+            y: quartzPt.y - state.windowQuartzOrigin.y
+        )
+    }
+    
+    private func quartzPoint(from localPt: CGPoint) -> CGPoint {
+        return CGPoint(
+            x: localPt.x + state.windowQuartzOrigin.x,
+            y: localPt.y + state.windowQuartzOrigin.y
+        )
+    }
+
     var body: some View {
         GeometryReader { geo in
             ZStack {
@@ -154,8 +169,8 @@ struct CaptureOverlaySwiftUIView: View {
                 // ─────────────────────────────────────────────
                 if case .windowTransform = state.mode {
                     if state.points.count == 1 {
-                        let p1 = state.points[0].point
-                        let cursor = state.quartzLocation
+                        let p1 = localPoint(from: state.points[0].point)
+                        let cursor = localPoint(from: state.quartzLocation)
                         let rect = CGRect(
                             x: min(p1.x, cursor.x),
                             y: min(p1.y, cursor.y),
@@ -166,8 +181,8 @@ struct CaptureOverlaySwiftUIView: View {
                             .stroke(Color.blue, style: StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
                             .allowsHitTesting(false)
                     } else if state.points.count >= 2 {
-                        let p1 = state.points[0].point
-                        let p3 = state.points[1].point
+                        let p1 = localPoint(from: state.points[0].point)
+                        let p3 = localPoint(from: state.points[1].point)
                         let minX = min(p1.x, p3.x)
                         let minY = min(p1.y, p3.y)
                         let maxX = max(p1.x, p3.x)
@@ -185,17 +200,22 @@ struct CaptureOverlaySwiftUIView: View {
                                     .onChanged { val in
                                         guard state.phase == .editing, !state.isPassThroughMode else { return }
                                         if areaDragStartPoints == nil {
-                                            areaDragStartPoints = (state.points[0].point, state.points[1].point)
+                                            areaDragStartPoints = (
+                                                localPoint(from: state.points[0].point),
+                                                localPoint(from: state.points[1].point)
+                                            )
                                         }
                                         if let (origP1, origP3) = areaDragStartPoints {
-                                            state.points[0].point = CGPoint(
+                                            let newP1 = CGPoint(
                                                 x: max(0, min(origP1.x + val.translation.width, geo.size.width)),
                                                 y: max(0, min(origP1.y + val.translation.height, geo.size.height))
                                             )
-                                            state.points[1].point = CGPoint(
+                                            let newP3 = CGPoint(
                                                 x: max(0, min(origP3.x + val.translation.width, geo.size.width)),
                                                 y: max(0, min(origP3.y + val.translation.height, geo.size.height))
                                             )
+                                            state.points[0].point = quartzPoint(from: newP1)
+                                            state.points[1].point = quartzPoint(from: newP3)
                                             state.notifyPointsRealtime()
                                         }
                                     }
@@ -219,19 +239,19 @@ struct CaptureOverlaySwiftUIView: View {
                                     .background(Circle().fill(Color.blue))
                                     .frame(width: isSelected ? 24 : 20, height: isSelected ? 24 : 20)
                                     .shadow(color: Color.black.opacity(0.35), radius: 2)
-                                    .position(state.points[idx].point)
+                                    .position(localPoint(from: state.points[idx].point))
                                     .gesture(
                                         DragGesture(minimumDistance: 1, coordinateSpace: .global)
                                             .onChanged { val in
                                                 state.activeDraggingIndex = idx
                                                 state.selectedPointIndex = idx
                                                 if pinDragStartPoint == nil {
-                                                    pinDragStartPoint = state.points[idx].point
+                                                    pinDragStartPoint = localPoint(from: state.points[idx].point)
                                                 }
                                                 if let startPt = pinDragStartPoint {
                                                     let newX = max(0, min(startPt.x + val.translation.width, geo.size.width))
                                                     let newY = max(0, min(startPt.y + val.translation.height, geo.size.height))
-                                                    state.points[idx].point = CGPoint(x: newX, y: newY)
+                                                    state.points[idx].point = quartzPoint(from: CGPoint(x: newX, y: newY))
                                                     state.notifyPointsRealtime()
                                                 }
                                             }
@@ -249,8 +269,8 @@ struct CaptureOverlaySwiftUIView: View {
                     }
                 } else if state.points.count > 1 {
                     ForEach(0..<(state.points.count - 1), id: \.self) { idx in
-                        let start = state.points[idx].point
-                        let end = state.points[idx + 1].point
+                        let start = localPoint(from: state.points[idx].point)
+                        let end = localPoint(from: state.points[idx + 1].point)
                         let ptA = state.points[idx]
                         let ptB = state.points[idx + 1]
                         
@@ -283,8 +303,8 @@ struct CaptureOverlaySwiftUIView: View {
                 
                 // Active cursor preview lines (if inserting a point in between existing points)
                 if state.isFollowingCursor, let sel = state.selectedPointIndex, sel < state.points.count {
-                    let start = state.points[sel].point
-                    let end = state.quartzLocation
+                    let start = localPoint(from: state.points[sel].point)
+                    let end = localPoint(from: state.quartzLocation)
                     let ptA = state.points[sel]
                     
                     let lineOpacityMultiplier: Double = state.isPassThroughMode ? 0.35 : 1.0
@@ -312,7 +332,7 @@ struct CaptureOverlaySwiftUIView: View {
                     if sel + 1 < state.points.count {
                         let nextPt = state.points[sel + 1]
                         let nextStart = end
-                        let nextEnd = nextPt.point
+                        let nextEnd = localPoint(from: nextPt.point)
                         
                         let midColor2 = blendColors(typeA: state.defaultPointType, typeB: nextPt.type)
                         let nextGrad = LinearGradient(
@@ -339,13 +359,13 @@ struct CaptureOverlaySwiftUIView: View {
                 // ─────────────────────────────────────────────
                 // PINS RENDERING (Compact Clean Minimal Circles)
                 // ─────────────────────────────────────────────
-                // PINS RENDERING (Compact Clean Minimal Circles)
-                // ─────────────────────────────────────────────
                 if !state.mode.isWindowTransform {
                     ForEach(Array(state.points.enumerated()), id: \.element.id) { idx, item in
                         let isHovered = state.hoveredIndex == idx
                         let isDragging = state.activeDraggingIndex == idx
                         let isSelected = state.selectedPointIndex == idx
+                        
+                        let localPt = localPoint(from: item.point)
                         
                         Group {
                             pinMarker(
@@ -357,7 +377,7 @@ struct CaptureOverlaySwiftUIView: View {
                                 repeatCount: item.repeatCount
                             )
                         }
-                        .position(x: item.point.x, y: item.point.y)
+                        .position(x: localPt.x, y: localPt.y)
                         .opacity(state.isPassThroughMode ? 0.35 : 1.0)
                         .allowsHitTesting(!state.isPassThroughMode)
                         .gesture(
@@ -366,13 +386,13 @@ struct CaptureOverlaySwiftUIView: View {
                                     state.activeDraggingIndex = idx
                                     state.selectedPointIndex = idx
                                     if pinDragStartPoint == nil {
-                                        pinDragStartPoint = item.point
+                                        pinDragStartPoint = localPoint(from: item.point)
                                     }
                                     if let startPt = pinDragStartPoint {
                                         let newX = max(0, min(startPt.x + val.translation.width, geo.size.width))
                                         let newY = max(0, min(startPt.y + val.translation.height, geo.size.height))
                                         
-                                        state.points[idx].point = CGPoint(x: newX, y: newY)
+                                        state.points[idx].point = quartzPoint(from: CGPoint(x: newX, y: newY))
                                     }
                                 }
                                 .onEnded { _ in
@@ -456,7 +476,7 @@ struct CaptureOverlaySwiftUIView: View {
                             .frame(width: 8, height: 8)
                             .shadow(color: Color.black.opacity(0.35), radius: 1.5)
                     }
-                    .position(state.quartzLocation)
+                    .position(localPoint(from: state.quartzLocation))
                     .allowsHitTesting(false)
                 }
             }
@@ -739,9 +759,9 @@ struct CaptureOverlaySwiftUIView: View {
         
         let targetPt: CGPoint
         if !state.isFollowingCursor, let sel = state.selectedPointIndex, sel < state.points.count {
-            targetPt = state.points[sel].point
+            targetPt = localPoint(from: state.points[sel].point)
         } else {
-            targetPt = state.quartzLocation
+            targetPt = localPoint(from: state.quartzLocation)
         }
         
         var x = targetPt.x + state.hudDragOffset.width
@@ -913,10 +933,15 @@ class CaptureOverlayHostingView: NSView {
             if stateModel.isFollowingCursor && !stateModel.isPassThroughMode {
                 CaptureOverlayHostingView.safeHideCursor()
             }
+            let primaryScreenH = NSScreen.screens.first?.frame.height ?? 1080
+            stateModel.windowQuartzOrigin = CGPoint(
+                x: win.frame.origin.x,
+                y: primaryScreenH - (win.frame.origin.y + win.frame.size.height)
+            )
+            
             let screenPt = NSEvent.mouseLocation
             let winLoc = win.convertPoint(fromScreen: screenPt)
-            let screenHeight = win.screen?.frame.height ?? NSScreen.main?.frame.height ?? bounds.height
-            let quartzPt = CGPoint(x: winLoc.x, y: screenHeight - winLoc.y)
+            let quartzPt = CGPoint(x: screenPt.x, y: primaryScreenH - screenPt.y)
             stateModel.currentLocation = winLoc
             stateModel.quartzLocation = quartzPt
             win.makeFirstResponder(self)
@@ -952,7 +977,7 @@ class CaptureOverlayHostingView: NSView {
                     let screenPt = NSEvent.mouseLocation
                     let winLoc = win.convertPoint(fromScreen: screenPt)
                     let screenHeight = NSScreen.screens.first?.frame.height ?? 1080
-                    let quartzPt = CGPoint(x: winLoc.x, y: screenHeight - winLoc.y)
+                    let quartzPt = CGPoint(x: screenPt.x, y: screenHeight - screenPt.y)
                     
                     DispatchQueue.main.async {
                         self.stateModel.currentLocation = winLoc
@@ -969,7 +994,7 @@ class CaptureOverlayHostingView: NSView {
                     let screenPt = NSEvent.mouseLocation
                     let winLoc = win.convertPoint(fromScreen: screenPt)
                     let screenHeight = NSScreen.screens.first?.frame.height ?? 1080
-                    let quartzPt = CGPoint(x: winLoc.x, y: screenHeight - winLoc.y)
+                    let quartzPt = CGPoint(x: screenPt.x, y: screenHeight - screenPt.y)
                     
                     self.stateModel.currentLocation = winLoc
                     self.stateModel.quartzLocation = quartzPt
@@ -1092,11 +1117,11 @@ class CaptureOverlayHostingView: NSView {
     }
     
     private func updateMouse(event: NSEvent) {
-        let winLoc = event.locationInWindow
+        let screenPt = event.window?.convertToScreen(NSRect(origin: event.locationInWindow, size: .zero)).origin ?? NSEvent.mouseLocation
         let screenHeight = NSScreen.screens.first?.frame.height ?? 1080
-        let quartzPt = CGPoint(x: winLoc.x, y: screenHeight - winLoc.y)
+        let quartzPt = CGPoint(x: screenPt.x, y: screenHeight - screenPt.y)
         
-        stateModel.currentLocation = winLoc
+        stateModel.currentLocation = event.locationInWindow
         stateModel.quartzLocation = quartzPt
         updateHover(quartzPt: quartzPt)
     }
@@ -1113,8 +1138,9 @@ class CaptureOverlayHostingView: NSView {
     
     // MARK: - Hit Testing (Native macOS Click-Through)
     override func hitTest(_ point: NSPoint) -> NSView? {
+        let screenPt = self.window?.convertToScreen(NSRect(origin: point, size: .zero)).origin ?? NSEvent.mouseLocation
         let screenHeight = NSScreen.screens.first?.frame.height ?? 1080
-        let quartzPt = CGPoint(x: point.x, y: screenHeight - point.y)
+        let quartzPt = CGPoint(x: screenPt.x, y: screenHeight - screenPt.y)
         
         // In pass-through mode: ONLY HUD card can be clicked!
         if stateModel.isPassThroughMode {
