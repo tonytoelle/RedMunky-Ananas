@@ -1443,7 +1443,7 @@ class CaptureOverlayWindow: NSPanel {
         self.mode = mode
         self.onClickCaptured = onClickCaptured
         self.onClickRealTime = onClickRealTime
-        let screenRect = NSScreen.main?.frame ?? NSRect(x: 0, y: 0, width: 1920, height: 1080)
+        let screenRect = NSScreen.screens.reduce(NSRect.zero) { $0.union($1.frame) }
         super.init(contentRect: screenRect,
                    styleMask: [.borderless, .nonactivatingPanel],
                    backing: .buffered,
@@ -1462,7 +1462,7 @@ class CaptureOverlayWindow: NSPanel {
         self.mode = mode
         self.onDragCaptured = onDragCaptured
         self.onDragRealTime = onDragRealTime
-        let screenRect = NSScreen.main?.frame ?? NSRect(x: 0, y: 0, width: 1920, height: 1080)
+        let screenRect = NSScreen.screens.reduce(NSRect.zero) { $0.union($1.frame) }
         super.init(contentRect: screenRect,
                    styleMask: [.borderless, .nonactivatingPanel],
                    backing: .buffered,
@@ -1486,7 +1486,7 @@ class CaptureOverlayWindow: NSPanel {
         self.mode = .sequence(initialPoints: initialPoints)
         self.onSequenceCaptured = onSequenceCaptured
         self.onSequenceRealTime = onSequenceRealTime
-        let screenRect = NSScreen.main?.frame ?? NSRect(x: 0, y: 0, width: 1920, height: 1080)
+        let screenRect = NSScreen.screens.reduce(NSRect.zero) { $0.union($1.frame) }
         super.init(contentRect: screenRect,
                    styleMask: [.borderless, .nonactivatingPanel],
                    backing: .buffered,
@@ -1498,7 +1498,7 @@ class CaptureOverlayWindow: NSPanel {
          onWindowTransformCaptured: @escaping (CGPoint, CGPoint, CGPoint, CGPoint) -> Void) {
         self.mode = mode
         self.onWindowTransformCaptured = onWindowTransformCaptured
-        let screenRect = NSScreen.main?.frame ?? NSRect(x: 0, y: 0, width: 1920, height: 1080)
+        let screenRect = NSScreen.screens.reduce(NSRect.zero) { $0.union($1.frame) }
         super.init(contentRect: screenRect,
                    styleMask: [.borderless, .nonactivatingPanel],
                    backing: .buffered,

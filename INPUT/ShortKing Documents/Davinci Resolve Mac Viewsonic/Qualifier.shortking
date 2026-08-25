@@ -7,3 +7,6 @@ ACTION: do_again
 ACTION: click 2450 890
 ACTION: right_click 0 0
 ACTION: path 2487,903:move
+ACTION: click 4294 821
+ACTION: click 2354 496
+ACTION: click 2610 890
