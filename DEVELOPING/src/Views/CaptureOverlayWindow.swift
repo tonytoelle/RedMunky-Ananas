@@ -1567,6 +1567,14 @@ class CaptureOverlayWindow: NSPanel {
             x: self.frame.origin.x,
             y: primaryScreenH - (self.frame.origin.y + self.frame.size.height)
         )
+        let mouseLoc = NSEvent.mouseLocation
+        let quartzPt = CGPoint(x: mouseLoc.x, y: primaryScreenH - mouseLoc.y)
+        let localPt = CGPoint(
+            x: mouseLoc.x - self.frame.origin.x,
+            y: (self.frame.origin.y + self.frame.size.height) - mouseLoc.y
+        )
+        contentView.stateModel.quartzLocation = quartzPt
+        contentView.stateModel.localMouseLocation = localPt
         contentView.onWindowTransformCaptured = self.onWindowTransformCaptured
         self.contentView = contentView
         self.makeKeyAndOrderFront(nil)
