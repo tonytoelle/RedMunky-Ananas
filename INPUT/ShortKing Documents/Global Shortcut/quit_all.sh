@@ -4,6 +4,7 @@
 EXCLUDED=(
   "com.apple.finder"
   "com.redmunky.shortking"
+  "com.redmunky.ogle.versib.v8"
 
   "ca.spreadspace.Hidden"
   "ca.spreadspace.HiddenBar"
