@@ -839,7 +839,6 @@ class CaptureOverlayHostingView: NSView {
             guard let self = self else { return }
             self.window?.invalidateCursorRects(for: self)
             if following && !self.stateModel.isPassThroughMode {
-                NSCursor.hide()
                 self.window?.ignoresMouseEvents = false
                 
                 // Get current mouse location instantly
@@ -849,23 +848,14 @@ class CaptureOverlayHostingView: NSView {
                 self.stateModel.quartzLocation = quartzPt
                 if let win = self.window {
                     let winLoc = win.convertPoint(fromScreen: mouseLoc)
-                    self.stateModel.localMouseLocation = CGPoint(x: winLoc.x, y: self.bounds.height - winLoc.y)
+                    self.stateModel.localMouseLocation = CGPoint(x: winLoc.x, y: win.frame.size.height - winLoc.y)
                 }
-            } else {
-                NSCursor.unhide()
             }
         }
         
         stateModel.onPassThroughChanged = { [weak self] isPassThrough in
             guard let self = self else { return }
             self.window?.invalidateCursorRects(for: self)
-            if isPassThrough {
-                NSCursor.unhide()
-            } else if self.stateModel.isFollowingCursor {
-                NSCursor.hide()
-            } else {
-                NSCursor.unhide()
-            }
         }
         
         stateModel.onConfirmAll = { [weak self] in
@@ -907,24 +897,8 @@ class CaptureOverlayHostingView: NSView {
 
     private static var cursorHideCount = 0
 
-    static func safeHideCursor() {
-        if cursorHideCount == 0 {
-            NSCursor.hide()
-        }
-        cursorHideCount += 1
-    }
-
-    static func safeUnhideCursor() {
-        while cursorHideCount > 0 {
-            NSCursor.unhide()
-            cursorHideCount -= 1
-        }
-        NSCursor.unhide()
-        // Force Cocoa to set cursor back to arrow state
-        DispatchQueue.main.async {
-            NSCursor.arrow.set()
-        }
-    }
+    static func safeHideCursor() {}
+    static func safeUnhideCursor() {}
 
     private func cleanupMonitors() {
         CaptureOverlayHostingView.safeUnhideCursor()
