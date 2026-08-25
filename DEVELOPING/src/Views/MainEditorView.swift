@@ -864,6 +864,37 @@ struct FolderInspectorView: View {
                 .padding(.top, 16)
 
                 // ═══════════════════════════════════════════════════
+                // FOLDER STATUS CARD
+                // ═══════════════════════════════════════════════════
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Image(systemName: config.isEnabled ? "play.circle.fill" : "pause.circle.fill")
+                            .foregroundColor(config.isEnabled ? .green : .orange)
+                            .font(.system(size: 14, weight: .semibold))
+                        Text(config.isEnabled ? "Folder is Active" : "Folder is Disabled")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(.white)
+                        Spacer()
+                        Toggle("", isOn: Binding(
+                            get: { config.isEnabled },
+                            set: { newValue in
+                                config.isEnabled = newValue
+                                saveConfig()
+                            }
+                        ))
+                        .toggleStyle(.switch)
+                    }
+
+                    Text("When disabled, all macro shortcuts inside this folder are temporarily suspended.")
+                        .font(.system(size: 11.5))
+                        .foregroundColor(Color(white: 0.55))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(16)
+                .background(Color(white: 0.16))
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+                // ═══════════════════════════════════════════════════
                 // TARGET APPLICATIONS CARD
                 // ═══════════════════════════════════════════════════
                 VStack(alignment: .leading, spacing: 12) {
@@ -1245,15 +1276,17 @@ struct SidebarNodeView: View {
                                     Image(nsImage: nsImage)
                                         .resizable()
                                         .frame(width: 22, height: 22)
+                                        .opacity(config.isEnabled ? 1.0 : 0.4)
                                 } else {
                                     Image(systemName: config.iconName)
-                                        .foregroundColor(config.color)
+                                        .foregroundColor(config.isEnabled ? config.color : Color.gray.opacity(0.5))
                                         .font(.system(size: 17))
                                 }
 
                                 Text(name.toTitleCase())
                                     .font(.system(size: 13, weight: .bold))
-                                    .foregroundColor(isSelected ? .white : Color(white: 0.92))
+                                    .foregroundColor(isSelected ? .white : (config.isEnabled ? Color(white: 0.92) : Color.secondary.opacity(0.7)))
+                                    .strikethrough(!config.isEnabled, color: Color.secondary.opacity(0.6))
                                     .lineLimit(1)
                             }
                             
@@ -1332,6 +1365,18 @@ struct SidebarNodeView: View {
                         store.selectedFilePath = nil
                     } label: {
                         Label("Folder Settings…", systemImage: "gearshape")
+                    }
+
+                    Button {
+                        var newConfig = config
+                        newConfig.isEnabled.toggle()
+                        store.saveFolderConfig(newConfig, for: url)
+                    } label: {
+                        if config.isEnabled {
+                            Label("Disable Folder", systemImage: "pause.circle")
+                        } else {
+                            Label("Enable Folder", systemImage: "play.circle")
+                        }
                     }
 
                     Divider()

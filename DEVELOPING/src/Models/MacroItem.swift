@@ -16,6 +16,11 @@ class MacroItem: Identifiable, ObservableObject {
     @Published var isEnabled: Bool = true
     var parentFolderConfig: FolderConfig?
 
+    var isEffectivelyEnabled: Bool {
+        guard isEnabled else { return false }
+        return parentFolderConfig?.isEnabled ?? true
+    }
+
     var actions: [MacroAction] { actionItems.map(\.action) }
 
     var trigger: Trigger {

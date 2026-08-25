@@ -1,0 +1,5 @@
+# ShortKing Macro Script
+TRIGGER: f7
+
+# Actions:
+ACTION: path 983,814:click 596,872:click

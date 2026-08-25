@@ -1,0 +1,5 @@
+# ShortKing Macro Script
+TRIGGER: \
+
+# Actions:
+ACTION: press_shortcut opt+w

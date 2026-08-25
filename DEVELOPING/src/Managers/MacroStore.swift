@@ -256,7 +256,7 @@ class MacroStore: ObservableObject {
 
     func triggerMacroBySpecialKey(name: String) {
         for macro in macros {
-            guard macro.isEnabled else { continue }
+            guard macro.isEffectivelyEnabled else { continue }
             let items = macro.actionItems
             for trigger in macro.triggers {
                 let targetCode: CGKeyCode = (name == "brightness_down") ? 145 : 144
@@ -509,7 +509,7 @@ class MacroStore: ObservableObject {
         
         // PASS 1: Register APP-SPECIFIC macros first (if target app matches current active app)
         for macro in macros {
-            guard macro.isEnabled else { continue }
+            guard macro.isEffectivelyEnabled else { continue }
             let status = getRestrictionStatus(for: macro)
             
             if status.isRestricted && status.matchesActiveApp {
@@ -519,7 +519,7 @@ class MacroStore: ObservableObject {
         
         // PASS 2: Register GLOBAL macros only if key combo is not already taken by active app-specific macro
         for macro in macros {
-            guard macro.isEnabled else { continue }
+            guard macro.isEffectivelyEnabled else { continue }
             let status = getRestrictionStatus(for: macro)
             
             if !status.isRestricted {

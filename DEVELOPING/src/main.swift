@@ -413,19 +413,19 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDele
         // Macro list submenu
         let macros = MacroStore.shared.macros
         if !macros.isEmpty {
-            let activeMacros = macros.filter { $0.isEnabled }
+            let activeMacros = macros.filter { $0.isEffectivelyEnabled }
             let macrosHeader = NSMenuItem(title: "Active Macros (\(activeMacros.count)):", action: nil, keyEquivalent: "")
             macrosHeader.isEnabled = false
             statusMenu.addItem(macrosHeader)
 
             for macro in macros {
                 let name = macro.fileName.replacingOccurrences(of: ".shortking", with: "")
-                let statusIcon = macro.isEnabled ? "▶" : "⏸ (Off)"
+                let statusIcon = macro.isEffectivelyEnabled ? "▶" : "⏸ (Off)"
                 let title = "  \(statusIcon) \(name)  [\(macro.trigger.displayString)]"
                 let item = NSMenuItem(title: title, action: #selector(runMacroFromMenu(_:)), keyEquivalent: "")
                 item.representedObject = macro
                 item.target = self
-                item.isEnabled = macro.isEnabled
+                item.isEnabled = macro.isEffectivelyEnabled
                 statusMenu.addItem(item)
             }
             statusMenu.addItem(NSMenuItem.separator())

@@ -496,6 +496,33 @@ struct FolderConfig: Codable, Equatable {
     var isRestrictedToApps: Bool = false
     var targetApps: [TargetApp] = []
     var customAppIconBundleId: String? = nil
+    var isEnabled: Bool = true
+    
+    init() {}
+    
+    init(iconName: String = "folder.fill", colorName: String = "blue", isRestrictedToApps: Bool = false, targetApps: [TargetApp] = [], customAppIconBundleId: String? = nil, isEnabled: Bool = true) {
+        self.iconName = iconName
+        self.colorName = colorName
+        self.isRestrictedToApps = isRestrictedToApps
+        self.targetApps = targetApps
+        self.customAppIconBundleId = customAppIconBundleId
+        self.isEnabled = isEnabled
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case iconName, colorName, isRestrictedToApps, targetApps, customAppIconBundleId, isEnabled
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.iconName = try container.decodeIfPresent(String.self, forKey: .iconName) ?? "folder.fill"
+        self.colorName = try container.decodeIfPresent(String.self, forKey: .colorName) ?? "blue"
+        self.isRestrictedToApps = try container.decodeIfPresent(Bool.self, forKey: .isRestrictedToApps) ?? false
+        self.targetApps = try container.decodeIfPresent([TargetApp].self, forKey: .targetApps) ?? []
+        self.customAppIconBundleId = try container.decodeIfPresent(String.self, forKey: .customAppIconBundleId)
+        self.isEnabled = try container.decodeIfPresent(Bool.self, forKey: .isEnabled) ?? true
+    }
+
     
     var color: Color {
         switch colorName.lowercased() {
