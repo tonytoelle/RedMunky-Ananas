@@ -17,6 +17,7 @@ class CaptureOverlayState: ObservableObject {
     @Published var mode: CaptureOverlayWindow.Mode = .click(button: .left, initialPoint: nil)
     @Published var currentLocation: CGPoint = .zero       // In Cocoa window coordinates (bottom-left origin)
     @Published var quartzLocation: CGPoint = .zero        // In Quartz display coordinates (top-left origin)
+    @Published var localMouseLocation: CGPoint = .zero    // In SwiftUI view space (top-left origin, local to window)
     var onIsFollowingCursorChanged: ((Bool) -> Void)? = nil
     @Published var isFollowingCursor: Bool = true {
         didSet {
@@ -170,7 +171,7 @@ struct CaptureOverlaySwiftUIView: View {
                 if case .windowTransform = state.mode {
                     if state.points.count == 1 {
                         let p1 = localPoint(from: state.points[0].point)
-                        let cursor = localPoint(from: state.quartzLocation)
+                        let cursor = state.localMouseLocation  // Use direct local coords
                         let rect = CGRect(
                             x: min(p1.x, cursor.x),
                             y: min(p1.y, cursor.y),
@@ -304,7 +305,7 @@ struct CaptureOverlaySwiftUIView: View {
                 // Active cursor preview lines (if inserting a point in between existing points)
                 if state.isFollowingCursor, let sel = state.selectedPointIndex, sel < state.points.count {
                     let start = localPoint(from: state.points[sel].point)
-                    let end = localPoint(from: state.quartzLocation)
+                    let end = state.localMouseLocation  // Use direct local coords, not quartzLocation conversion
                     let ptA = state.points[sel]
                     
                     let lineOpacityMultiplier: Double = state.isPassThroughMode ? 0.35 : 1.0
@@ -476,7 +477,7 @@ struct CaptureOverlaySwiftUIView: View {
                             .frame(width: 8, height: 8)
                             .shadow(color: Color.black.opacity(0.35), radius: 1.5)
                     }
-                    .position(localPoint(from: state.quartzLocation))
+                    .position(state.localMouseLocation)  // Use direct local coords for cursor dot
                     .allowsHitTesting(false)
                 }
             }
@@ -761,7 +762,7 @@ struct CaptureOverlaySwiftUIView: View {
         if !state.isFollowingCursor, let sel = state.selectedPointIndex, sel < state.points.count {
             targetPt = localPoint(from: state.points[sel].point)
         } else {
-            targetPt = localPoint(from: state.quartzLocation)
+            targetPt = state.localMouseLocation  // Use direct local coords for cursor-following HUD
         }
         
         var x = targetPt.x + state.hudDragOffset.width
@@ -822,6 +823,8 @@ class CaptureOverlayHostingView: NSView {
         let initialMouseLoc = NSEvent.mouseLocation
         let screenHeight = NSScreen.screens.first?.frame.height ?? 1080
         stateModel.quartzLocation = CGPoint(x: initialMouseLoc.x, y: screenHeight - initialMouseLoc.y)
+        // localMouseLocation will be corrected in viewDidMoveToWindow; init to cursor pos as placeholder
+        stateModel.localMouseLocation = CGPoint(x: initialMouseLoc.x, y: screenHeight - initialMouseLoc.y)
         
         if !initialPoints.isEmpty {
             stateModel.phase = .editing
@@ -844,6 +847,10 @@ class CaptureOverlayHostingView: NSView {
                 let screenHeight = NSScreen.screens.first?.frame.height ?? 1080
                 let quartzPt = CGPoint(x: mouseLoc.x, y: screenHeight - mouseLoc.y)
                 self.stateModel.quartzLocation = quartzPt
+                if let win = self.window {
+                    let winLoc = win.convertPoint(fromScreen: mouseLoc)
+                    self.stateModel.localMouseLocation = CGPoint(x: winLoc.x, y: self.bounds.height - winLoc.y)
+                }
             } else {
                 NSCursor.unhide()
             }
@@ -942,8 +949,11 @@ class CaptureOverlayHostingView: NSView {
             let screenPt = NSEvent.mouseLocation
             let winLoc = win.convertPoint(fromScreen: screenPt)
             let quartzPt = CGPoint(x: screenPt.x, y: primaryScreenH - screenPt.y)
+            // localMouseLocation: directly computed from winLoc (Cocoa bottom-left) flipped to top-left
+            let localPt = CGPoint(x: winLoc.x, y: bounds.height - winLoc.y)
             stateModel.currentLocation = winLoc
             stateModel.quartzLocation = quartzPt
+            stateModel.localMouseLocation = localPt
             win.makeFirstResponder(self)
             
             if localKeyMonitor == nil {
@@ -978,10 +988,12 @@ class CaptureOverlayHostingView: NSView {
                     let winLoc = win.convertPoint(fromScreen: screenPt)
                     let screenHeight = NSScreen.screens.first?.frame.height ?? 1080
                     let quartzPt = CGPoint(x: screenPt.x, y: screenHeight - screenPt.y)
+                    let localPt = CGPoint(x: winLoc.x, y: self.bounds.height - winLoc.y)
                     
                     DispatchQueue.main.async {
                         self.stateModel.currentLocation = winLoc
                         self.stateModel.quartzLocation = quartzPt
+                        self.stateModel.localMouseLocation = localPt
                         self.updateHover(quartzPt: quartzPt)
                         self.updatePassthrough(quartzPt: quartzPt)
                     }
@@ -995,9 +1007,11 @@ class CaptureOverlayHostingView: NSView {
                     let winLoc = win.convertPoint(fromScreen: screenPt)
                     let screenHeight = NSScreen.screens.first?.frame.height ?? 1080
                     let quartzPt = CGPoint(x: screenPt.x, y: screenHeight - screenPt.y)
+                    let localPt = CGPoint(x: winLoc.x, y: self.bounds.height - winLoc.y)
                     
                     self.stateModel.currentLocation = winLoc
                     self.stateModel.quartzLocation = quartzPt
+                    self.stateModel.localMouseLocation = localPt
                     self.updateHover(quartzPt: quartzPt)
                     self.updatePassthrough(quartzPt: quartzPt)
                     
@@ -1121,8 +1135,13 @@ class CaptureOverlayHostingView: NSView {
         let screenHeight = NSScreen.screens.first?.frame.height ?? 1080
         let quartzPt = CGPoint(x: screenPt.x, y: screenHeight - screenPt.y)
         
+        // localMouseLocation: window-local top-left origin for SwiftUI rendering
+        let winH = self.bounds.height
+        let localPt = CGPoint(x: event.locationInWindow.x, y: winH - event.locationInWindow.y)
+        
         stateModel.currentLocation = event.locationInWindow
         stateModel.quartzLocation = quartzPt
+        stateModel.localMouseLocation = localPt
         updateHover(quartzPt: quartzPt)
     }
     
