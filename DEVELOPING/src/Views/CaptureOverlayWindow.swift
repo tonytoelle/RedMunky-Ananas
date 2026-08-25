@@ -796,7 +796,7 @@ class CaptureOverlayHostingView: NSView {
     private var globalKeyMonitor: Any?
     private var globalMouseMonitor: Any?
     private var localMouseMonitor: Any?
-    private var stateModel = CaptureOverlayState()
+    var stateModel = CaptureOverlayState()
     
     init(mode: CaptureOverlayWindow.Mode,
          initialPoints: [SequencePoint] = [],
@@ -1569,6 +1569,11 @@ class CaptureOverlayWindow: NSPanel {
             }
         })
         
+        let primaryScreenH = NSScreen.screens.first?.frame.height ?? 1080
+        contentView.stateModel.windowQuartzOrigin = CGPoint(
+            x: self.frame.origin.x,
+            y: primaryScreenH - (self.frame.origin.y + self.frame.size.height)
+        )
         contentView.onWindowTransformCaptured = self.onWindowTransformCaptured
         self.contentView = contentView
         self.makeKeyAndOrderFront(nil)
