@@ -2,7 +2,4 @@
 TRIGGER: cmd+shift+k
 
 # Actions:
-ACTION: drag 0 0 to 0 0
-ACTION: drag 1192 857 to 1343 895
-ACTION: drag 0 0 to 0 0
-ACTION: drag 2477 622 to 2658 708
+ACTION: drag 1218 141 to 3426 883
