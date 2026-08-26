@@ -959,10 +959,12 @@ class CaptureOverlayHostingView: NSView {
                 globalMouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged, .rightMouseDragged, .scrollWheel]) { [weak self] event in
                     guard let self = self, let win = self.window else { return }
                     let screenPt = NSEvent.mouseLocation
+                    self.updateScreenIfNeeded(mouseScreenPt: screenPt)
+                    
                     let winLoc = win.convertPoint(fromScreen: screenPt)
                     let screenHeight = NSScreen.screens.first?.frame.height ?? 1080
                     let quartzPt = CGPoint(x: screenPt.x, y: screenHeight - screenPt.y)
-                    let localPt = CGPoint(x: winLoc.x, y: self.bounds.height - winLoc.y)
+                    let localPt = CGPoint(x: winLoc.x, y: win.frame.size.height - winLoc.y)
                     
                     DispatchQueue.main.async {
                         self.stateModel.currentLocation = winLoc
@@ -978,10 +980,12 @@ class CaptureOverlayHostingView: NSView {
                 localMouseMonitor = NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged, .rightMouseDragged, .scrollWheel]) { [weak self] event in
                     guard let self = self, let win = self.window else { return event }
                     let screenPt = NSEvent.mouseLocation
+                    self.updateScreenIfNeeded(mouseScreenPt: screenPt)
+                    
                     let winLoc = win.convertPoint(fromScreen: screenPt)
                     let screenHeight = NSScreen.screens.first?.frame.height ?? 1080
                     let quartzPt = CGPoint(x: screenPt.x, y: screenHeight - screenPt.y)
-                    let localPt = CGPoint(x: winLoc.x, y: self.bounds.height - winLoc.y)
+                    let localPt = CGPoint(x: winLoc.x, y: win.frame.size.height - winLoc.y)
                     
                     self.stateModel.currentLocation = winLoc
                     self.stateModel.quartzLocation = quartzPt
@@ -1039,6 +1043,23 @@ class CaptureOverlayHostingView: NSView {
             x: quartzPt.x - stateModel.windowQuartzOrigin.x,
             y: quartzPt.y - stateModel.windowQuartzOrigin.y
         )
+    }
+    
+    private func updateScreenIfNeeded(mouseScreenPt: CGPoint) {
+        guard let win = self.window else { return }
+        guard let targetScreen = NSScreen.screens.first(where: { NSMouseInRect(mouseScreenPt, $0.frame, false) }) else { return }
+        
+        if win.frame != targetScreen.frame {
+            // Update the window frame to the target screen's frame
+            win.setFrame(targetScreen.frame, display: true)
+            
+            // Recalculate windowQuartzOrigin immediately
+            let primaryScreenH = NSScreen.screens.first?.frame.height ?? 1080
+            stateModel.windowQuartzOrigin = CGPoint(
+                x: targetScreen.frame.origin.x,
+                y: primaryScreenH - (targetScreen.frame.origin.y + targetScreen.frame.size.height)
+            )
+        }
     }
     
     // Dynamically toggle window.ignoresMouseEvents for full passthrough in edit mode
@@ -1115,14 +1136,15 @@ class CaptureOverlayHostingView: NSView {
     
     private func updateMouse(event: NSEvent) {
         let screenPt = event.window?.convertToScreen(NSRect(origin: event.locationInWindow, size: .zero)).origin ?? NSEvent.mouseLocation
+        updateScreenIfNeeded(mouseScreenPt: screenPt)
+        
+        guard let win = self.window else { return }
+        let winLoc = win.convertPoint(fromScreen: screenPt)
         let screenHeight = NSScreen.screens.first?.frame.height ?? 1080
         let quartzPt = CGPoint(x: screenPt.x, y: screenHeight - screenPt.y)
+        let localPt = CGPoint(x: winLoc.x, y: win.frame.size.height - winLoc.y)
         
-        // localMouseLocation: window-local top-left origin for SwiftUI rendering
-        let winH = self.bounds.height
-        let localPt = CGPoint(x: event.locationInWindow.x, y: winH - event.locationInWindow.y)
-        
-        stateModel.currentLocation = event.locationInWindow
+        stateModel.currentLocation = winLoc
         stateModel.quartzLocation = quartzPt
         stateModel.localMouseLocation = localPt
         updateHover(quartzPt: quartzPt)
@@ -1423,13 +1445,18 @@ class CaptureOverlayWindow: NSPanel {
     
     var onWindowTransformCaptured: ((CGPoint, CGPoint, CGPoint, CGPoint) -> Void)?
     
+    private static func activeScreen() -> NSScreen {
+        let mouseLoc = NSEvent.mouseLocation
+        return NSScreen.screens.first { NSMouseInRect(mouseLoc, $0.frame, false) } ?? NSScreen.main ?? NSScreen.screens.first ?? NSScreen()
+    }
+    
     init(mode: Mode = .click(button: .left, initialPoint: nil), 
          onClickCaptured: @escaping (CGPoint) -> Void,
          onClickRealTime: ((CGPoint) -> Void)? = nil) {
         self.mode = mode
         self.onClickCaptured = onClickCaptured
         self.onClickRealTime = onClickRealTime
-        let screenRect = NSScreen.screens.reduce(NSRect.zero) { $0.union($1.frame) }
+        let screenRect = CaptureOverlayWindow.activeScreen().frame
         super.init(contentRect: screenRect,
                    styleMask: [.borderless, .nonactivatingPanel],
                    backing: .buffered,
@@ -1448,7 +1475,7 @@ class CaptureOverlayWindow: NSPanel {
         self.mode = mode
         self.onDragCaptured = onDragCaptured
         self.onDragRealTime = onDragRealTime
-        let screenRect = NSScreen.screens.reduce(NSRect.zero) { $0.union($1.frame) }
+        let screenRect = CaptureOverlayWindow.activeScreen().frame
         super.init(contentRect: screenRect,
                    styleMask: [.borderless, .nonactivatingPanel],
                    backing: .buffered,
@@ -1472,7 +1499,7 @@ class CaptureOverlayWindow: NSPanel {
         self.mode = .sequence(initialPoints: initialPoints)
         self.onSequenceCaptured = onSequenceCaptured
         self.onSequenceRealTime = onSequenceRealTime
-        let screenRect = NSScreen.screens.reduce(NSRect.zero) { $0.union($1.frame) }
+        let screenRect = CaptureOverlayWindow.activeScreen().frame
         super.init(contentRect: screenRect,
                    styleMask: [.borderless, .nonactivatingPanel],
                    backing: .buffered,
@@ -1484,7 +1511,7 @@ class CaptureOverlayWindow: NSPanel {
          onWindowTransformCaptured: @escaping (CGPoint, CGPoint, CGPoint, CGPoint) -> Void) {
         self.mode = mode
         self.onWindowTransformCaptured = onWindowTransformCaptured
-        let screenRect = NSScreen.screens.reduce(NSRect.zero) { $0.union($1.frame) }
+        let screenRect = CaptureOverlayWindow.activeScreen().frame
         super.init(contentRect: screenRect,
                    styleMask: [.borderless, .nonactivatingPanel],
                    backing: .buffered,

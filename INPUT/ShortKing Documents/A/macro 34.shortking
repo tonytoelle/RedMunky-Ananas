@@ -1,0 +1,6 @@
+# ShortKing Macro Script
+TRIGGER: cmd+shift+k
+
+# Actions:
+ACTION: click 2188 715
+ACTION: click 2266 468
