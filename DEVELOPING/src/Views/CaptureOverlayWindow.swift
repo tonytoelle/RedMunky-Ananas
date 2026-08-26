@@ -501,7 +501,9 @@ struct CaptureOverlaySwiftUIView: View {
                     .allowsHitTesting(false)
                 }
             }
+            .clipped()
         }
+        .clipped()
     }
     
     // MARK: - Minimal Compact Pin Marker

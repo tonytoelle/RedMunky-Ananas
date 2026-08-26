@@ -1,6 +1,0 @@
-# ShortKing Macro Script
-TRIGGER: cmd+shift+k
-
-# Actions:
-ACTION: path 2930,1018:move 3045,1059:move 3180,1024:move
-ACTION: drag 3084 656 to 3419 735

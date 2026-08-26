@@ -1,0 +1,5 @@
+# ShortKing Macro Script
+TRIGGER: cmd+shift+k
+
+# Actions:
+ACTION: drag 1478 866 to 1600 785
