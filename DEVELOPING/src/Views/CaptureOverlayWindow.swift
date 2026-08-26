@@ -1097,6 +1097,18 @@ class CaptureOverlayHostingView: NSView {
         
         let localPt = localPoint(from: quartzPt)
         
+        // --- SCREEN BOUNDARY MOUSE RESISTANCE BYPASS ---
+        // If the mouse is near the edge of the screen, we force ignoresMouseEvents = true
+        // so AppKit lets the cursor cross display boundaries smoothly.
+        let edgeMargin: CGFloat = 15
+        if localPt.x < edgeMargin || 
+           localPt.x > (win.frame.size.width - edgeMargin) || 
+           localPt.y < edgeMargin || 
+           localPt.y > (win.frame.size.height - edgeMargin) {
+            win.ignoresMouseEvents = true
+            return
+        }
+        
         // In pass-through mode: ONLY HUD card can be clicked, everything else clicks through to apps underneath!
         if stateModel.isPassThroughMode {
             if stateModel.isHudVisible {
