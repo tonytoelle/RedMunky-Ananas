@@ -1034,6 +1034,13 @@ class CaptureOverlayHostingView: NSView {
         stateModel.hoveredIndex = foundIdx
     }
     
+    private func localPoint(from quartzPt: CGPoint) -> CGPoint {
+        return CGPoint(
+            x: quartzPt.x - stateModel.windowQuartzOrigin.x,
+            y: quartzPt.y - stateModel.windowQuartzOrigin.y
+        )
+    }
+    
     // Dynamically toggle window.ignoresMouseEvents for full passthrough in edit mode
     private func updatePassthrough(quartzPt: CGPoint) {
         guard let win = self.window else { return }
@@ -1043,11 +1050,13 @@ class CaptureOverlayHostingView: NSView {
             return
         }
         
+        let localPt = localPoint(from: quartzPt)
+        
         // In pass-through mode: ONLY HUD card can be clicked, everything else clicks through to apps underneath!
         if stateModel.isPassThroughMode {
             if stateModel.isHudVisible {
                 let hud = stateModel.lastHudCenter
-                if CGRect(x: hud.x - 110, y: hud.y - 30, width: 220, height: 60).contains(quartzPt) {
+                if CGRect(x: hud.x - 110, y: hud.y - 30, width: 220, height: 60).contains(localPt) {
                     win.ignoresMouseEvents = false
                     return
                 }
@@ -1094,7 +1103,7 @@ class CaptureOverlayHostingView: NSView {
         // Check HUD card
         if stateModel.isHudVisible {
             let hud = stateModel.lastHudCenter
-            if CGRect(x: hud.x - 130, y: hud.y - 30, width: 260, height: 60).contains(quartzPt) {
+            if CGRect(x: hud.x - 130, y: hud.y - 30, width: 260, height: 60).contains(localPt) {
                 win.ignoresMouseEvents = false
                 return
             }
@@ -1131,6 +1140,9 @@ class CaptureOverlayHostingView: NSView {
     
     // MARK: - Hit Testing (Native macOS Click-Through)
     override func hitTest(_ point: NSPoint) -> NSView? {
+        let winHeight = self.window?.frame.size.height ?? self.bounds.height
+        let localPt = CGPoint(x: point.x, y: winHeight - point.y)
+        
         let screenPt = self.window?.convertToScreen(NSRect(origin: point, size: .zero)).origin ?? NSEvent.mouseLocation
         let screenHeight = NSScreen.screens.first?.frame.height ?? 1080
         let quartzPt = CGPoint(x: screenPt.x, y: screenHeight - screenPt.y)
@@ -1140,7 +1152,7 @@ class CaptureOverlayHostingView: NSView {
             if stateModel.isHudVisible {
                 let hudPos = stateModel.lastHudCenter
                 let hudRect = CGRect(x: hudPos.x - 160, y: hudPos.y - 30, width: 320, height: 60)
-                if hudRect.contains(quartzPt) {
+                if hudRect.contains(localPt) {
                     return super.hitTest(point)
                 }
             }
@@ -1162,7 +1174,7 @@ class CaptureOverlayHostingView: NSView {
         if stateModel.isHudVisible {
             let hudPos = stateModel.lastHudCenter
             let hudRect = CGRect(x: hudPos.x - 160, y: hudPos.y - 30, width: 320, height: 60)
-            if hudRect.contains(quartzPt) {
+            if hudRect.contains(localPt) {
                 return super.hitTest(point)
             }
         }
