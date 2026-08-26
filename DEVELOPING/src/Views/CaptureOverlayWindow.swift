@@ -1547,7 +1547,7 @@ class CaptureOverlayWindow: NSPanel {
             self.contentView = contentView
         }
         
-        self.makeKeyAndOrderFront(nil)
+        self.orderFrontRegardless()
     }
     
     init(mode: Mode = .click(button: .left, initialPoint: nil), 
@@ -1716,7 +1716,7 @@ class CaptureOverlayWindow: NSPanel {
         contentView.stateModel.localMouseLocation = localPt
         contentView.onWindowTransformCaptured = self.onWindowTransformCaptured
         self.contentView = contentView
-        self.makeKeyAndOrderFront(nil)
+        self.orderFrontRegardless()
         NSApp.activate(ignoringOtherApps: true)
     }
 }
