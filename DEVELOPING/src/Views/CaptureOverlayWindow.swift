@@ -1518,7 +1518,7 @@ class CaptureOverlayWindow: NSPanel {
         
         self.isOpaque = false
         self.backgroundColor = .clear
-        self.level = .screenSaver
+        self.level = .statusBar
         self.ignoresMouseEvents = false
         self.acceptsMouseMovedEvents = true
         self.hasShadow = false
@@ -1613,7 +1613,7 @@ class CaptureOverlayWindow: NSPanel {
     private func setupWindow(initialPoints: [SequencePoint], defaultType: SequencePointType) {
         self.isOpaque = false
         self.backgroundColor = .clear
-        self.level = .screenSaver
+        self.level = .statusBar
         self.ignoresMouseEvents = false
         self.acceptsMouseMovedEvents = true
         self.hasShadow = false
