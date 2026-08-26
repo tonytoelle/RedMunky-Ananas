@@ -924,7 +924,7 @@ class CaptureOverlayHostingView: NSView {
             let winLoc = win.convertPoint(fromScreen: screenPt)
             let quartzPt = CGPoint(x: screenPt.x, y: primaryScreenH - screenPt.y)
             // localMouseLocation: directly computed from winLoc (Cocoa bottom-left) flipped to top-left
-            let localPt = CGPoint(x: winLoc.x, y: bounds.height - winLoc.y)
+            let localPt = CGPoint(x: winLoc.x, y: win.frame.size.height - winLoc.y)
             stateModel.currentLocation = winLoc
             stateModel.quartzLocation = quartzPt
             stateModel.localMouseLocation = localPt
