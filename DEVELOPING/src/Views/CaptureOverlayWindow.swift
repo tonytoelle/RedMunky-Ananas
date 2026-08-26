@@ -140,22 +140,42 @@ func blendColors(typeA: SequencePointType, typeB: SequencePointType) -> Color {
 // ==========================================
 struct CaptureOverlaySwiftUIView: View {
     @ObservedObject var state: CaptureOverlayState
+    let screenFrame: CGRect
     @State private var dragStartOffset: CGSize = .zero
     @State private var pinDragStartPoint: CGPoint? = nil
     @State private var areaDragStartPoints: (CGPoint, CGPoint)? = nil
     
+    private var windowQuartzOrigin: CGPoint {
+        let primaryScreenH = NSScreen.screens.first?.frame.height ?? 1080
+        return CGPoint(
+            x: screenFrame.origin.x,
+            y: primaryScreenH - (screenFrame.origin.y + screenFrame.size.height)
+        )
+    }
+    
     private func localPoint(from quartzPt: CGPoint) -> CGPoint {
         return CGPoint(
-            x: quartzPt.x - state.windowQuartzOrigin.x,
-            y: quartzPt.y - state.windowQuartzOrigin.y
+            x: quartzPt.x - windowQuartzOrigin.x,
+            y: quartzPt.y - windowQuartzOrigin.y
         )
     }
     
     private func quartzPoint(from localPt: CGPoint) -> CGPoint {
         return CGPoint(
-            x: localPt.x + state.windowQuartzOrigin.x,
-            y: localPt.y + state.windowQuartzOrigin.y
+            x: localPt.x + windowQuartzOrigin.x,
+            y: localPt.y + windowQuartzOrigin.y
         )
+    }
+    
+    private var isCursorOnThisScreen: Bool {
+        let primaryScreenH = NSScreen.screens.first?.frame.height ?? 1080
+        let screenQuartzRect = CGRect(
+            x: screenFrame.origin.x,
+            y: primaryScreenH - (screenFrame.origin.y + screenFrame.size.height),
+            width: screenFrame.size.width,
+            height: screenFrame.size.height
+        )
+        return screenQuartzRect.contains(state.quartzLocation)
     }
 
     var body: some View {
@@ -303,7 +323,7 @@ struct CaptureOverlaySwiftUIView: View {
                 }
                 
                 // Active cursor preview lines (if inserting a point in between existing points)
-                if state.isFollowingCursor, let sel = state.selectedPointIndex, sel < state.points.count {
+                if state.isFollowingCursor, let sel = state.selectedPointIndex, sel < state.points.count, isCursorOnThisScreen {
                     let start = localPoint(from: state.points[sel].point)
                     let end = state.localMouseLocation  // Use direct local coords, not quartzLocation conversion
                     let ptA = state.points[sel]
@@ -412,7 +432,7 @@ struct CaptureOverlaySwiftUIView: View {
                 // ─────────────────────────────────────────────
                 // FLOATING COMPACT HUD CARD (Hover-based visibility, sequence only)
                 // ─────────────────────────────────────────────
-                if case .sequence = state.mode {
+                if case .sequence = state.mode, isCursorOnThisScreen {
                     let pos = hudPosition(in: geo.size)
                     floatingHUDCard
                         .position(pos)
@@ -463,7 +483,7 @@ struct CaptureOverlaySwiftUIView: View {
                         )
                 }
                 
-                if state.isFollowingCursor && !state.isPassThroughMode {
+                if state.isFollowingCursor && !state.isPassThroughMode && isCursorOnThisScreen {
                     ZStack {
                         // Outer circular outline
                         Circle()
@@ -798,6 +818,28 @@ class CaptureOverlayHostingView: NSView {
     private var globalMouseMonitor: Any?
     private var localMouseMonitor: Any?
     var stateModel = CaptureOverlayState()
+    var screenFrame: CGRect = .zero
+    
+    init(stateModel: CaptureOverlayState, screenFrame: CGRect) {
+        self.stateModel = stateModel
+        self.screenFrame = screenFrame
+        self.mode = stateModel.mode
+        self.onFinishSequence = { _ in }
+        self.onCancel = {}
+        self.onPointsChanged = { _ in }
+        super.init(frame: .zero)
+        
+        let swiftUIView = CaptureOverlaySwiftUIView(state: stateModel, screenFrame: screenFrame)
+        let host = NSHostingView(rootView: swiftUIView)
+        host.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(host)
+        NSLayoutConstraint.activate([
+            host.topAnchor.constraint(equalTo: topAnchor),
+            host.leadingAnchor.constraint(equalTo: leadingAnchor),
+            host.trailingAnchor.constraint(equalTo: trailingAnchor),
+            host.bottomAnchor.constraint(equalTo: bottomAnchor)
+        ])
+    }
     
     init(mode: CaptureOverlayWindow.Mode,
          initialPoints: [SequencePoint] = [],
@@ -807,6 +849,7 @@ class CaptureOverlayHostingView: NSView {
          onPointsCommitted: @escaping ([SequencePoint]) -> Void,
          onPointsRealtime: @escaping ([SequencePoint]) -> Void) {
         self.mode = mode
+        self.screenFrame = CaptureOverlayWindow.activeScreen().frame
         self.onFinishSequence = onFinishSequence
         self.onCancel = onCancel
         self.onPointsChanged = onPointsCommitted
@@ -876,7 +919,7 @@ class CaptureOverlayHostingView: NSView {
             self?.stateModel.selectedPointIndex = nil
         }
         
-        let swiftUIView = CaptureOverlaySwiftUIView(state: stateModel)
+        let swiftUIView = CaptureOverlaySwiftUIView(state: stateModel, screenFrame: screenFrame)
         let host = NSHostingView(rootView: swiftUIView)
         host.translatesAutoresizingMaskIntoConstraints = false
         addSubview(host)
@@ -959,7 +1002,6 @@ class CaptureOverlayHostingView: NSView {
                 globalMouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged, .rightMouseDragged, .scrollWheel]) { [weak self] event in
                     guard let self = self, let win = self.window else { return }
                     let screenPt = NSEvent.mouseLocation
-                    self.updateScreenIfNeeded(mouseScreenPt: screenPt)
                     
                     let winLoc = win.convertPoint(fromScreen: screenPt)
                     let screenHeight = NSScreen.screens.first?.frame.height ?? 1080
@@ -980,7 +1022,6 @@ class CaptureOverlayHostingView: NSView {
                 localMouseMonitor = NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged, .rightMouseDragged, .scrollWheel]) { [weak self] event in
                     guard let self = self, let win = self.window else { return event }
                     let screenPt = NSEvent.mouseLocation
-                    self.updateScreenIfNeeded(mouseScreenPt: screenPt)
                     
                     let winLoc = win.convertPoint(fromScreen: screenPt)
                     let screenHeight = NSScreen.screens.first?.frame.height ?? 1080
@@ -1043,23 +1084,6 @@ class CaptureOverlayHostingView: NSView {
             x: quartzPt.x - stateModel.windowQuartzOrigin.x,
             y: quartzPt.y - stateModel.windowQuartzOrigin.y
         )
-    }
-    
-    private func updateScreenIfNeeded(mouseScreenPt: CGPoint) {
-        guard let win = self.window else { return }
-        guard let targetScreen = NSScreen.screens.first(where: { NSMouseInRect(mouseScreenPt, $0.frame, false) }) else { return }
-        
-        if win.frame != targetScreen.frame {
-            // Update the window frame to the target screen's frame
-            win.setFrame(targetScreen.frame, display: true)
-            
-            // Recalculate windowQuartzOrigin immediately
-            let primaryScreenH = NSScreen.screens.first?.frame.height ?? 1080
-            stateModel.windowQuartzOrigin = CGPoint(
-                x: targetScreen.frame.origin.x,
-                y: primaryScreenH - (targetScreen.frame.origin.y + targetScreen.frame.size.height)
-            )
-        }
     }
     
     // Dynamically toggle window.ignoresMouseEvents for full passthrough in edit mode
@@ -1136,7 +1160,6 @@ class CaptureOverlayHostingView: NSView {
     
     private func updateMouse(event: NSEvent) {
         let screenPt = event.window?.convertToScreen(NSRect(origin: event.locationInWindow, size: .zero)).origin ?? NSEvent.mouseLocation
-        updateScreenIfNeeded(mouseScreenPt: screenPt)
         
         guard let win = self.window else { return }
         let winLoc = win.convertPoint(fromScreen: screenPt)
@@ -1410,10 +1433,38 @@ class ExecutionCursorOverlayWindow: NSPanel {
 // MARK: - Capture Overlay Window
 // ==========================================
 class CaptureOverlayWindow: NSPanel {
+    static var activeOverlays: [CaptureOverlayWindow] = []
+    private static var _shared: CaptureOverlayWindow?
+    
     static var shared: CaptureOverlayWindow? {
-        didSet {
-            if let old = oldValue, old !== shared {
-                old.close()
+        get { return _shared }
+        set {
+            if newValue == nil {
+                closeAllActiveWindows()
+            }
+            _shared = newValue
+            if let parent = newValue {
+                activeOverlays = [parent]
+                spawnOverlaysOnAllScreens(for: parent)
+            }
+        }
+    }
+    
+    static func closeAllActiveWindows() {
+        let overlays = activeOverlays
+        activeOverlays.removeAll()
+        _shared = nil
+        for win in overlays {
+            win.close()
+        }
+    }
+    
+    private static func spawnOverlaysOnAllScreens(for parent: CaptureOverlayWindow) {
+        let parentScreen = parent.screen ?? NSScreen.main ?? NSScreen.screens.first
+        for screen in NSScreen.screens {
+            if screen != parentScreen {
+                let child = CaptureOverlayWindow(siblingOf: parent, on: screen)
+                activeOverlays.append(child)
             }
         }
     }
@@ -1445,9 +1496,44 @@ class CaptureOverlayWindow: NSPanel {
     
     var onWindowTransformCaptured: ((CGPoint, CGPoint, CGPoint, CGPoint) -> Void)?
     
-    private static func activeScreen() -> NSScreen {
+    static func activeScreen() -> NSScreen {
         let mouseLoc = NSEvent.mouseLocation
         return NSScreen.screens.first { NSMouseInRect(mouseLoc, $0.frame, false) } ?? NSScreen.main ?? NSScreen.screens.first ?? NSScreen()
+    }
+    
+    init(siblingOf parent: CaptureOverlayWindow, on screen: NSScreen) {
+        self.mode = parent.mode
+        self.onClickCaptured = parent.onClickCaptured
+        self.onClickRealTime = parent.onClickRealTime
+        self.onDragCaptured = parent.onDragCaptured
+        self.onDragRealTime = parent.onDragRealTime
+        self.onSequenceCaptured = parent.onSequenceCaptured
+        self.onSequenceRealTime = parent.onSequenceRealTime
+        self.onWindowTransformCaptured = parent.onWindowTransformCaptured
+        
+        super.init(contentRect: screen.frame,
+                   styleMask: [.borderless, .nonactivatingPanel],
+                   backing: .buffered,
+                   defer: false)
+        
+        self.isOpaque = false
+        self.backgroundColor = .clear
+        self.level = .screenSaver
+        self.ignoresMouseEvents = false
+        self.acceptsMouseMovedEvents = true
+        self.hasShadow = false
+        self.isFloatingPanel = true
+        self.hidesOnDeactivate = false
+        self.becomesKeyOnlyIfNeeded = true
+        self.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        
+        if let parentHostingView = parent.contentView as? CaptureOverlayHostingView {
+            let contentView = CaptureOverlayHostingView(stateModel: parentHostingView.stateModel, screenFrame: screen.frame)
+            contentView.onWindowTransformCaptured = self.onWindowTransformCaptured
+            self.contentView = contentView
+        }
+        
+        self.makeKeyAndOrderFront(nil)
     }
     
     init(mode: Mode = .click(button: .left, initialPoint: nil), 
