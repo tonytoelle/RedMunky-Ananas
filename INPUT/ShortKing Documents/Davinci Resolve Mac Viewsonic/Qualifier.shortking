@@ -2,5 +2,5 @@
 TRIGGER: f4
 
 # Actions:
-ACTION: path 924,810:click 983,842:click
+ACTION: path 2726,964:click 3163,1005:click
 ACTION: do_again

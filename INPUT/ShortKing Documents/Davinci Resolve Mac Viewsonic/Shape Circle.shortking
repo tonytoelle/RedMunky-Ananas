@@ -2,5 +2,4 @@
 TRIGGER: f5
 
 # Actions:
-ACTION: path 983,814:click 443,875:click
-ACTION: delay 300
+ACTION: path 2785,964:click 2275,1041:click 2582,405:move
