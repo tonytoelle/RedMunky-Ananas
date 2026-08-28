@@ -1358,7 +1358,7 @@ struct SidebarNodeView: View {
                             // Expand/Collapse Chevron (animated rotation)
                             Image(systemName: "chevron.right")
                                 .font(.system(size: 10, weight: .bold))
-                                .foregroundColor(isSelected ? .white.opacity(0.8) : Color.secondary.opacity(0.8))
+                                .foregroundColor(isSelected ? Color.accentColor : Color.secondary.opacity(0.8))
                                 .frame(width: 14, height: 14)
                                 .rotationEffect(isExpanded ? .degrees(90) : .zero)
                                 .contentShape(Rectangle())
@@ -1392,14 +1392,14 @@ struct SidebarNodeView: View {
                                     .opacity(config.isEnabled ? 1.0 : 0.4)
                             } else {
                                 Image(systemName: config.iconName)
-                                    .foregroundColor(isSelected ? .white : (config.isEnabled ? config.color : Color.gray.opacity(0.5)))
+                                    .foregroundColor(isSelected ? Color.accentColor : (config.isEnabled ? config.color : Color.gray.opacity(0.5)))
                                     .font(.system(size: 14))
                                     .frame(width: 18, height: 18)
                             }
 
                             Text(name.toTitleCase())
-                                .font(.system(size: 13, weight: isSelected ? .semibold : .medium))
-                                .foregroundColor(isSelected ? .white : (config.isEnabled ? Color(white: 0.92) : Color.secondary.opacity(0.7)))
+                                .font(.system(size: 13, weight: isSelected ? .bold : .medium))
+                                .foregroundColor(isSelected ? Color.accentColor : (config.isEnabled ? Color(white: 0.92) : Color.secondary.opacity(0.7)))
                                 .strikethrough(!config.isEnabled, color: Color.secondary.opacity(0.6))
                                 .lineLimit(1)
                             
@@ -1408,10 +1408,10 @@ struct SidebarNodeView: View {
                             // Finder-style Monospaced Badge
                             Text("\(children.count)")
                                 .font(.system(size: 10, weight: .semibold, design: .monospaced))
-                                .foregroundColor(isSelected ? .white.opacity(0.9) : Color(white: 0.55))
+                                .foregroundColor(isSelected ? Color.accentColor : Color(white: 0.55))
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 2)
-                                .background(isSelected ? Color.white.opacity(0.22) : Color.white.opacity(0.06))
+                                .background(isSelected ? Color.accentColor.opacity(0.12) : Color.white.opacity(0.06))
                                 .clipShape(Capsule())
                         }
                         .contentShape(Rectangle())
@@ -1422,15 +1422,15 @@ struct SidebarNodeView: View {
                 .padding(.trailing, 8)
                 .padding(.vertical, 4)
                 .background(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
                         .fill(
                             isSelected
-                                ? Color.accentColor
-                                : (isHovered ? Color.white.opacity(0.06) : Color.clear)
+                                ? Color.white.opacity(0.12)
+                                : (isHovered ? Color.white.opacity(0.04) : Color.clear)
                         )
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
                         .stroke(isDropTarget ? Color.accentColor : Color.clear, lineWidth: 1.5)
                 )
                 .onHover { isHovered = $0 }
@@ -1571,8 +1571,8 @@ struct SidebarNodeView: View {
                     }
 
                     Text(macro.fileName.replacingOccurrences(of: ".shortking", with: "").toTitleCase())
-                        .font(.system(size: 13, weight: isSelected ? .semibold : .regular))
-                        .foregroundColor(isSelected ? .white : (macro.isEnabled ? Color(white: 0.90) : Color.secondary.opacity(0.7)))
+                        .font(.system(size: 13, weight: isSelected ? .bold : .regular))
+                        .foregroundColor(isSelected ? Color.accentColor : (macro.isEnabled ? Color(white: 0.90) : Color.secondary.opacity(0.7)))
                         .strikethrough(!macro.isEnabled, color: Color.secondary.opacity(0.6))
                         .lineLimit(1)
 
@@ -1589,7 +1589,7 @@ struct SidebarNodeView: View {
                     }
 
                     ShortcutBadgeView(trigger: macro.trigger, isDimmedMini: true, isSelected: isSelected)
-                        .opacity(isSelected ? 0.4 : (macro.isEnabled ? 1.0 : 0.4))
+                        .opacity(isSelected ? 0.6 : (macro.isEnabled ? 1.0 : 0.4))
                 }
                 .opacity(macro.isEnabled ? 1.0 : 0.65)
                 .padding(.leading, CGFloat(depth * 14 + 20))
@@ -1598,11 +1598,11 @@ struct SidebarNodeView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(Rectangle())
                 .background(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
                         .fill(
                             isSelected
-                                ? Color.accentColor
-                                : (isHovered ? Color.white.opacity(0.06) : Color.clear)
+                                ? Color.white.opacity(0.12)
+                                : (isHovered ? Color.white.opacity(0.04) : Color.clear)
                         )
                 )
                 .overlay(
@@ -1904,7 +1904,7 @@ struct MainEditorView: View {
                             RoundedRectangle(cornerRadius: 8, style: .continuous)
                                 .stroke(Color.white.opacity(0.1), lineWidth: 0.8)
                         )
-                        .padding(.horizontal, 10)
+                        .padding(.horizontal, 12)
                         .padding(.bottom, 10)
 
                         // Section Header
@@ -1915,7 +1915,7 @@ struct MainEditorView: View {
                                 .tracking(0.6)
                             Spacer()
                         }
-                        .padding(.horizontal, 16)
+                        .padding(.horizontal, 18)
                         .padding(.bottom, 4)
 
                         // Hierarchical Folder Tree
@@ -1946,7 +1946,7 @@ struct MainEditorView: View {
                                     }
                                 }
                             }
-                            .padding(.horizontal, 8)
+                            .padding(.horizontal, 12)
                             .padding(.bottom, 12)
                         }
                         .onDrop(of: [.plainText, .utf8PlainText, .fileURL], isTargeted: $isRootDropTarget) { providers in
