@@ -1909,7 +1909,7 @@ struct MainEditorView: View {
                     return true
                 }
             }
-            .navigationSplitViewColumnWidth(min: 200, ideal: sidebarWidth, max: 420)
+            .navigationSplitViewColumnWidth(min: 200, ideal: 240, max: 280)
             .background(.ultraThinMaterial)
         } detail: {
             GeometryReader { detailGeo in

@@ -461,8 +461,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDele
     @objc func showEditorWindow() {
         NSApp.setActivationPolicy(.regular)
         if window == nil {
-            let defaultSize = NSSize(width: 760, height: 710)
-            let minSize = NSSize(width: 760, height: 710)
+            let defaultSize = NSSize(width: 960, height: 710)
+            let minSize = NSSize(width: 960, height: 620)
 
             let win = EditorWindow(
                 contentRect: NSRect(x: 0, y: 0, width: defaultSize.width, height: defaultSize.height),
