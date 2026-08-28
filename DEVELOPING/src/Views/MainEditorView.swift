@@ -46,7 +46,7 @@ struct MacroInspectorView: View {
                 }
                 .padding(22)
             }
-            .background(Color(white: 0.14))
+            .background(Color(white: 0.1))
             .onAppear {
                 tempName = macro.fileName.replacingOccurrences(of: ".shortking", with: "")
                 isEditingName = false
@@ -174,7 +174,7 @@ struct MacroInspectorView: View {
         }
         .padding(.horizontal, 18)
         .frame(height: 52)
-        .background(Color(white: 0.14))
+        .background(Color(white: 0.1))
         .background(WindowDragView())
     }
 
@@ -825,7 +825,7 @@ struct FolderInspectorView: View {
             }
             .padding(.horizontal, 18)
             .frame(height: 52)
-            .background(Color(white: 0.14))
+            .background(Color(white: 0.1))
             .background(WindowDragView())
 
             ScrollView(showsIndicators: false) {
@@ -1221,7 +1221,7 @@ struct FolderInspectorView: View {
             }
             .padding(24)
         }
-        .background(Color(white: 0.14))
+        .background(Color(white: 0.1))
         .onAppear {
             folderName = folderURL.lastPathComponent
             tempFolderName = folderName
@@ -2002,7 +2002,7 @@ struct MainEditorView: View {
                         }
                         .padding(.horizontal, 18)
                         .frame(height: 52)
-                        .background(Color(white: 0.14))
+                        .background(Color(white: 0.1))
                         .background(WindowDragView())
                     
                         VStack(spacing: 16) {
@@ -2027,13 +2027,13 @@ struct MainEditorView: View {
                         }
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
-                    .background(Color(white: 0.14).onTapGesture {
+                    .background(Color(white: 0.1).onTapGesture {
                         NSApp.keyWindow?.makeFirstResponder(nil)
                     })
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color(white: 0.14))
+            .background(Color(white: 0.1))
         }
         .navigationSplitViewStyle(.balanced)
         .onChange(of: columnVisibility) { _, newValue in

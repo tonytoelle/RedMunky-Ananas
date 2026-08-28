@@ -478,7 +478,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDele
             win.titlebarAppearsTransparent = true
             win.titleVisibility = .hidden
             win.titlebarSeparatorStyle = .none
-            win.contentViewController = NSHostingController(rootView: MainEditorView())
+            win.contentViewController = NSHostingController(rootView: MainEditorView().preferredColorScheme(.dark))
             win.isReleasedWhenClosed = false
             win.delegate = self
             window = win
