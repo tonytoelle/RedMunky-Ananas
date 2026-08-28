@@ -113,32 +113,45 @@ struct MacroInspectorView: View {
                     Image(systemName: "exclamationmark.shield.fill")
                         .foregroundColor(.yellow)
                         .font(.system(size: 13, weight: .bold))
-                        .frame(width: 26, height: 22)
-                        .background(Color.yellow.opacity(0.15))
-                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                        .frame(width: 30, height: 30)
+                        .background(.ultraThinMaterial)
+                        .clipShape(Circle())
+                        .overlay(Circle().stroke(Color.white.opacity(0.15), lineWidth: 0.5))
                 }
                 .buttonStyle(.plain)
                 .help("Accessibility permission required to simulate keystrokes and mouse clicks")
             }
 
             if isDirty {
-                Button("Save") {
+                Button {
                     store.saveMacro(macro)
                     isDirty = false
+                } label: {
+                    Text("Save")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 6)
+                        .background(.ultraThinMaterial)
+                        .clipShape(Capsule())
+                        .overlay(Capsule().stroke(Color.white.opacity(0.15), lineWidth: 0.5))
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.small)
-                .fixedSize()
+                .buttonStyle(.plain)
             }
 
             Button {
                 store.runMacro(macro)
             } label: {
                 Label("Test Run", systemImage: "play.fill")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 6)
+                    .background(.ultraThinMaterial)
+                    .clipShape(Capsule())
+                    .overlay(Capsule().stroke(Color.white.opacity(0.15), lineWidth: 0.5))
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.small)
-            .fixedSize()
+            .buttonStyle(.plain)
 
             Button {
                 alwaysOnTop.toggle()
@@ -149,9 +162,10 @@ struct MacroInspectorView: View {
                 Image(systemName: alwaysOnTop ? "pin.fill" : "pin")
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundColor(alwaysOnTop ? .accentColor : .secondary)
-                    .frame(width: 26, height: 26)
-                    .background(Color.white.opacity(0.06))
-                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    .frame(width: 30, height: 30)
+                    .background(.ultraThinMaterial)
+                    .clipShape(Circle())
+                    .overlay(Circle().stroke(Color.white.opacity(0.15), lineWidth: 0.5))
             }
             .buttonStyle(.plain)
         }
@@ -1177,9 +1191,10 @@ struct FolderInspectorView: View {
                     Image(systemName: alwaysOnTop ? "pin.fill" : "pin")
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundColor(alwaysOnTop ? .accentColor : .secondary)
-                        .frame(width: 26, height: 26)
-                        .background(Color.white.opacity(0.06))
-                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                        .frame(width: 30, height: 30)
+                        .background(.ultraThinMaterial)
+                        .clipShape(Circle())
+                        .overlay(Circle().stroke(Color.white.opacity(0.15), lineWidth: 0.5))
                 }
                 .buttonStyle(.plain)
                 .help("Always on Top")
@@ -1830,9 +1845,10 @@ struct MainEditorView: View {
                         } label: {
                             Image(systemName: "plus")
                                 .font(.system(size: 12, weight: .semibold))
-                                .frame(width: 24, height: 24)
-                                .background(Color.white.opacity(0.06))
-                                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                                .frame(width: 28, height: 28)
+                                .background(.ultraThinMaterial)
+                                .clipShape(Circle())
+                                .overlay(Circle().stroke(Color.white.opacity(0.15), lineWidth: 0.5))
                         }
                         .buttonStyle(.plain)
                         .help("New Macro (⌘N)")
@@ -1844,9 +1860,10 @@ struct MainEditorView: View {
                         } label: {
                             Image(systemName: "folder.badge.plus")
                                 .font(.system(size: 12))
-                                .frame(width: 24, height: 24)
-                                .background(Color.white.opacity(0.06))
-                                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                                .frame(width: 28, height: 28)
+                                .background(.ultraThinMaterial)
+                                .clipShape(Circle())
+                                .overlay(Circle().stroke(Color.white.opacity(0.15), lineWidth: 0.5))
                         }
                         .buttonStyle(.plain)
                         .help("New Folder (⇧⌘N)")
@@ -1863,9 +1880,10 @@ struct MainEditorView: View {
                                 Image(systemName: "trash")
                                     .font(.system(size: 12))
                                     .foregroundColor(.red.opacity(0.85))
-                                    .frame(width: 24, height: 24)
-                                    .background(Color.red.opacity(0.12))
-                                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                                    .frame(width: 28, height: 28)
+                                    .background(.ultraThinMaterial)
+                                    .clipShape(Circle())
+                                    .overlay(Circle().stroke(Color.red.opacity(0.2), lineWidth: 0.5))
                             }
                             .buttonStyle(.plain)
                             .help("Delete Selected Items")
@@ -1879,9 +1897,10 @@ struct MainEditorView: View {
                             Image(systemName: "arrow.triangle.2.circlepath")
                                 .font(.system(size: 12))
                                 .foregroundColor(.secondary)
-                                .frame(width: 24, height: 24)
-                                .background(Color.white.opacity(0.06))
-                                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                                .frame(width: 28, height: 28)
+                                .background(.ultraThinMaterial)
+                                .clipShape(Circle())
+                                .overlay(Circle().stroke(Color.white.opacity(0.15), lineWidth: 0.5))
                         }
                         .buttonStyle(.plain)
                         .help("Relaunch App")
@@ -1947,10 +1966,19 @@ struct MainEditorView: View {
                             Text("Choose a macro or folder from the sidebar.")
                                 .font(.system(size: 12))
                                 .foregroundColor(.secondary)
-                            Button("Create New Macro") {
+                            Button {
                                 store.createNewMacro()
+                            } label: {
+                                Text("Create New Macro")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 8)
+                                    .background(.ultraThinMaterial)
+                                    .clipShape(Capsule())
+                                    .overlay(Capsule().stroke(Color.white.opacity(0.15), lineWidth: 0.5))
                             }
-                            .buttonStyle(.borderedProminent)
+                            .buttonStyle(.plain)
                             Spacer()
                         }
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -1971,9 +1999,10 @@ struct MainEditorView: View {
                                 Image(systemName: alwaysOnTop ? "pin.fill" : "pin")
                                     .font(.system(size: 13, weight: .semibold))
                                     .foregroundColor(alwaysOnTop ? .accentColor : .secondary)
-                                    .frame(width: 26, height: 26)
-                                    .background(Color.white.opacity(0.06))
-                                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                                    .frame(width: 30, height: 30)
+                                    .background(.ultraThinMaterial)
+                                    .clipShape(Circle())
+                                    .overlay(Circle().stroke(Color.white.opacity(0.15), lineWidth: 0.5))
                             }
                             .buttonStyle(.plain)
                             .help("Always on Top")
