@@ -1342,81 +1342,76 @@ struct SidebarNodeView: View {
             
             VStack(alignment: .leading, spacing: 2) {
                 // Folder Row
-                HStack(spacing: 0) {
-                    // Folder title & icon (click to select and open folder settings)
-                    Button {
-                        let flags = NSEvent.modifierFlags
-                        if flags.contains(.command) || flags.contains(.shift) {
-                            onSelect(url.path, flags)
-                        } else {
-                            store.selectedFolderPath = url.path
-                            store.selectedFilePath = nil
-                            onSelect(url.path, flags)
-                        }
-                    } label: {
-                        HStack(spacing: 6) {
-                            // Expand/Collapse Chevron (animated rotation)
-                            Image(systemName: "chevron.right")
-                                .font(.system(size: 10, weight: .bold))
-                                .foregroundColor(isSelected ? Color.accentColor : Color.secondary.opacity(0.8))
-                                .frame(width: 14, height: 14)
-                                .rotationEffect(isExpanded ? .degrees(90) : .zero)
-                                .contentShape(Rectangle())
-                                .onTapGesture {
-                                    withAnimation(.easeInOut(duration: 0.15)) {
-                                        if isExpanded {
-                                            expandedFolders.remove(url.path)
-                                        } else {
-                                            expandedFolders.insert(url.path)
-                                        }
-                                    }
-                                }
-
-                            let appBundleId: String? = {
-                                if let customId = config.customAppIconBundleId, !customId.isEmpty {
-                                    return customId
-                                }
-                                if config.isRestrictedToApps && config.targetApps.count == 1 {
-                                    return config.targetApps[0].bundleId
-                                }
-                                return nil
-                            }()
-                            
-                            if let bundleId = appBundleId,
-                               let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId),
-                               let nsImage = NSWorkspace.shared.icon(forFile: appURL.path) as NSImage? {
-                                Image(nsImage: nsImage)
-                                    .resizable()
-                                    .frame(width: 18, height: 18)
-                                    .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
-                                    .opacity(config.isEnabled ? 1.0 : 0.4)
-                            } else {
-                                Image(systemName: config.iconName)
-                                    .foregroundColor(isSelected ? Color.accentColor : (config.isEnabled ? config.color : Color.gray.opacity(0.5)))
-                                    .font(.system(size: 14))
-                                    .frame(width: 18, height: 18)
-                            }
-
-                            Text(name.toTitleCase())
-                                .font(.system(size: 13, weight: isSelected ? .bold : .medium))
-                                .foregroundColor(isSelected ? Color.accentColor : (config.isEnabled ? Color(white: 0.92) : Color.secondary.opacity(0.7)))
-                                .strikethrough(!config.isEnabled, color: Color.secondary.opacity(0.6))
-                                .lineLimit(1)
-                            
-                            Spacer()
-                            
-                            // Finder-style Monospaced Badge
-                            Text("\(children.count)")
-                                .font(.system(size: 10, weight: .semibold, design: .monospaced))
-                                .foregroundColor(isSelected ? Color.accentColor : Color(white: 0.55))
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(isSelected ? Color.accentColor.opacity(0.12) : Color.white.opacity(0.06))
-                                .clipShape(Capsule())
-                        }
+                HStack(spacing: 6) {
+                    // Expand/Collapse Chevron (animated rotation)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundColor(isSelected ? Color.accentColor : Color.secondary.opacity(0.8))
+                        .frame(width: 14, height: 14)
+                        .rotationEffect(isExpanded ? .degrees(90) : .zero)
                         .contentShape(Rectangle())
+                        .onTapGesture {
+                            withAnimation(.easeInOut(duration: 0.15)) {
+                                if isExpanded {
+                                    _ = expandedFolders.remove(url.path)
+                                } else {
+                                    _ = expandedFolders.insert(url.path)
+                                }
+                            }
+                        }
+
+                    let appBundleId: String? = {
+                        if let customId = config.customAppIconBundleId, !customId.isEmpty {
+                            return customId
+                        }
+                        if config.isRestrictedToApps && config.targetApps.count == 1 {
+                            return config.targetApps[0].bundleId
+                        }
+                        return nil
+                    }()
+                    
+                    if let bundleId = appBundleId,
+                       let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId),
+                       let nsImage = NSWorkspace.shared.icon(forFile: appURL.path) as NSImage? {
+                        Image(nsImage: nsImage)
+                            .resizable()
+                            .frame(width: 18, height: 18)
+                            .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+                            .opacity(config.isEnabled ? 1.0 : 0.4)
+                    } else {
+                        Image(systemName: config.iconName)
+                            .foregroundColor(isSelected ? Color.accentColor : (config.isEnabled ? config.color : Color.gray.opacity(0.5)))
+                            .font(.system(size: 14))
+                            .frame(width: 18, height: 18)
                     }
-                    .buttonStyle(.plain)
+
+                    Text(name.toTitleCase())
+                        .font(.system(size: 13, weight: isSelected ? .bold : .medium))
+                        .foregroundColor(isSelected ? Color.accentColor : (config.isEnabled ? Color(white: 0.92) : Color.secondary.opacity(0.7)))
+                        .strikethrough(!config.isEnabled, color: Color.secondary.opacity(0.6))
+                        .lineLimit(1)
+                    
+                    Spacer()
+                    
+                    // Finder-style Monospaced Badge
+                    Text("\(children.count)")
+                        .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                        .foregroundColor(isSelected ? Color.accentColor : Color(white: 0.55))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(isSelected ? Color.accentColor.opacity(0.12) : Color.white.opacity(0.06))
+                        .clipShape(Capsule())
+                }
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    let flags = NSEvent.modifierFlags
+                    if flags.contains(.command) || flags.contains(.shift) {
+                        onSelect(url.path, flags)
+                    } else {
+                        store.selectedFolderPath = url.path
+                        store.selectedFilePath = nil
+                        onSelect(url.path, flags)
+                    }
                 }
                 .padding(.leading, CGFloat(depth * 14 + 6))
                 .padding(.trailing, 8)
@@ -1546,7 +1541,43 @@ struct SidebarNodeView: View {
         case .macro(let macro):
             let isSelected = selectedPaths.contains(macro.fileURL.path) || (store.selectedFilePath == macro.fileURL.path && selectedPaths.isEmpty)
 
-            Button {
+            HStack(spacing: 8) {
+                let mainAction = macro.actionItems.first?.action
+                let iconName = mainAction?.iconName ?? "bolt.fill"
+                let iconColor = mainAction?.color ?? squircleColor(for: macro.fileName.hashValue)
+                
+                ZStack {
+                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        .fill(macro.isEnabled ? iconColor : Color.gray.opacity(0.5))
+                        .frame(width: 18, height: 18)
+                    Image(systemName: iconName)
+                        .foregroundColor(.white)
+                        .font(.system(size: 9, weight: .bold))
+                }
+
+                Text(macro.fileName.replacingOccurrences(of: ".shortking", with: "").toTitleCase())
+                    .font(.system(size: 13, weight: isSelected ? .bold : .regular))
+                    .foregroundColor(isSelected ? Color.accentColor : (macro.isEnabled ? Color(white: 0.90) : Color.secondary.opacity(0.7)))
+                    .strikethrough(!macro.isEnabled, color: Color.secondary.opacity(0.6))
+                    .lineLimit(1)
+
+                Spacer()
+
+                if !macro.isEnabled {
+                    Text("Off")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundColor(.secondary)
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 1)
+                        .background(Color.white.opacity(0.08))
+                        .clipShape(RoundedRectangle(cornerRadius: 3))
+                }
+
+                ShortcutBadgeView(trigger: macro.trigger, isDimmedMini: true, isSelected: isSelected)
+                    .opacity(isSelected ? 0.6 : (macro.isEnabled ? 1.0 : 0.4))
+            }
+            .contentShape(Rectangle())
+            .onTapGesture {
                 let flags = NSEvent.modifierFlags
                 if flags.contains(.command) || flags.contains(.shift) {
                     onSelect(macro.fileURL.path, flags)
@@ -1555,68 +1586,30 @@ struct SidebarNodeView: View {
                     store.selectedFolderPath = nil
                     onSelect(macro.fileURL.path, flags)
                 }
-            } label: {
-                HStack(spacing: 8) {
-                    let mainAction = macro.actionItems.first?.action
-                    let iconName = mainAction?.iconName ?? "bolt.fill"
-                    let iconColor = mainAction?.color ?? squircleColor(for: macro.fileName.hashValue)
-                    
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 4, style: .continuous)
-                            .fill(macro.isEnabled ? iconColor : Color.gray.opacity(0.5))
-                            .frame(width: 18, height: 18)
-                        Image(systemName: iconName)
-                            .foregroundColor(.white)
-                            .font(.system(size: 9, weight: .bold))
-                    }
-
-                    Text(macro.fileName.replacingOccurrences(of: ".shortking", with: "").toTitleCase())
-                        .font(.system(size: 13, weight: isSelected ? .bold : .regular))
-                        .foregroundColor(isSelected ? Color.accentColor : (macro.isEnabled ? Color(white: 0.90) : Color.secondary.opacity(0.7)))
-                        .strikethrough(!macro.isEnabled, color: Color.secondary.opacity(0.6))
-                        .lineLimit(1)
-
-                    Spacer()
-
-                    if !macro.isEnabled {
-                        Text("Off")
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundColor(.secondary)
-                            .padding(.horizontal, 4)
-                            .padding(.vertical, 1)
-                            .background(Color.white.opacity(0.08))
-                            .clipShape(RoundedRectangle(cornerRadius: 3))
-                    }
-
-                    ShortcutBadgeView(trigger: macro.trigger, isDimmedMini: true, isSelected: isSelected)
-                        .opacity(isSelected ? 0.6 : (macro.isEnabled ? 1.0 : 0.4))
-                }
-                .opacity(macro.isEnabled ? 1.0 : 0.65)
-                .padding(.leading, CGFloat(depth * 14 + 20))
-                .padding(.trailing, 8)
-                .padding(.vertical, 5)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
-                .background(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(
-                            isSelected
-                                ? Color.white.opacity(0.12)
-                                : (isHovered ? Color.white.opacity(0.04) : Color.clear)
-                        )
-                )
-                .overlay(
-                    VStack {
-                        if isDropTarget {
-                            Color.accentColor
-                                .frame(height: 2)
-                                .padding(.horizontal, 8)
-                        }
-                        Spacer()
-                    }
-                )
             }
-            .buttonStyle(.plain)
+            .opacity(macro.isEnabled ? 1.0 : 0.65)
+            .padding(.leading, CGFloat(depth * 14 + 20))
+            .padding(.trailing, 8)
+            .padding(.vertical, 5)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(
+                        isSelected
+                            ? Color.white.opacity(0.12)
+                            : (isHovered ? Color.white.opacity(0.04) : Color.clear)
+                    )
+            )
+            .overlay(
+                VStack {
+                    if isDropTarget {
+                        Color.accentColor
+                            .frame(height: 2)
+                            .padding(.horizontal, 8)
+                    }
+                    Spacer()
+                }
+            )
             .onHover { isHovered = $0 }
             .onDrag {
                 let pathsToDrag = selectedPaths.contains(macro.fileURL.path) ? Array(selectedPaths) : [macro.fileURL.path]
