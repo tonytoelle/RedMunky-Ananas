@@ -1944,9 +1944,7 @@ struct MainEditorView: View {
                 }
             }
             .navigationSplitViewColumnWidth(min: 200, ideal: sidebarWidth, max: 420)
-            .background(
-                VisualEffectView(material: .sidebar, blendingMode: .behindWindow)
-            )
+            .background(Color.clear)
         } detail: {
             GeometryReader { detailGeo in
                 if let macro = store.selectedMacro {
