@@ -1853,33 +1853,17 @@ struct MainEditorView: View {
                 }
                 .listStyle(.sidebar)
                 .scrollContentBackground(.hidden)
-                .onDrop(of: [.plainText, .utf8PlainText, .fileURL], isTargeted: $isRootDropTarget) { providers in
-                    for provider in providers {
-                        _ = provider.loadObject(ofClass: NSString.self) { string, _ in
-                            guard let str = string as? String else { return }
-                            let paths = str.components(separatedBy: "\n").filter { !$0.isEmpty }
-                            DispatchQueue.main.async {
-                                store.moveItems(paths: paths, toFolder: store.watchDirectoryURL)
-                            }
-                        }
-                    }
-                    return true
-                }
-
-                // Finder-style Frosted Bottom Action Bar
-                VStack(spacing: 0) {
-                    Divider()
-                        .background(Color.white.opacity(0.1))
-
+                .safeAreaInset(edge: .bottom) {
+                    // Finder-style Frosted Bottom Action Bar matching AppleMusicUI template
                     HStack(spacing: 12) {
                         Button {
                             store.createNewMacro()
                         } label: {
                             Image(systemName: "plus")
                                 .font(.system(size: 12, weight: .semibold))
-                                .frame(width: 22, height: 22)
-                                .background(Color.white.opacity(0.04))
-                                .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+                                .frame(width: 24, height: 24)
+                                .background(Color.white.opacity(0.06))
+                                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                         }
                         .buttonStyle(.plain)
                         .help("New Macro (⌘N)")
@@ -1891,9 +1875,9 @@ struct MainEditorView: View {
                         } label: {
                             Image(systemName: "folder.badge.plus")
                                 .font(.system(size: 12))
-                                .frame(width: 22, height: 22)
-                                .background(Color.white.opacity(0.04))
-                                .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+                                .frame(width: 24, height: 24)
+                                .background(Color.white.opacity(0.06))
+                                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                         }
                         .buttonStyle(.plain)
                         .help("New Folder (⇧⌘N)")
@@ -1910,9 +1894,9 @@ struct MainEditorView: View {
                                 Image(systemName: "trash")
                                     .font(.system(size: 12))
                                     .foregroundColor(.red.opacity(0.85))
-                                    .frame(width: 22, height: 22)
-                                    .background(Color.red.opacity(0.1))
-                                    .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+                                    .frame(width: 24, height: 24)
+                                    .background(Color.red.opacity(0.12))
+                                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                             }
                             .buttonStyle(.plain)
                             .help("Delete Selected Items")
@@ -1926,9 +1910,9 @@ struct MainEditorView: View {
                             Image(systemName: "arrow.triangle.2.circlepath")
                                 .font(.system(size: 12))
                                 .foregroundColor(.secondary)
-                                .frame(width: 22, height: 22)
-                                .background(Color.white.opacity(0.04))
-                                .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+                                .frame(width: 24, height: 24)
+                                .background(Color.white.opacity(0.06))
+                                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                         }
                         .buttonStyle(.plain)
                         .help("Relaunch App")
@@ -1940,13 +1924,29 @@ struct MainEditorView: View {
                             .foregroundColor(.secondary)
                     }
                     .padding(.horizontal, 12)
-                    .frame(height: 36)
+                    .padding(.vertical, 8)
+                    .background(.ultraThinMaterial)
+                    .overlay(
+                        Divider()
+                            .background(Color.white.opacity(0.08)),
+                        alignment: .top
+                    )
+                }
+                .onDrop(of: [.plainText, .utf8PlainText, .fileURL], isTargeted: $isRootDropTarget) { providers in
+                    for provider in providers {
+                        _ = provider.loadObject(ofClass: NSString.self) { string, _ in
+                            guard let str = string as? String else { return }
+                            let paths = str.components(separatedBy: "\n").filter { !$0.isEmpty }
+                            DispatchQueue.main.async {
+                                store.moveItems(paths: paths, toFolder: store.watchDirectoryURL)
+                            }
+                        }
+                    }
+                    return true
                 }
             }
             .navigationSplitViewColumnWidth(min: 200, ideal: sidebarWidth, max: 420)
-            .background(
-                VisualEffectView(material: .sidebar, blendingMode: .behindWindow)
-            )
+            .background(.ultraThinMaterial)
         } detail: {
             GeometryReader { detailGeo in
                 if let macro = store.selectedMacro {
