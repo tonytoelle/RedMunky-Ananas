@@ -79,8 +79,8 @@ struct SpotlightSearchBar: View {
                             isFocused = false
                         }
                     }
-                    .onChange(of: query) { _ in
-                        isShowingDropdown = !query.isEmpty
+                    .onChange(of: query) { _, newQuery in
+                        isShowingDropdown = !newQuery.isEmpty
                         selectedIndex = 0
                     }
                 if !query.isEmpty {

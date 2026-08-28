@@ -27,6 +27,8 @@ struct MacroInspectorView: View {
 
     @FocusState private var isNameFocused: Bool
     
+    @AppStorage("alwaysOnTop") private var alwaysOnTop: Bool = false
+    
     // Detect if any trigger is key switch
     var hasKeySwitchTrigger: Bool {
         macro.triggers.contains { $0.mode == .keySwitch }
@@ -49,12 +51,12 @@ struct MacroInspectorView: View {
                 tempName = macro.fileName.replacingOccurrences(of: ".shortking", with: "")
                 isEditingName = false
             }
-            .onChange(of: macro.id) {
+            .onChange(of: macro.id) { _, _ in
                 tempName = macro.fileName.replacingOccurrences(of: ".shortking", with: "")
                 isEditingName = false
                 store.selectedActionID = nil
             }
-            .onChange(of: macro.fileName) { newFileName in
+            .onChange(of: macro.fileName) { _, newFileName in
                 tempName = newFileName.replacingOccurrences(of: ".shortking", with: "")
                 isEditingName = false
             }
@@ -65,14 +67,32 @@ struct MacroInspectorView: View {
     @ViewBuilder
     private var headerSection: some View {
         HStack(spacing: 12) {
-            HStack(spacing: 2) {
+            if !store.isSidebarVisible {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        store.isSidebarVisible = true
+                    }
+                } label: {
+                    Image(systemName: "sidebar.leading")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(.secondary)
+                        .frame(width: 28, height: 28)
+                        .background(Color.white.opacity(0.06))
+                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .help("Show Sidebar (⌘S)")
+                .padding(.leading, 78)
+            }
+
+            HStack(spacing: 4) {
                 if isEditingName {
                     TextField("Macro Name", text: $tempName)
                         .font(.system(size: 15, weight: .bold))
                         .textFieldStyle(.plain)
                         .foregroundColor(.white)
                         .lineLimit(1)
-                        .frame(minWidth: 80, maxWidth: 180)
+                        .frame(minWidth: 80, maxWidth: 220)
                         .focused($isNameFocused)
                         .onSubmit {
                             store.renameMacro(macro, newBaseName: tempName)
@@ -135,10 +155,25 @@ struct MacroInspectorView: View {
             .buttonStyle(.borderedProminent)
             .controlSize(.small)
             .fixedSize()
+
+            Button {
+                alwaysOnTop.toggle()
+                if let appDelegate = NSApp.delegate as? AppDelegate {
+                    appDelegate.updateAlwaysOnTop()
+                }
+            } label: {
+                Image(systemName: alwaysOnTop ? "pin.fill" : "pin")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(alwaysOnTop ? .accentColor : .secondary)
+                    .frame(width: 26, height: 26)
+                    .background(Color.white.opacity(0.06))
+                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .help("Always on Top")
         }
-        .padding(.horizontal, 22)
-        .padding(.top, 14)
-        .padding(.bottom, 12)
+        .padding(.horizontal, 18)
+        .frame(height: 52)
         .background(Color(white: 0.14))
         .background(WindowDragView())
     }
@@ -737,6 +772,8 @@ struct FolderInspectorView: View {
         "gamecontroller.fill", "bolt.fill", "keyboard.fill", "slider.horizontal.3", "flame.fill"
     ]
 
+    @AppStorage("alwaysOnTop") private var alwaysOnTop: Bool = false
+
     var runningApps: [NSRunningApplication] {
         return NSWorkspace.shared.runningApplications.filter {
             $0.activationPolicy == .regular &&
@@ -748,13 +785,48 @@ struct FolderInspectorView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header bar (Window draggable area) - matches titlebar color and height
-            ZStack {
-                WindowDragView()
-                    .frame(height: 38)
+            // Header bar (Window draggable area) - 52px unified bar
+            HStack(spacing: 12) {
+                if !store.isSidebarVisible {
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            store.isSidebarVisible = true
+                        }
+                    } label: {
+                        Image(systemName: "sidebar.leading")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.secondary)
+                            .frame(width: 28, height: 28)
+                            .background(Color.white.opacity(0.06))
+                            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                    .help("Show Sidebar (⌘S)")
+                    .padding(.leading, 78)
+                }
+
+                Spacer()
+
+                Button {
+                    alwaysOnTop.toggle()
+                    if let appDelegate = NSApp.delegate as? AppDelegate {
+                        appDelegate.updateAlwaysOnTop()
+                    }
+                } label: {
+                    Image(systemName: alwaysOnTop ? "pin.fill" : "pin")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(alwaysOnTop ? .accentColor : .secondary)
+                        .frame(width: 26, height: 26)
+                        .background(Color.white.opacity(0.06))
+                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .help("Always on Top")
             }
-            .frame(height: 38)
+            .padding(.horizontal, 18)
+            .frame(height: 52)
             .background(Color(white: 0.14))
+            .background(WindowDragView())
 
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 24) {
@@ -1218,7 +1290,30 @@ struct FolderInspectorView: View {
 }
 
 // ==========================================
-// MARK: - Sidebar Tree Node View (Obsidian / Finder Style)
+// MARK: - Native Visual Effect View (macOS Tahoe Liquid Glass)
+// ==========================================
+struct VisualEffectView: NSViewRepresentable {
+    var material: NSVisualEffectView.Material = .sidebar
+    var blendingMode: NSVisualEffectView.BlendingMode = .behindWindow
+    var state: NSVisualEffectView.State = .followsWindowActiveState
+
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        view.material = material
+        view.blendingMode = blendingMode
+        view.state = state
+        return view
+    }
+
+    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {
+        nsView.material = material
+        nsView.blendingMode = blendingMode
+        nsView.state = state
+    }
+}
+
+// ==========================================
+// MARK: - Sidebar Tree Node View (macOS Tahoe / Finder Style)
 // ==========================================
 struct FolderPromptState: Identifiable {
     let id = UUID()
@@ -1237,6 +1332,7 @@ struct SidebarNodeView: View {
     var onPromptFolder: (Bool, URL?, String) -> Void
 
     @State private var isDropTarget = false
+    @State private var isHovered = false
 
     var body: some View {
         switch node {
@@ -1258,80 +1354,86 @@ struct SidebarNodeView: View {
                             onSelect(url.path, flags)
                         }
                     } label: {
-                        HStack(spacing: 0) {
-                            HStack(spacing: 6) {
-                                let appBundleId: String? = {
-                                    if let customId = config.customAppIconBundleId, !customId.isEmpty {
-                                        return customId
+                        HStack(spacing: 6) {
+                            // Expand/Collapse Chevron (animated rotation)
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundColor(isSelected ? .white.opacity(0.8) : Color.secondary.opacity(0.8))
+                                .frame(width: 14, height: 14)
+                                .rotationEffect(isExpanded ? .degrees(90) : .zero)
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    withAnimation(.easeInOut(duration: 0.15)) {
+                                        if isExpanded {
+                                            expandedFolders.remove(url.path)
+                                        } else {
+                                            expandedFolders.insert(url.path)
+                                        }
                                     }
-                                    if config.isRestrictedToApps && config.targetApps.count == 1 {
-                                        return config.targetApps[0].bundleId
-                                    }
-                                    return nil
-                                }()
-                                
-                                if let bundleId = appBundleId,
-                                   let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId),
-                                   let nsImage = NSWorkspace.shared.icon(forFile: appURL.path) as NSImage? {
-                                    Image(nsImage: nsImage)
-                                        .resizable()
-                                        .frame(width: 22, height: 22)
-                                        .opacity(config.isEnabled ? 1.0 : 0.4)
-                                } else {
-                                    Image(systemName: config.iconName)
-                                        .foregroundColor(config.isEnabled ? config.color : Color.gray.opacity(0.5))
-                                        .font(.system(size: 17))
                                 }
 
-                                Text(name.toTitleCase())
-                                    .font(.system(size: 13, weight: .bold))
-                                    .foregroundColor(isSelected ? .white : (config.isEnabled ? Color(white: 0.92) : Color.secondary.opacity(0.7)))
-                                    .strikethrough(!config.isEnabled, color: Color.secondary.opacity(0.6))
-                                    .lineLimit(1)
+                            let appBundleId: String? = {
+                                if let customId = config.customAppIconBundleId, !customId.isEmpty {
+                                    return customId
+                                }
+                                if config.isRestrictedToApps && config.targetApps.count == 1 {
+                                    return config.targetApps[0].bundleId
+                                }
+                                return nil
+                            }()
+                            
+                            if let bundleId = appBundleId,
+                               let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId),
+                               let nsImage = NSWorkspace.shared.icon(forFile: appURL.path) as NSImage? {
+                                Image(nsImage: nsImage)
+                                    .resizable()
+                                    .frame(width: 18, height: 18)
+                                    .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+                                    .opacity(config.isEnabled ? 1.0 : 0.4)
+                            } else {
+                                Image(systemName: config.iconName)
+                                    .foregroundColor(isSelected ? .white : (config.isEnabled ? config.color : Color.gray.opacity(0.5)))
+                                    .font(.system(size: 14))
+                                    .frame(width: 18, height: 18)
                             }
+
+                            Text(name.toTitleCase())
+                                .font(.system(size: 13, weight: isSelected ? .semibold : .medium))
+                                .foregroundColor(isSelected ? .white : (config.isEnabled ? Color(white: 0.92) : Color.secondary.opacity(0.7)))
+                                .strikethrough(!config.isEnabled, color: Color.secondary.opacity(0.6))
+                                .lineLimit(1)
                             
                             Spacer()
                             
+                            // Finder-style Monospaced Badge
                             Text("\(children.count)")
-                                .font(.system(size: 10, weight: .medium, design: .monospaced))
-                                .foregroundColor(Color(white: 0.45))
-                                .padding(.trailing, 6)
+                                .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                                .foregroundColor(isSelected ? .white.opacity(0.9) : Color(white: 0.55))
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(isSelected ? Color.white.opacity(0.22) : Color.white.opacity(0.06))
+                                .clipShape(Capsule())
                         }
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-
-                    // Chevron button (only toggles fold)
-                    Button {
-                        withAnimation(.easeInOut(duration: 0.15)) {
-                            if isExpanded {
-                                expandedFolders.remove(url.path)
-                            } else {
-                                expandedFolders.insert(url.path)
-                            }
-                        }
-                    } label: {
-                        Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundColor(Color(white: 0.55))
-                            .frame(width: 20, height: 22)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
                 }
-                .padding(.leading, CGFloat(depth * 12 + 4))
+                .padding(.leading, CGFloat(depth * 14 + 6))
                 .padding(.trailing, 8)
                 .padding(.vertical, 4)
                 .background(
-                    isDropTarget
-                        ? Color.accentColor.opacity(0.3)
-                        : (isSelected ? Color(red: 0.05, green: 0.45, blue: 0.95).opacity(0.7) : Color.clear)
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(
+                            isSelected
+                                ? Color.accentColor
+                                : (isHovered ? Color.white.opacity(0.06) : Color.clear)
+                        )
                 )
                 .overlay(
-                    Capsule()
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
                         .stroke(isDropTarget ? Color.accentColor : Color.clear, lineWidth: 1.5)
                 )
-                .clipShape(Capsule())
+                .onHover { isHovered = $0 }
                 .onDrag {
                     let pathsToDrag = selectedPaths.contains(url.path) ? Array(selectedPaths) : [url.path]
                     return NSItemProvider(object: pathsToDrag.joined(separator: "\n") as NSString)
@@ -1350,10 +1452,10 @@ struct SidebarNodeView: View {
                 }
                 .onChange(of: isDropTarget) { _, targeted in
                     if targeted {
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
                             if isDropTarget {
                                 withAnimation(.easeInOut(duration: 0.15)) {
-                                    expandedFolders.insert(url.path)
+                                    _ = expandedFolders.insert(url.path)
                                 }
                             }
                         }
@@ -1439,7 +1541,7 @@ struct SidebarNodeView: View {
                     }
                 }
             }
-            .padding(.bottom, (isExpanded && !children.isEmpty) ? 12 : 0)
+            .padding(.bottom, (isExpanded && !children.isEmpty) ? 6 : 0)
 
         case .macro(let macro):
             let isSelected = selectedPaths.contains(macro.fileURL.path) || (store.selectedFilePath == macro.fileURL.path && selectedPaths.isEmpty)
@@ -1469,7 +1571,7 @@ struct SidebarNodeView: View {
                     }
 
                     Text(macro.fileName.replacingOccurrences(of: ".shortking", with: "").toTitleCase())
-                        .font(.system(size: 13, weight: .regular))
+                        .font(.system(size: 13, weight: isSelected ? .semibold : .regular))
                         .foregroundColor(isSelected ? .white : (macro.isEnabled ? Color(white: 0.90) : Color.secondary.opacity(0.7)))
                         .strikethrough(!macro.isEnabled, color: Color.secondary.opacity(0.6))
                         .lineLimit(1)
@@ -1487,16 +1589,21 @@ struct SidebarNodeView: View {
                     }
 
                     ShortcutBadgeView(trigger: macro.trigger, isDimmedMini: true, isSelected: isSelected)
-                        .opacity(isSelected ? 0.3 : (macro.isEnabled ? 1.0 : 0.4))
+                        .opacity(isSelected ? 0.4 : (macro.isEnabled ? 1.0 : 0.4))
                 }
                 .opacity(macro.isEnabled ? 1.0 : 0.65)
-                .padding(.leading, CGFloat(depth * 12 + 4))
+                .padding(.leading, CGFloat(depth * 14 + 20))
                 .padding(.trailing, 8)
-                .padding(.vertical, 6)
+                .padding(.vertical, 5)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(Rectangle())
                 .background(
-                    isSelected ? Color(red: 0.05, green: 0.45, blue: 0.95) : Color.clear
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(
+                            isSelected
+                                ? Color.accentColor
+                                : (isHovered ? Color.white.opacity(0.06) : Color.clear)
+                        )
                 )
                 .overlay(
                     VStack {
@@ -1508,9 +1615,9 @@ struct SidebarNodeView: View {
                         Spacer()
                     }
                 )
-                .clipShape(Capsule())
             }
             .buttonStyle(.plain)
+            .onHover { isHovered = $0 }
             .onDrag {
                 let pathsToDrag = selectedPaths.contains(macro.fileURL.path) ? Array(selectedPaths) : [macro.fileURL.path]
                 return NSItemProvider(object: pathsToDrag.joined(separator: "\n") as NSString)
@@ -1622,7 +1729,7 @@ struct WindowDragView: NSViewRepresentable {
 }
 
 // ==========================================
-// MARK: - Main Editor View (Obsidian / Finder Style)
+// MARK: - Main Editor View (macOS Tahoe Safari / Finder Style)
 // ==========================================
 struct MainEditorView: View {
     @ObservedObject var store = MacroStore.shared
@@ -1639,7 +1746,7 @@ struct MainEditorView: View {
     @FocusState private var isSearchFocused: Bool
     @State private var keyMonitor: Any? = nil
     @AppStorage("alwaysOnTop") private var alwaysOnTop: Bool = false
-    @AppStorage("sidebarWidth") private var sidebarWidth: Double = 270
+    @AppStorage("sidebarWidth") private var sidebarWidth: Double = 260
 
     var displayNodes: [FileSystemNode] {
         if searchText.isEmpty {
@@ -1736,159 +1843,220 @@ struct MainEditorView: View {
     var body: some View {
         GeometryReader { outerGeo in
             HStack(spacing: 0) {
-                // Left Sidebar Section
-                VStack(alignment: .leading, spacing: 0) {
-                    // Titlebar clearance (toggle button is in fixed overlay)
-                    Spacer()
-                        .frame(height: 24)
-
-                    // Search Capsule Pill
-                    HStack(spacing: 6) {
-                        Image(systemName: "magnifyingglass")
-                            .foregroundColor(.secondary)
-                            .font(.system(size: 13))
-                        TextField("Search macros", text: $searchText)
-                            .textFieldStyle(.plain)
-                            .font(.system(size: 13))
-                            .focused($isSearchFocused)
-                            .onSubmit {
-                                isSearchFocused = false
-                            }
-                        if !searchText.isEmpty {
-                            Button { searchText = "" } label: {
-                                Image(systemName: "xmark.circle.fill")
+                // ═══════════════════════════════════════════════════
+                // LEFT SIDEBAR (macOS Tahoe Safari/Finder Style)
+                // ═══════════════════════════════════════════════════
+                if store.isSidebarVisible {
+                    VStack(alignment: .leading, spacing: 0) {
+                        // Titlebar Clearance & Sidebar Toggle (Height: 52px)
+                        HStack(spacing: 8) {
+                            // Traffic lights space
+                            WindowDragView()
+                                .frame(width: 70, height: 52)
+                            
+                            // Sidebar Toggle Button
+                            Button {
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    store.isSidebarVisible.toggle()
+                                }
+                            } label: {
+                                Image(systemName: "sidebar.leading")
+                                    .font(.system(size: 14, weight: .medium))
                                     .foregroundColor(.secondary)
+                                    .frame(width: 28, height: 28)
+                                    .background(Color.white.opacity(0.06))
+                                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                             }
                             .buttonStyle(.plain)
+                            .help("Toggle Sidebar (⌘S)")
+                            
+                            Spacer()
                         }
-                    }
-                    .padding(.horizontal, 9)
-                    .padding(.vertical, 6)
-                    .background(Color(white: 0.20))
-                    .clipShape(Capsule())
-                    .padding(.horizontal, 12)
-                    .padding(.top, 4)
-                    .padding(.bottom, 8)
+                        .frame(height: 52)
+                        .background(WindowDragView())
 
-                    // Hierarchical Folder Tree
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 2) {
-                            if displayNodes.isEmpty {
-                                VStack(spacing: 8) {
-                                    Text(searchText.isEmpty ? "No macros or folders yet" : "No matching macros")
-                                        .font(.system(size: 12))
+                        // Tahoe Glass Search Field
+                        HStack(spacing: 6) {
+                            Image(systemName: "magnifyingglass")
+                                .foregroundColor(.secondary)
+                                .font(.system(size: 12))
+                            TextField("Search macros (⌘F)", text: $searchText)
+                                .textFieldStyle(.plain)
+                                .font(.system(size: 12))
+                                .focused($isSearchFocused)
+                                .onSubmit {
+                                    isSearchFocused = false
+                                }
+                            if !searchText.isEmpty {
+                                Button { searchText = "" } label: {
+                                    Image(systemName: "xmark.circle.fill")
                                         .foregroundColor(.secondary)
+                                        .font(.system(size: 12))
                                 }
-                                .frame(maxWidth: .infinity, alignment: .center)
-                                .padding(.top, 24)
-                            } else {
-                                ForEach(displayNodes) { node in
-                                    SidebarNodeView(
-                                        node: node,
-                                        depth: 0,
-                                        expandedFolders: $expandedFolders,
-                                        selectedPaths: $selectedPaths,
-                                        onSelect: handleSelect,
-                                        onPromptFolder: { isNew, url, name in
-                                            folderPrompt = FolderPromptState(isNewFolder: isNew, targetURL: url, initialName: name)
-                                            folderInputText = name
-                                            showingFolderAlert = true
-                                        }
-                                    )
-                                }
+                                .buttonStyle(.plain)
                             }
                         }
                         .padding(.horizontal, 8)
-                        .padding(.bottom, 12)
-                    }
-                    .onDrop(of: [.plainText, .utf8PlainText, .fileURL], isTargeted: $isRootDropTarget) { providers in
-                        for provider in providers {
-                            _ = provider.loadObject(ofClass: NSString.self) { string, _ in
-                                guard let str = string as? String else { return }
-                                let paths = str.components(separatedBy: "\n").filter { !$0.isEmpty }
-                                DispatchQueue.main.async {
-                                    store.moveItems(paths: paths, toFolder: store.watchDirectoryURL)
+                        .padding(.vertical, 5)
+                        .background(Color.white.opacity(0.08))
+                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .stroke(Color.white.opacity(0.1), lineWidth: 0.8)
+                        )
+                        .padding(.horizontal, 10)
+                        .padding(.bottom, 10)
+
+                        // Section Header
+                        HStack {
+                            Text("MACROS")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundColor(Color.secondary.opacity(0.8))
+                                .tracking(0.6)
+                            Spacer()
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 4)
+
+                        // Hierarchical Folder Tree
+                        ScrollView {
+                            VStack(alignment: .leading, spacing: 2) {
+                                if displayNodes.isEmpty {
+                                    VStack(spacing: 8) {
+                                        Text(searchText.isEmpty ? "No macros or folders yet" : "No matching macros")
+                                            .font(.system(size: 12))
+                                            .foregroundColor(.secondary)
+                                    }
+                                    .frame(maxWidth: .infinity, alignment: .center)
+                                    .padding(.top, 24)
+                                } else {
+                                    ForEach(displayNodes) { node in
+                                        SidebarNodeView(
+                                            node: node,
+                                            depth: 0,
+                                            expandedFolders: $expandedFolders,
+                                            selectedPaths: $selectedPaths,
+                                            onSelect: handleSelect,
+                                            onPromptFolder: { isNew, url, name in
+                                                folderPrompt = FolderPromptState(isNewFolder: isNew, targetURL: url, initialName: name)
+                                                folderInputText = name
+                                                showingFolderAlert = true
+                                            }
+                                        )
+                                    }
                                 }
                             }
+                            .padding(.horizontal, 8)
+                            .padding(.bottom, 12)
                         }
-                        return true
-                    }
-
-                    // Bottom Toolbar (+ Macro, + Folder, Delete, Count)
-                    HStack(spacing: 12) {
-                        Button {
-                            store.createNewMacro()
-                        } label: {
-                            Image(systemName: "plus")
-                                .font(.system(size: 13, weight: .semibold))
-                        }
-                        .buttonStyle(.borderless)
-                        .help("New Macro")
-
-                        Button {
-                            folderPrompt = FolderPromptState(isNewFolder: true, targetURL: nil, initialName: "")
-                            folderInputText = ""
-                            showingFolderAlert = true
-                        } label: {
-                            Image(systemName: "folder.badge.plus")
-                                .font(.system(size: 13))
-                        }
-                        .buttonStyle(.borderless)
-                        .help("New Folder")
-
-                        if !selectedPaths.isEmpty || store.selectedMacro != nil {
-                            Button {
-                                if !selectedPaths.isEmpty {
-                                    store.deleteItems(paths: Array(selectedPaths))
-                                    selectedPaths.removeAll()
-                                } else if let m = store.selectedMacro {
-                                    store.deleteMacro(m)
+                        .onDrop(of: [.plainText, .utf8PlainText, .fileURL], isTargeted: $isRootDropTarget) { providers in
+                            for provider in providers {
+                                _ = provider.loadObject(ofClass: NSString.self) { string, _ in
+                                    guard let str = string as? String else { return }
+                                    let paths = str.components(separatedBy: "\n").filter { !$0.isEmpty }
+                                    DispatchQueue.main.async {
+                                        store.moveItems(paths: paths, toFolder: store.watchDirectoryURL)
+                                    }
                                 }
-                            } label: {
-                                Image(systemName: "trash").font(.system(size: 13))
                             }
-                            .buttonStyle(.borderless)
-                            .help("Delete Selected Items")
-                            .foregroundColor(.red)
+                            return true
                         }
-                        
-                        Button {
-                            if let appDelegate = NSApp.delegate as? AppDelegate {
-                                appDelegate.relaunchApp()
-                            }
-                        } label: {
-                            Image(systemName: "arrow.triangle.2.circlepath")
-                                .font(.system(size: 13))
-                        }
-                        .buttonStyle(.borderless)
-                        .help("Relaunch App")
-                        .foregroundColor(.secondary)
 
-                        Spacer()
-                        Text("\(store.macros.count) macros")
-                            .font(.system(size: 11))
-                            .foregroundColor(.secondary)
+                        // Finder-style Frosted Bottom Action Bar
+                        VStack(spacing: 0) {
+                            Divider()
+                                .background(Color.white.opacity(0.1))
+
+                            HStack(spacing: 12) {
+                                Button {
+                                    store.createNewMacro()
+                                } label: {
+                                    Image(systemName: "plus")
+                                        .font(.system(size: 12, weight: .semibold))
+                                        .frame(width: 22, height: 22)
+                                        .background(Color.white.opacity(0.04))
+                                        .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+                                }
+                                .buttonStyle(.plain)
+                                .help("New Macro (⌘N)")
+
+                                Button {
+                                    folderPrompt = FolderPromptState(isNewFolder: true, targetURL: nil, initialName: "")
+                                    folderInputText = ""
+                                    showingFolderAlert = true
+                                } label: {
+                                    Image(systemName: "folder.badge.plus")
+                                        .font(.system(size: 12))
+                                        .frame(width: 22, height: 22)
+                                        .background(Color.white.opacity(0.04))
+                                        .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+                                }
+                                .buttonStyle(.plain)
+                                .help("New Folder (⇧⌘N)")
+
+                                if !selectedPaths.isEmpty || store.selectedMacro != nil {
+                                    Button {
+                                        if !selectedPaths.isEmpty {
+                                            store.deleteItems(paths: Array(selectedPaths))
+                                            selectedPaths.removeAll()
+                                        } else if let m = store.selectedMacro {
+                                            store.deleteMacro(m)
+                                        }
+                                    } label: {
+                                        Image(systemName: "trash")
+                                            .font(.system(size: 12))
+                                            .foregroundColor(.red.opacity(0.85))
+                                            .frame(width: 22, height: 22)
+                                            .background(Color.red.opacity(0.1))
+                                            .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+                                    }
+                                    .buttonStyle(.plain)
+                                    .help("Delete Selected Items")
+                                }
+                                
+                                Button {
+                                    if let appDelegate = NSApp.delegate as? AppDelegate {
+                                        appDelegate.relaunchApp()
+                                    }
+                                } label: {
+                                    Image(systemName: "arrow.triangle.2.circlepath")
+                                        .font(.system(size: 12))
+                                        .foregroundColor(.secondary)
+                                        .frame(width: 22, height: 22)
+                                        .background(Color.white.opacity(0.04))
+                                        .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+                                }
+                                .buttonStyle(.plain)
+                                .help("Relaunch App")
+
+                                Spacer()
+                                
+                                Text("\(store.macros.count) macros")
+                                    .font(.system(size: 11, weight: .medium))
+                                    .foregroundColor(.secondary)
+                            }
+                            .padding(.horizontal, 12)
+                            .frame(height: 36)
+                        }
                     }
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 8)
-                }
-                .padding(.leading, 8)
-                .padding(.trailing, 2)
-                .frame(width: store.isSidebarVisible ? sidebarWidth : 0)
-                .frame(maxHeight: .infinity)
-                .background(Color(white: 0.12).onTapGesture {
-                    NSApp.keyWindow?.makeFirstResponder(nil)
-                })
-                .clipped()
-                
-                // Custom Resizable Divider
-                if store.isSidebarVisible {
+                    .frame(width: sidebarWidth)
+                    .frame(maxHeight: .infinity)
+                    .background(
+                        ZStack {
+                            VisualEffectView(material: .sidebar, blendingMode: .behindWindow)
+                            Color(white: 0.10).opacity(0.4)
+                        }
+                    )
+                    .transition(.move(edge: .leading))
+                    
+                    // Custom Resizable Divider
                     ZStack {
                         Color.clear
-                            .frame(width: 6)
+                            .frame(width: 5)
                             .contentShape(Rectangle())
                     }
-                    .frame(width: 6)
+                    .frame(width: 5)
+                    .background(Color.black.opacity(0.2))
                     .contentShape(Rectangle())
                     .onHover { inside in
                         if inside {
@@ -1901,12 +2069,14 @@ struct MainEditorView: View {
                         DragGesture(coordinateSpace: .named("mainContainer"))
                             .onChanged { gesture in
                                 let newWidth = gesture.location.x
-                                sidebarWidth = Double(max(240, min(newWidth, 450)))
+                                sidebarWidth = Double(max(200, min(newWidth, 420)))
                             }
                     )
                 }
 
-                // Right Detail Canvas Section
+                // ═══════════════════════════════════════════════════
+                // RIGHT DETAIL CANVAS SECTION
+                // ═══════════════════════════════════════════════════
                 GeometryReader { detailGeo in
                     if let macro = store.selectedMacro {
                         MacroInspectorView(macro: macro, detailWidth: detailGeo.size.width)
@@ -1921,9 +2091,48 @@ struct MainEditorView: View {
                         .id(folderPath)
                     } else {
                         VStack(spacing: 0) {
-                            // Titlebar clearance (toggle button is in fixed overlay)
-                            Spacer()
-                                .frame(height: 38)
+                            // Top Header Bar
+                            HStack(spacing: 12) {
+                                if !store.isSidebarVisible {
+                                    Button {
+                                        withAnimation(.easeInOut(duration: 0.2)) {
+                                            store.isSidebarVisible = true
+                                        }
+                                    } label: {
+                                        Image(systemName: "sidebar.leading")
+                                            .font(.system(size: 14, weight: .medium))
+                                            .foregroundColor(.secondary)
+                                            .frame(width: 28, height: 28)
+                                            .background(Color.white.opacity(0.06))
+                                            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                                    }
+                                    .buttonStyle(.plain)
+                                    .help("Show Sidebar (⌘S)")
+                                    .padding(.leading, 78)
+                                }
+
+                                Spacer()
+
+                                Button {
+                                    alwaysOnTop.toggle()
+                                    if let appDelegate = NSApp.delegate as? AppDelegate {
+                                        appDelegate.updateAlwaysOnTop()
+                                    }
+                                } label: {
+                                    Image(systemName: alwaysOnTop ? "pin.fill" : "pin")
+                                        .font(.system(size: 13, weight: .semibold))
+                                        .foregroundColor(alwaysOnTop ? .accentColor : .secondary)
+                                        .frame(width: 26, height: 26)
+                                        .background(Color.white.opacity(0.06))
+                                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                                }
+                                .buttonStyle(.plain)
+                                .help("Always on Top")
+                            }
+                            .padding(.horizontal, 18)
+                            .frame(height: 52)
+                            .background(Color(white: 0.14))
+                            .background(WindowDragView())
                         
                             VStack(spacing: 16) {
                                 ZStack {
@@ -1956,21 +2165,37 @@ struct MainEditorView: View {
             }
             .coordinateSpace(name: "mainContainer")
             .onChange(of: outerGeo.size.width) { oldWidth, newWidth in
-                if newWidth < 580 && store.isSidebarVisible {
+                if newWidth < 540 && store.isSidebarVisible {
                     withAnimation(.easeInOut(duration: 0.2)) {
                         store.isSidebarVisible = false
                     }
-                } else if newWidth >= 680 && !store.isSidebarVisible && oldWidth < 680 {
+                } else if newWidth >= 660 && !store.isSidebarVisible && oldWidth < 660 {
                     withAnimation(.easeInOut(duration: 0.2)) {
                         store.isSidebarVisible = true
                     }
                 }
             }
         }
+        .alert(isPresented: $showingFolderAlert) {
+            let isNew = folderPrompt?.isNewFolder ?? true
+            return Alert(
+                title: Text(isNew ? "New Folder" : "Rename Folder"),
+                message: Text("Enter folder name:"),
+                primaryButton: .default(Text(isNew ? "Create" : "Rename")) {
+                    guard !folderInputText.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+                    if isNew {
+                        store.createFolder(name: folderInputText, parentURL: folderPrompt?.targetURL)
+                    } else if let url = folderPrompt?.targetURL {
+                        store.renameFolder(at: url, newName: folderInputText)
+                    }
+                },
+                secondaryButton: .cancel()
+            )
+        }
         .onAppear {
             for node in store.treeNodes {
                 if case .folder(_, let url, _, _) = node {
-                    expandedFolders.insert(url.path)
+                    _ = expandedFolders.insert(url.path)
                 }
             }
             
@@ -1985,14 +2210,14 @@ struct MainEditorView: View {
                         if event.keyCode == 123 { // Collapse
                             if expandedFolders.contains(path) {
                                 withAnimation(.easeInOut(duration: 0.15)) {
-                                    expandedFolders.remove(path)
+                                    _ = expandedFolders.remove(path)
                                 }
                                 return nil // consume
                             }
                         } else if event.keyCode == 124 { // Expand
                             if !expandedFolders.contains(path) {
                                 withAnimation(.easeInOut(duration: 0.15)) {
-                                    expandedFolders.insert(path)
+                                    _ = expandedFolders.insert(path)
                                 }
                                 return nil // consume
                             }
@@ -2062,44 +2287,7 @@ struct MainEditorView: View {
                 keyMonitor = nil
             }
         }
-        .overlay(alignment: .topLeading) {
-            // Fixed sidebar toggle button — pinned next to macOS traffic lights
-            Button {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    store.isSidebarVisible.toggle()
-                }
-            } label: {
-                Image(systemName: store.isSidebarVisible ? "sidebar.left" : "sidebar.right")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(.secondary)
-                    .frame(width: 24, height: 24)
-            }
-            .buttonStyle(.plain)
-            .help("Toggle Sidebar")
-            .padding(.leading, 84) // After traffic lights (72px) + larger gap
-            .padding(.top, 7)      // Vertically centered in 38px titlebar
-            .offset(y: -34)        // Dinaikan paksa total 34px (dinaikkan 1px dari -33px)
-        }
-        .overlay(alignment: .topTrailing) {
-            // Fixed Always on Top toggle button — pinned on the right of the titlebar
-            Button {
-                alwaysOnTop.toggle()
-                if let appDelegate = NSApp.delegate as? AppDelegate {
-                    appDelegate.updateAlwaysOnTop()
-                }
-            } label: {
-                Image(systemName: alwaysOnTop ? "pin.fill" : "pin")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(alwaysOnTop ? .accentColor : .secondary)
-                    .frame(width: 24, height: 24)
-            }
-            .buttonStyle(.plain)
-            .help("Always on Top")
-            .padding(.trailing, 16) // Padding from the right edge
-            .padding(.top, 7)       // Vertically centered in 38px titlebar
-            .offset(y: -34)         // Pinned at the same vertical offset
-        }
-        .frame(minWidth: 180, minHeight: 350)
+        .frame(minWidth: 500, minHeight: 400)
     }
 }
 

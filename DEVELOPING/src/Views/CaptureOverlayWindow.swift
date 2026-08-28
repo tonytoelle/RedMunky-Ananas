@@ -582,7 +582,7 @@ struct CaptureOverlaySwiftUIView: View {
             return state.defaultPointType
         }()
         
-        return HStack(spacing: 8) {
+        HStack(spacing: 8) {
             // Left: Squircle Action Type Icon Button
             ZStack {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
@@ -983,7 +983,7 @@ class CaptureOverlayHostingView: NSView {
             
             if globalMouseMonitor == nil {
                 globalMouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged, .rightMouseDragged, .scrollWheel]) { [weak self] event in
-                    guard let self = self, let win = self.window else { return }
+                    guard let self = self, self.window != nil else { return }
                     let screenPt = NSEvent.mouseLocation
                     
                     let screenHeight = NSScreen.screens.first?.frame.height ?? 1080
@@ -999,7 +999,7 @@ class CaptureOverlayHostingView: NSView {
             
             if localMouseMonitor == nil {
                 localMouseMonitor = NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged, .rightMouseDragged, .scrollWheel]) { [weak self] event in
-                    guard let self = self, let win = self.window else { return event }
+                    guard let self = self, self.window != nil else { return event }
                     let screenPt = NSEvent.mouseLocation
                     
                     let screenHeight = NSScreen.screens.first?.frame.height ?? 1080
