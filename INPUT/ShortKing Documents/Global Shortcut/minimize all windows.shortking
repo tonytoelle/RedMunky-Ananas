@@ -1,0 +1,5 @@
+# ShortKing Macro Script
+TRIGGER: ctrl+m
+
+# Actions:
+ACTION: custom_action "osascript -e 'tell application \"System Events\" to set miniaturized of every window of (every process whose visible is true) to true'"

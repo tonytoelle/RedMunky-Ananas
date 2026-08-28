@@ -1,0 +1,6 @@
+# ShortKing Macro Script
+TRIGGER: f3
+
+# Actions:
+ACTION: path 2666,963:click 3062,1002:click
+ACTION: click current

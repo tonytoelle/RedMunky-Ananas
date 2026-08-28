@@ -1,0 +1,9 @@
+# ShortKing Macro Script
+TRIGGER: /
+TRIGGER_MODE: key_switch
+
+# Actions:
+ACTION: path 1432,960:click 1495,964:click
+
+# Alternate Actions:
+ALT_ACTION: path 1734,962:click

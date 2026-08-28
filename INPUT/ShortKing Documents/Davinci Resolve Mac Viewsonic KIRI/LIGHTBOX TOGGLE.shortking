@@ -1,4 +1,5 @@
 # ShortKing Macro Script
-TRIGGER: cmd+shift+k
+TRIGGER: \
 
 # Actions:
+ACTION: click 2504 50

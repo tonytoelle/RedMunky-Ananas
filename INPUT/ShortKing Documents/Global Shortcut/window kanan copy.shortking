@@ -1,0 +1,5 @@
+# ShortKing Macro Script
+TRIGGER: cmd+right
+
+# Actions:
+ACTION: window_transform 360,26 2559,26 2559,1434 360,1434
