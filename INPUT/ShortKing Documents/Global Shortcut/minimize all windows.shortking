@@ -2,4 +2,6 @@
 TRIGGER: ctrl+m
 
 # Actions:
-ACTION: custom_action "osascript -e 'tell application \"System Events\" to set miniaturized of every window of (every process whose visible is true) to true'"
+ACTION: press_shortcut cmd+opt+h
+ACTION: delay 100
+ACTION: press_shortcut cmd+opt+m
