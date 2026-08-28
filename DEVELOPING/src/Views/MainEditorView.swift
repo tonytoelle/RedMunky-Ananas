@@ -46,7 +46,7 @@ struct MacroInspectorView: View {
                 }
                 .padding(22)
             }
-            .background(Color.clear)
+            .background(Color(white: 0.14))
             .onAppear {
                 tempName = macro.fileName.replacingOccurrences(of: ".shortking", with: "")
                 isEditingName = false
@@ -174,7 +174,7 @@ struct MacroInspectorView: View {
         }
         .padding(.horizontal, 18)
         .frame(height: 52)
-        .background(Color.clear)
+        .background(Color(white: 0.14))
         .background(WindowDragView())
     }
 
@@ -825,7 +825,7 @@ struct FolderInspectorView: View {
             }
             .padding(.horizontal, 18)
             .frame(height: 52)
-            .background(Color.clear)
+            .background(Color(white: 0.14))
             .background(WindowDragView())
 
             ScrollView(showsIndicators: false) {
@@ -1221,7 +1221,7 @@ struct FolderInspectorView: View {
             }
             .padding(24)
         }
-        .background(Color.clear)
+        .background(Color(white: 0.14))
         .onAppear {
             folderName = folderURL.lastPathComponent
             tempFolderName = folderName
@@ -1944,7 +1944,9 @@ struct MainEditorView: View {
                 }
             }
             .navigationSplitViewColumnWidth(min: 200, ideal: sidebarWidth, max: 420)
-            .background(Color.clear)
+            .background(
+                VisualEffectView(material: .sidebar, blendingMode: .behindWindow)
+            )
         } detail: {
             GeometryReader { detailGeo in
                 if let macro = store.selectedMacro {
@@ -2000,7 +2002,7 @@ struct MainEditorView: View {
                         }
                         .padding(.horizontal, 18)
                         .frame(height: 52)
-                        .background(Color.clear)
+                        .background(Color(white: 0.14))
                         .background(WindowDragView())
                     
                         VStack(spacing: 16) {
@@ -2025,13 +2027,15 @@ struct MainEditorView: View {
                         }
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
-                    .background(Color.clear.onTapGesture {
+                    .background(Color(white: 0.14).onTapGesture {
                         NSApp.keyWindow?.makeFirstResponder(nil)
                     })
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color(white: 0.14))
         }
+        .navigationSplitViewStyle(.balanced)
         .onChange(of: columnVisibility) { _, newValue in
             store.isSidebarVisible = (newValue != .detailOnly)
         }

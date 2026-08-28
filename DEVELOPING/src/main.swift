@@ -474,26 +474,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDele
                 win.setContentSize(defaultSize)
                 win.center()
             }
+            win.title = "👑 ShortKing — Macro Editor"
             win.titlebarAppearsTransparent = true
             win.titleVisibility = .hidden
             win.titlebarSeparatorStyle = .none
-            
-            // Set up a unified visual effect view behind the window content to match template style
-            let effectView = NSVisualEffectView()
-            effectView.material = .underWindowBackground
-            effectView.blendingMode = .behindWindow
-            effectView.state = .followsWindowActiveState
-            win.contentView?.superview?.addSubview(effectView, positioned: .below, relativeTo: win.contentView)
-            effectView.translatesAutoresizingMaskIntoConstraints = false
-            if let superview = win.contentView?.superview {
-                NSLayoutConstraint.activate([
-                    effectView.leadingAnchor.constraint(equalTo: superview.leadingAnchor),
-                    effectView.trailingAnchor.constraint(equalTo: superview.trailingAnchor),
-                    effectView.topAnchor.constraint(equalTo: superview.topAnchor),
-                    effectView.bottomAnchor.constraint(equalTo: superview.bottomAnchor)
-                ])
-            }
-            
             win.contentViewController = NSHostingController(rootView: MainEditorView())
             win.isReleasedWhenClosed = false
             win.delegate = self
