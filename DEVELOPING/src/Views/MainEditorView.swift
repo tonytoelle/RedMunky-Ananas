@@ -1781,8 +1781,8 @@ struct MainEditorView: View {
                 // Tahoe Glass Search Field
                 HStack(spacing: 6) {
                     Image(systemName: "magnifyingglass")
-                        .foregroundColor(.secondary)
-                        .font(.system(size: 12))
+                        .foregroundColor(isSearchFocused ? .accentColor : .secondary)
+                        .font(.system(size: 12, weight: .semibold))
                     TextField("Search macros (⌘F)", text: $searchText)
                         .textFieldStyle(.plain)
                         .font(.system(size: 12))
@@ -1790,6 +1790,7 @@ struct MainEditorView: View {
                         .onSubmit {
                             isSearchFocused = false
                         }
+                        .tint(.accentColor)
                     if !searchText.isEmpty {
                         Button { searchText = "" } label: {
                             Image(systemName: "xmark.circle.fill")
@@ -1799,13 +1800,16 @@ struct MainEditorView: View {
                         .buttonStyle(.plain)
                     }
                 }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 5)
-                .background(Color.white.opacity(0.08))
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(
+                    Capsule()
+                        .fill(Color.white.opacity(0.08))
+                )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke(Color.white.opacity(0.1), lineWidth: 0.8)
+                    Capsule()
+                        .stroke(isSearchFocused ? Color.accentColor : Color.clear, lineWidth: 1.5)
+                        .animation(.easeInOut(duration: 0.15), value: isSearchFocused)
                 )
                 .padding(.horizontal, 12)
                 .padding(.bottom, 10)
@@ -1848,6 +1852,7 @@ struct MainEditorView: View {
                     }
                 }
                 .listStyle(.sidebar)
+                .scrollContentBackground(.hidden)
                 .onDrop(of: [.plainText, .utf8PlainText, .fileURL], isTargeted: $isRootDropTarget) { providers in
                     for provider in providers {
                         _ = provider.loadObject(ofClass: NSString.self) { string, _ in

@@ -2,5 +2,5 @@
 TRIGGER: f3
 
 # Actions:
-ACTION: click current
 ACTION: path 1424,962:click 1363,963:click
+ACTION: click current
