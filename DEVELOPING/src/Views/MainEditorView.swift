@@ -39,7 +39,6 @@ struct MacroInspectorView: View {
             // Main Detail ScrollView — 2 areas: Trigger + Actions
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 14) {
-                    Color.clear.frame(height: 56) // Clearance for top header
                     triggerSection
                     actionsSection
                 }
@@ -1174,7 +1173,7 @@ struct FolderInspectorView: View {
             }
             .padding(.horizontal, 24)
             .padding(.bottom, 24)
-            .padding(.top, 56)
+            .padding(.top, 0)
             
             // Header bar (Window draggable area) - 52px unified bar with frosted glass fade
             HStack(spacing: 12) {
