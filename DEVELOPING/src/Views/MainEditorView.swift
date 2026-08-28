@@ -67,24 +67,6 @@ struct MacroInspectorView: View {
     @ViewBuilder
     private var headerSection: some View {
         HStack(spacing: 12) {
-            if !store.isSidebarVisible {
-                Button {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        store.isSidebarVisible = true
-                    }
-                } label: {
-                    Image(systemName: "sidebar.leading")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(.secondary)
-                        .frame(width: 28, height: 28)
-                        .background(Color.white.opacity(0.06))
-                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                }
-                .buttonStyle(.plain)
-                .help("Show Sidebar (⌘S)")
-                .padding(.leading, 78)
-            }
-
             HStack(spacing: 4) {
                 if isEditingName {
                     TextField("Macro Name", text: $tempName)
@@ -787,24 +769,6 @@ struct FolderInspectorView: View {
         VStack(spacing: 0) {
             // Header bar (Window draggable area) - 52px unified bar
             HStack(spacing: 12) {
-                if !store.isSidebarVisible {
-                    Button {
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            store.isSidebarVisible = true
-                        }
-                    } label: {
-                        Image(systemName: "sidebar.leading")
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(.secondary)
-                            .frame(width: 28, height: 28)
-                            .background(Color.white.opacity(0.06))
-                            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                    }
-                    .buttonStyle(.plain)
-                    .help("Show Sidebar (⌘S)")
-                    .padding(.leading, 78)
-                }
-
                 Spacer()
 
                 Button {
@@ -1964,24 +1928,6 @@ struct MainEditorView: View {
                     VStack(spacing: 0) {
                         // Top Header Bar
                         HStack(spacing: 12) {
-                            if columnVisibility == .detailOnly {
-                                Button {
-                                    withAnimation(.easeInOut(duration: 0.2)) {
-                                        columnVisibility = .all
-                                    }
-                                } label: {
-                                    Image(systemName: "sidebar.leading")
-                                        .font(.system(size: 14, weight: .medium))
-                                        .foregroundColor(.secondary)
-                                        .frame(width: 28, height: 28)
-                                        .background(Color.white.opacity(0.06))
-                                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                                }
-                                .buttonStyle(.plain)
-                                .help("Show Sidebar (⌘S)")
-                                .padding(.leading, 78)
-                            }
-
                             Spacer()
 
                             Button {
