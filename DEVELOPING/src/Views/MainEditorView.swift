@@ -35,31 +35,32 @@ struct MacroInspectorView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            headerSection
-
+        ZStack(alignment: .top) {
             // Main Detail ScrollView — 2 areas: Trigger + Actions
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 14) {
+                    Color.clear.frame(height: 56) // Clearance for top header
                     triggerSection
                     actionsSection
                 }
                 .padding(22)
             }
             .background(Color(white: 0.1))
-            .onAppear {
-                tempName = macro.fileName.replacingOccurrences(of: ".shortking", with: "")
-                isEditingName = false
-            }
-            .onChange(of: macro.id) { _, _ in
-                tempName = macro.fileName.replacingOccurrences(of: ".shortking", with: "")
-                isEditingName = false
-                store.selectedActionID = nil
-            }
-            .onChange(of: macro.fileName) { _, newFileName in
-                tempName = newFileName.replacingOccurrences(of: ".shortking", with: "")
-                isEditingName = false
-            }
+            
+            headerSection
+        }
+        .onAppear {
+            tempName = macro.fileName.replacingOccurrences(of: ".shortking", with: "")
+            isEditingName = false
+        }
+        .onChange(of: macro.id) { _, _ in
+            tempName = macro.fileName.replacingOccurrences(of: ".shortking", with: "")
+            isEditingName = false
+            store.selectedActionID = nil
+        }
+        .onChange(of: macro.fileName) { _, newFileName in
+            tempName = newFileName.replacingOccurrences(of: ".shortking", with: "")
+            isEditingName = false
         }
     }
 
@@ -152,11 +153,24 @@ struct MacroInspectorView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
             }
             .buttonStyle(.plain)
-            .help("Always on Top")
         }
         .padding(.horizontal, 18)
         .frame(height: 52)
-        .background(Color(white: 0.1))
+        .background(
+            Rectangle()
+                .fill(.ultraThinMaterial)
+                .mask(
+                    LinearGradient(
+                        stops: [
+                            .init(color: .black, location: 0.0),
+                            .init(color: .black, location: 0.8),
+                            .init(color: .clear, location: 1.0)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+        )
         .background(WindowDragView())
     }
 
@@ -766,37 +780,14 @@ struct FolderInspectorView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Header bar (Window draggable area) - 52px unified bar
-            HStack(spacing: 12) {
-                Spacer()
-
-                Button {
-                    alwaysOnTop.toggle()
-                    if let appDelegate = NSApp.delegate as? AppDelegate {
-                        appDelegate.updateAlwaysOnTop()
-                    }
-                } label: {
-                    Image(systemName: alwaysOnTop ? "pin.fill" : "pin")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(alwaysOnTop ? .accentColor : .secondary)
-                        .frame(width: 26, height: 26)
-                        .background(Color.white.opacity(0.06))
-                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                }
-                .buttonStyle(.plain)
-                .help("Always on Top")
-            }
-            .padding(.horizontal, 18)
-            .frame(height: 52)
-            .background(Color(white: 0.1))
-            .background(WindowDragView())
-
+        ZStack(alignment: .top) {
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 24) {
-                // ═══════════════════════════════════════════════════
-                // CENTERED HEADER
-                // ═══════════════════════════════════════════════════
+                    Color.clear.frame(height: 56) // Clearance for top header
+                    
+                    // ═══════════════════════════════════════════════════
+                    // CENTERED HEADER
+                    // ═══════════════════════════════════════════════════
                 VStack(spacing: 10) {
                     // Big Squircle Icon
                     Button {
@@ -1184,6 +1175,45 @@ struct FolderInspectorView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
             .padding(24)
+            
+            // Header bar (Window draggable area) - 52px unified bar with frosted glass fade
+            HStack(spacing: 12) {
+                Spacer()
+
+                Button {
+                    alwaysOnTop.toggle()
+                    if let appDelegate = NSApp.delegate as? AppDelegate {
+                        appDelegate.updateAlwaysOnTop()
+                    }
+                } label: {
+                    Image(systemName: alwaysOnTop ? "pin.fill" : "pin")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(alwaysOnTop ? .accentColor : .secondary)
+                        .frame(width: 26, height: 26)
+                        .background(Color.white.opacity(0.06))
+                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .help("Always on Top")
+            }
+            .padding(.horizontal, 18)
+            .frame(height: 52)
+            .background(
+                Rectangle()
+                    .fill(.ultraThinMaterial)
+                    .mask(
+                        LinearGradient(
+                            stops: [
+                                .init(color: .black, location: 0.0),
+                                .init(color: .black, location: 0.8),
+                                .init(color: .clear, location: 1.0)
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+            )
+            .background(WindowDragView())
         }
         .background(Color(white: 0.1))
         .onAppear {
@@ -1925,8 +1955,36 @@ struct MainEditorView: View {
                     )
                     .id(folderPath)
                 } else {
-                    VStack(spacing: 0) {
-                        // Top Header Bar
+                    ZStack(alignment: .top) {
+                        VStack(spacing: 16) {
+                            Color.clear.frame(height: 56) // Clearance for top header
+                            Spacer()
+                            ZStack {
+                                Circle()
+                                    .fill(Color(white: 0.18))
+                                    .frame(width: 72, height: 72)
+                                Image(systemName: "bolt.circle.fill")
+                                    .font(.system(size: 40))
+                                    .foregroundColor(.accentColor)
+                            }
+                            Text("No Selection")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundColor(.white)
+                            Text("Choose a macro or folder from the sidebar.")
+                                .font(.system(size: 12))
+                                .foregroundColor(.secondary)
+                            Button("Create New Macro") {
+                                store.createNewMacro()
+                            }
+                            .buttonStyle(.borderedProminent)
+                            Spacer()
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(Color(white: 0.1).onTapGesture {
+                            NSApp.keyWindow?.makeFirstResponder(nil)
+                        })
+                        
+                        // Top Header Bar with frosted glass fade
                         HStack(spacing: 12) {
                             Spacer()
 
@@ -1948,34 +2006,23 @@ struct MainEditorView: View {
                         }
                         .padding(.horizontal, 18)
                         .frame(height: 52)
-                        .background(Color(white: 0.1))
+                        .background(
+                            Rectangle()
+                                .fill(.ultraThinMaterial)
+                                .mask(
+                                    LinearGradient(
+                                        stops: [
+                                            .init(color: .black, location: 0.0),
+                                            .init(color: .black, location: 0.8),
+                                            .init(color: .clear, location: 1.0)
+                                        ],
+                                        startPoint: .top,
+                                        endPoint: .bottom
+                                    )
+                                )
+                        )
                         .background(WindowDragView())
-                    
-                        VStack(spacing: 16) {
-                            ZStack {
-                                Circle()
-                                    .fill(Color(white: 0.18))
-                                    .frame(width: 72, height: 72)
-                                Image(systemName: "bolt.circle.fill")
-                                    .font(.system(size: 40))
-                                    .foregroundColor(.accentColor)
-                            }
-                            Text("No Selection")
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundColor(.white)
-                            Text("Choose a macro or folder from the sidebar.")
-                                .font(.system(size: 12))
-                                .foregroundColor(.secondary)
-                            Button("Create New Macro") {
-                                store.createNewMacro()
-                            }
-                            .buttonStyle(.borderedProminent)
-                        }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
-                    .background(Color(white: 0.1).onTapGesture {
-                        NSApp.keyWindow?.makeFirstResponder(nil)
-                    })
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
