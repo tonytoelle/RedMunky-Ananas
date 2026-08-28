@@ -42,7 +42,9 @@ struct MacroInspectorView: View {
                     triggerSection
                     actionsSection
                 }
-                .padding(22)
+                .padding(.horizontal, 22)
+                .padding(.bottom, 22)
+                .padding(.top, 76)
             }
             .background(Color(white: 0.1))
             
@@ -70,11 +72,11 @@ struct MacroInspectorView: View {
             HStack(spacing: 4) {
                 if isEditingName {
                     TextField("Macro Name", text: $tempName)
-                        .font(.system(size: 15, weight: .bold))
+                        .font(.system(size: 28, weight: .bold))
                         .textFieldStyle(.plain)
                         .foregroundColor(.white)
                         .lineLimit(1)
-                        .frame(minWidth: 80, maxWidth: 220)
+                        .frame(minWidth: 80, maxWidth: 320)
                         .focused($isNameFocused)
                         .onSubmit {
                             store.renameMacro(macro, newBaseName: tempName)
@@ -92,7 +94,7 @@ struct MacroInspectorView: View {
                         }
                 } else {
                     Text(tempName.isEmpty ? "Untitled Macro" : tempName.capitalized)
-                        .font(.system(size: 15, weight: .bold))
+                        .font(.system(size: 28, weight: .bold))
                         .foregroundColor(.white)
                         .lineLimit(1)
                         .onTapGesture(count: 2) {
@@ -153,23 +155,10 @@ struct MacroInspectorView: View {
             }
             .buttonStyle(.plain)
         }
-        .padding(.horizontal, 18)
-        .frame(height: 52)
-        .background(
-            Rectangle()
-                .fill(.ultraThinMaterial)
-                .mask(
-                    LinearGradient(
-                        stops: [
-                            .init(color: .black, location: 0.0),
-                            .init(color: .black, location: 0.8),
-                            .init(color: .clear, location: 1.0)
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
-        )
+        .padding(.horizontal, 22)
+        .padding(.top, 24)
+        .frame(height: 68)
+        .background(Color.clear)
         .background(WindowDragView())
     }
 
@@ -1173,9 +1162,9 @@ struct FolderInspectorView: View {
             }
             .padding(.horizontal, 24)
             .padding(.bottom, 24)
-            .padding(.top, 0)
+            .padding(.top, 76)
             
-            // Header bar (Window draggable area) - 52px unified bar with frosted glass fade
+            // Header bar (Window draggable area) - unified transparent bar matching AppleMusicUI
             HStack(spacing: 12) {
                 Spacer()
 
@@ -1195,23 +1184,10 @@ struct FolderInspectorView: View {
                 .buttonStyle(.plain)
                 .help("Always on Top")
             }
-            .padding(.horizontal, 18)
-            .frame(height: 52)
-            .background(
-                Rectangle()
-                    .fill(.ultraThinMaterial)
-                    .mask(
-                        LinearGradient(
-                            stops: [
-                                .init(color: .black, location: 0.0),
-                                .init(color: .black, location: 0.8),
-                                .init(color: .clear, location: 1.0)
-                            ],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
-            )
+            .padding(.horizontal, 22)
+            .padding(.top, 24)
+            .frame(height: 68)
+            .background(Color.clear)
             .background(WindowDragView())
         }
         .background(Color(white: 0.1))
@@ -1982,7 +1958,7 @@ struct MainEditorView: View {
                             NSApp.keyWindow?.makeFirstResponder(nil)
                         })
                         
-                        // Top Header Bar with frosted glass fade
+                        // Top Header Bar (unified transparent bar matching AppleMusicUI)
                         HStack(spacing: 12) {
                             Spacer()
 
@@ -2002,23 +1978,10 @@ struct MainEditorView: View {
                             .buttonStyle(.plain)
                             .help("Always on Top")
                         }
-                        .padding(.horizontal, 18)
-                        .frame(height: 52)
-                        .background(
-                            Rectangle()
-                                .fill(.ultraThinMaterial)
-                                .mask(
-                                    LinearGradient(
-                                        stops: [
-                                            .init(color: .black, location: 0.0),
-                                            .init(color: .black, location: 0.8),
-                                            .init(color: .clear, location: 1.0)
-                                        ],
-                                        startPoint: .top,
-                                        endPoint: .bottom
-                                    )
-                                )
-                        )
+                        .padding(.horizontal, 22)
+                        .padding(.top, 24)
+                        .frame(height: 68)
+                        .background(Color.clear)
                         .background(WindowDragView())
                     }
                 }
