@@ -783,8 +783,6 @@ struct FolderInspectorView: View {
         ZStack(alignment: .top) {
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 24) {
-                    Color.clear.frame(height: 56) // Clearance for top header
-                    
                     // ═══════════════════════════════════════════════════
                     // CENTERED HEADER
                     // ═══════════════════════════════════════════════════
@@ -1174,7 +1172,9 @@ struct FolderInspectorView: View {
                 .background(Color(white: 0.16))
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
-            .padding(24)
+            .padding(.horizontal, 24)
+            .padding(.bottom, 24)
+            .padding(.top, 56)
             
             // Header bar (Window draggable area) - 52px unified bar with frosted glass fade
             HStack(spacing: 12) {
@@ -1957,7 +1957,6 @@ struct MainEditorView: View {
                 } else {
                     ZStack(alignment: .top) {
                         VStack(spacing: 16) {
-                            Color.clear.frame(height: 56) // Clearance for top header
                             Spacer()
                             ZStack {
                                 Circle()
