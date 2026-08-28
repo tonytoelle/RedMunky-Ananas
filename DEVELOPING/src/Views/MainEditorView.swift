@@ -1807,7 +1807,7 @@ struct MainEditorView: View {
                 )
                 .padding(.horizontal, 12)
                 .padding(.bottom, 10)
-                .padding(.top, 52) // Clearance for traffic lights
+                .padding(.top, 32) // Reduced clearance for traffic lights to be seamless
 
                 // Section Header
                 HStack {
