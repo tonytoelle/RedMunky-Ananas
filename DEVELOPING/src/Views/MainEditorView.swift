@@ -1337,29 +1337,33 @@ struct SidebarNodeView: View {
     var body: some View {
         switch node {
         case .folder(let name, let url, let config, let children):
-            let isExpanded = expandedFolders.contains(url.path)
             let isSelected = selectedPaths.contains(url.path) || store.selectedFolderPath == url.path
-            
-            VStack(alignment: .leading, spacing: 2) {
-                // Folder Row
-                HStack(spacing: 6) {
-                    // Expand/Collapse Chevron (animated rotation)
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundColor(isSelected ? Color.accentColor : Color.secondary.opacity(0.8))
-                        .frame(width: 14, height: 14)
-                        .rotationEffect(isExpanded ? .degrees(90) : .zero)
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            withAnimation(.easeInOut(duration: 0.15)) {
-                                if isExpanded {
-                                    _ = expandedFolders.remove(url.path)
-                                } else {
-                                    _ = expandedFolders.insert(url.path)
-                                }
-                            }
+            let isExpanded = Binding<Bool>(
+                get: { expandedFolders.contains(url.path) },
+                set: { val in
+                    withAnimation(.easeInOut(duration: 0.15)) {
+                        if val {
+                            _ = expandedFolders.insert(url.path)
+                        } else {
+                            _ = expandedFolders.remove(url.path)
                         }
-
+                    }
+                }
+            )
+            
+            DisclosureGroup(isExpanded: isExpanded) {
+                ForEach(children) { child in
+                    SidebarNodeView(
+                        node: child,
+                        depth: depth + 1,
+                        expandedFolders: $expandedFolders,
+                        selectedPaths: $selectedPaths,
+                        onSelect: onSelect,
+                        onPromptFolder: onPromptFolder
+                    )
+                }
+            } label: {
+                HStack(spacing: 6) {
                     let appBundleId: String? = {
                         if let customId = config.customAppIconBundleId, !customId.isEmpty {
                             return customId
@@ -1393,7 +1397,6 @@ struct SidebarNodeView: View {
                     
                     Spacer()
                     
-                    // Finder-style Monospaced Badge
                     Text("\(children.count)")
                         .font(.system(size: 10, weight: .semibold, design: .monospaced))
                         .foregroundColor(isSelected ? Color.accentColor : Color(white: 0.55))
@@ -1413,8 +1416,6 @@ struct SidebarNodeView: View {
                         onSelect(url.path, flags)
                     }
                 }
-                .padding(.leading, CGFloat(depth * 14))
-                .padding(.vertical, 4)
                 .onDrag {
                     let pathsToDrag = selectedPaths.contains(url.path) ? Array(selectedPaths) : [url.path]
                     return NSItemProvider(object: pathsToDrag.joined(separator: "\n") as NSString)
@@ -1430,17 +1431,6 @@ struct SidebarNodeView: View {
                         }
                     }
                     return true
-                }
-                .onChange(of: isDropTarget) { _, targeted in
-                    if targeted {
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
-                            if isDropTarget {
-                                withAnimation(.easeInOut(duration: 0.15)) {
-                                    _ = expandedFolders.insert(url.path)
-                                }
-                            }
-                        }
-                    }
                 }
                 .contextMenu {
                     Button {
@@ -1507,22 +1497,8 @@ struct SidebarNodeView: View {
                         Label("Delete Folder", systemImage: "trash")
                     }
                 }
-
-                // Children (Indented)
-                if isExpanded {
-                    ForEach(children) { child in
-                        SidebarNodeView(
-                            node: child,
-                            depth: depth + 1,
-                            expandedFolders: $expandedFolders,
-                            selectedPaths: $selectedPaths,
-                            onSelect: onSelect,
-                            onPromptFolder: onPromptFolder
-                        )
-                    }
-                }
+                .tag(url.path)
             }
-            .padding(.bottom, (isExpanded && !children.isEmpty) ? 6 : 0)
 
         case .macro(let macro):
             let isSelected = selectedPaths.contains(macro.fileURL.path) || (store.selectedFilePath == macro.fileURL.path && selectedPaths.isEmpty)
@@ -1574,8 +1550,6 @@ struct SidebarNodeView: View {
                 }
             }
             .opacity(macro.isEnabled ? 1.0 : 0.65)
-            .padding(.leading, CGFloat(depth * 14 + 14))
-            .padding(.vertical, 4)
             .onDrag {
                 let pathsToDrag = selectedPaths.contains(macro.fileURL.path) ? Array(selectedPaths) : [macro.fileURL.path]
                 return NSItemProvider(object: pathsToDrag.joined(separator: "\n") as NSString)
@@ -1655,6 +1629,7 @@ struct SidebarNodeView: View {
                     Label("Delete", systemImage: "trash")
                 }
             }
+            .tag(macro.fileURL.path)
         }
     }
 
