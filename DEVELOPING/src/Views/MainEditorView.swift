@@ -54,7 +54,6 @@ struct MacroInspectorView: View {
                 .padding(.bottom, 22)
                 .padding(.top, 64)
             }
-            .background(Color.black.opacity(0.15))
             
             headerSection
         }
@@ -1123,7 +1122,6 @@ struct FolderInspectorView: View {
             .padding(.bottom, 24)
             .padding(.top, 72)
         }
-        .background(Color.black.opacity(0.15))
 
         // Header bar (Window draggable area) - AppleMusicUI blur fade header
         HStack(spacing: 12) {
@@ -1167,7 +1165,6 @@ struct FolderInspectorView: View {
         .background(WindowDragView())
     }
     .ignoresSafeArea(.container, edges: .top)
-    .background(Color.black.opacity(0.15))
         .onAppear {
             folderName = folderURL.lastPathComponent
             tempFolderName = folderName
@@ -1885,7 +1882,6 @@ struct MainEditorView: View {
                 }
             }
             .navigationSplitViewColumnWidth(min: 200, ideal: 240, max: 280)
-            .background(.ultraThinMaterial)
         } detail: {
             GeometryReader { detailGeo in
                 if let macro = store.selectedMacro {
@@ -1933,9 +1929,9 @@ struct MainEditorView: View {
                             Spacer()
                         }
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .background(Color.black.opacity(0.15).onTapGesture {
+                        .onTapGesture {
                             NSApp.keyWindow?.makeFirstResponder(nil)
-                        })
+                        }
                         
                         // Top Header Bar (unified transparent bar matching AppleMusicUI)
                         HStack(spacing: 12) {
@@ -1981,12 +1977,17 @@ struct MainEditorView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color.black.opacity(0.15))
-            .background(.ultraThinMaterial)
             .ignoresSafeArea(.container, edges: .top)
         }
         .ignoresSafeArea(.container, edges: .top)
         .navigationSplitViewStyle(.balanced)
+        .background(
+            ZStack {
+                VisualEffectView(material: .sidebar, blendingMode: .behindWindow)
+                Color.black.opacity(0.15)
+            }
+            .ignoresSafeArea()
+        )
         .onChange(of: columnVisibility) { _, newValue in
             store.isSidebarVisible = (newValue != .detailOnly)
         }
