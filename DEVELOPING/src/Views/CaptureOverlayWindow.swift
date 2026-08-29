@@ -1010,7 +1010,7 @@ class CaptureOverlayHostingView: NSView {
             }
             
             if localMouseMonitor == nil {
-                localMouseMonitor = NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved, .leftMouseDown, .leftMouseDragged, .rightMouseDragged, .scrollWheel]) { [weak self] event in
+                localMouseMonitor = NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged, .rightMouseDragged, .scrollWheel]) { [weak self] event in
                     guard let self = self, self.window != nil else { return event }
                     let screenPt = NSEvent.mouseLocation
                     
@@ -1018,12 +1018,8 @@ class CaptureOverlayHostingView: NSView {
                     let quartzPt = CGPoint(x: screenPt.x, y: screenHeight - screenPt.y)
                     
                     self.stateModel.quartzLocation = quartzPt
-                    if event.type == .leftMouseDown && self.stateModel.isFollowingCursor {
-                        self.handleCanvasClick(at: quartzPt)
-                    } else {
-                        self.updateHover(quartzPt: quartzPt)
-                        self.updatePassthrough(quartzPt: quartzPt)
-                    }
+                    self.updateHover(quartzPt: quartzPt)
+                    self.updatePassthrough(quartzPt: quartzPt)
                     
                     return event
                 }
