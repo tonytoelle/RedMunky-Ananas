@@ -181,21 +181,6 @@ struct MacroInspectorView: View {
         .padding(.horizontal, 22)
         .padding(.top, 12)
         .padding(.bottom, 16)
-        .background(
-            Rectangle()
-                .fill(.ultraThinMaterial)
-                .mask(
-                    LinearGradient(
-                        stops: [
-                            .init(color: .black, location: 0.0),
-                            .init(color: .black, location: 0.65),
-                            .init(color: .clear, location: 1.0)
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
-        )
         .background(WindowDragView())
     }
 
@@ -1147,21 +1132,6 @@ struct FolderInspectorView: View {
         .padding(.horizontal, 22)
         .padding(.top, 12)
         .padding(.bottom, 16)
-        .background(
-            Rectangle()
-                .fill(.ultraThinMaterial)
-                .mask(
-                    LinearGradient(
-                        stops: [
-                            .init(color: .black, location: 0.0),
-                            .init(color: .black, location: 0.65),
-                            .init(color: .clear, location: 1.0)
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
-        )
         .background(WindowDragView())
     }
     .ignoresSafeArea(.container, edges: .top)
@@ -1957,21 +1927,6 @@ struct MainEditorView: View {
                         .padding(.horizontal, 22)
                         .padding(.top, 12)
                         .padding(.bottom, 16)
-                        .background(
-                            Rectangle()
-                                .fill(.ultraThinMaterial)
-                                .mask(
-                                    LinearGradient(
-                                        stops: [
-                                            .init(color: .black, location: 0.0),
-                                            .init(color: .black, location: 0.65),
-                                            .init(color: .clear, location: 1.0)
-                                        ],
-                                        startPoint: .top,
-                                        endPoint: .bottom
-                                    )
-                                )
-                        )
                         .background(WindowDragView())
                     }
                 }
@@ -1981,6 +1936,29 @@ struct MainEditorView: View {
         }
         .ignoresSafeArea(.container, edges: .top)
         .navigationSplitViewStyle(.balanced)
+        .overlay(
+            // Window-Wide Frosted Glass Top Header Fade (spans 100% full width from sidebar to right pane!)
+            VStack {
+                Rectangle()
+                    .fill(.ultraThinMaterial)
+                    .mask(
+                        LinearGradient(
+                            stops: [
+                                .init(color: .black, location: 0.0),
+                                .init(color: .black, location: 0.65),
+                                .init(color: .clear, location: 1.0)
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                    .frame(height: 64)
+                    .allowsHitTesting(false)
+                Spacer()
+            }
+            .ignoresSafeArea(.container, edges: .top),
+            alignment: .top
+        )
         .background(
             ZStack {
                 VisualEffectView(material: .fullScreenUI, blendingMode: .behindWindow)
