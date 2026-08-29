@@ -316,8 +316,16 @@ struct MacroInspectorView: View {
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                .stroke(store.focusedPane == .right && store.isTriggerFocused ? Color.accentColor : Color.white.opacity(0.06),
+                        lineWidth: store.focusedPane == .right && store.isTriggerFocused ? 1.5 : 1)
         )
+        .contentShape(Rectangle())
+        .onTapGesture {
+            store.focusedPane = .right
+            store.isTriggerFocused = true
+            store.selectedActionIDs.removeAll()
+            store.lastSelectedActionID = nil
+        }
     }
 
     private var alternateActionItemsBinding: Binding<[MacroActionItem]> {
@@ -1994,23 +2002,54 @@ struct MainEditorView: View {
                     isSearchFocused = true
                     return nil // consume
                 }
-                if event.keyCode == 123 || event.keyCode == 124 {
-                    let targetPath = store.selectedFolderPath ?? selectedPaths.first
-                    if let path = targetPath, !path.hasSuffix(".shortking") {
-                        if event.keyCode == 123 { // Collapse
+                if event.keyCode == 123 { // Left Arrow
+                    if let responder = NSApp.keyWindow?.firstResponder {
+                        if let tv = responder as? NSTextView, tv.isEditable { return event }
+                        if let tf = responder as? NSTextField, tf.isEditable { return event }
+                    }
+                    if store.focusedPane == .right {
+                        store.focusedPane = .left
+                        store.selectedActionIDs.removeAll()
+                        store.lastSelectedActionID = nil
+                        store.isTriggerFocused = false
+                        if let current = store.selectedFilePath ?? store.selectedFolderPath {
+                            selectedPaths = [current]
+                            lastClickedPath = current
+                        }
+                        return nil // consume
+                    } else {
+                        let targetPath = store.selectedFolderPath ?? selectedPaths.first
+                        if let path = targetPath, !path.hasSuffix(".shortking") {
                             if expandedFolders.contains(path) {
                                 withAnimation(.easeInOut(duration: 0.15)) {
                                     _ = expandedFolders.remove(path)
                                 }
                                 return nil // consume
                             }
-                        } else if event.keyCode == 124 { // Expand
-                            if !expandedFolders.contains(path) {
-                                withAnimation(.easeInOut(duration: 0.15)) {
-                                    _ = expandedFolders.insert(path)
-                                }
-                                return nil // consume
+                        }
+                    }
+                } else if event.keyCode == 124 { // Right Arrow
+                    if let responder = NSApp.keyWindow?.firstResponder {
+                        if let tv = responder as? NSTextView, tv.isEditable { return event }
+                        if let tf = responder as? NSTextField, tf.isEditable { return event }
+                    }
+                    if store.focusedPane == .left {
+                        let targetPath = store.selectedFolderPath ?? selectedPaths.first
+                        if let path = targetPath, !path.hasSuffix(".shortking"), !expandedFolders.contains(path) {
+                            withAnimation(.easeInOut(duration: 0.15)) {
+                                _ = expandedFolders.insert(path)
                             }
+                            return nil // consume
+                        } else {
+                            store.focusedPane = .right
+                            if let selected = store.selectedMacro, let firstAction = selected.actionItems.first {
+                                store.selectedActionIDs = [firstAction.id]
+                                store.lastSelectedActionID = firstAction.id
+                                store.isTriggerFocused = false
+                            } else {
+                                store.isTriggerFocused = true
+                            }
+                            return nil // consume
                         }
                     }
                 } else if event.keyCode == 125 || event.keyCode == 126 { // Down or Up

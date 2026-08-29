@@ -47,6 +47,7 @@ class MacroStore: ObservableObject {
     var keySwitchStates: [UUID: Bool] = [:]
     
     @Published var focusedPane: FocusedPane = .left
+    @Published var isTriggerFocused: Bool = false
     
     // Clipboard for copy-paste operations
     @Published var copiedMacroURL: URL? = nil
@@ -939,7 +940,10 @@ class MacroStore: ObservableObject {
     func moveActionSelectionUp() {
         guard let selected = selectedMacro else { return }
         let items = selected.actionItems
-        guard !items.isEmpty else { return }
+        
+        if isTriggerFocused {
+            return
+        }
         
         let currentID = lastSelectedActionID ?? selectedActionIDs.first
         let currentIndex = currentID.flatMap { id in items.firstIndex(where: { $0.id == id }) } ?? -1
@@ -948,21 +952,54 @@ class MacroStore: ObservableObject {
             let prevItem = items[currentIndex - 1]
             selectedActionIDs = [prevItem.id]
             lastSelectedActionID = prevItem.id
+            isTriggerFocused = false
+        } else if currentIndex == 0 || items.isEmpty {
+            selectedActionIDs.removeAll()
+            lastSelectedActionID = nil
+            isTriggerFocused = true
+        } else {
+            if let last = items.last {
+                selectedActionIDs = [last.id]
+                lastSelectedActionID = last.id
+                isTriggerFocused = false
+            } else {
+                isTriggerFocused = true
+            }
         }
     }
     
     func moveActionSelectionDown() {
         guard let selected = selectedMacro else { return }
         let items = selected.actionItems
-        guard !items.isEmpty else { return }
+        
+        if isTriggerFocused {
+            if let first = items.first {
+                selectedActionIDs = [first.id]
+                lastSelectedActionID = first.id
+                isTriggerFocused = false
+            }
+            return
+        }
+        
+        guard !items.isEmpty else {
+            isTriggerFocused = true
+            return
+        }
         
         let currentID = lastSelectedActionID ?? selectedActionIDs.first
         let currentIndex = currentID.flatMap { id in items.firstIndex(where: { $0.id == id }) } ?? -1
         
-        if currentIndex < items.count - 1 {
+        if currentIndex >= 0 && currentIndex < items.count - 1 {
             let nextItem = items[currentIndex + 1]
             selectedActionIDs = [nextItem.id]
             lastSelectedActionID = nextItem.id
+            isTriggerFocused = false
+        } else if currentIndex == -1 {
+            if let first = items.first {
+                selectedActionIDs = [first.id]
+                lastSelectedActionID = first.id
+                isTriggerFocused = false
+            }
         }
     }
 }
