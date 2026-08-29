@@ -360,6 +360,8 @@ struct ActionCardView: View {
         switch item.action {
         case .click:
             InlineClickEditView(action: $item.action, onPreSave: onPreSave, onSave: onSave, detailWidth: detailWidth)
+        case .currentPosition:
+            InlineCurrentPositionEditView(action: $item.action, onPreSave: onPreSave, onSave: onSave, detailWidth: detailWidth)
         case .drag(let start, let end):
             ActionCardEditButton {
                 CaptureOverlayWindow.shared = CaptureOverlayWindow(

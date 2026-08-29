@@ -539,37 +539,17 @@ struct InlineClickEditView: View {
     let detailWidth: CGFloat
     
     @State private var buttonType: CGMouseButton = .left
-    @State private var clickAtCurrent = false
     @State private var point: CGPoint = .zero
     
     var body: some View {
-        HStack(spacing: 10) {
-            Toggle(isOn: $clickAtCurrent) {
-                Text("Current Pos")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(.secondary)
-            }
-            .toggleStyle(.checkbox)
-            .onChange(of: clickAtCurrent) { _, isCurrent in
-                onPreSave()
-                if isCurrent {
-                    action = .click(point: CGPoint(x: -9999, y: -9999), button: buttonType)
-                } else {
-                    let defaultPt = (point.x == -9999 && point.y == -9999) ? .zero : point
-                    action = .click(point: defaultPt, button: buttonType)
-                }
-                onSave()
-            }
-            
-            if !clickAtCurrent {
-                ActionCardEditButton {
-                    let curPt = (point.x == -9999 || point == .zero) ? nil : point
-                    CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .click(button: buttonType, initialPoint: curPt)) { newPoint in
-                        onPreSave()
-                        point = newPoint
-                        action = .click(point: newPoint, button: buttonType)
-                        onSave()
-                    }
+        HStack(spacing: 8) {
+            ActionCardEditButton {
+                let curPt = (point == .zero) ? nil : point
+                CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .click(button: buttonType, initialPoint: curPt)) { newPoint in
+                    onPreSave()
+                    point = newPoint
+                    action = .click(point: newPoint, button: buttonType)
+                    onSave()
                 }
             }
         }
@@ -585,7 +565,80 @@ struct InlineClickEditView: View {
         if case .click(let pt, let btn) = action {
             buttonType = btn
             point = pt
-            clickAtCurrent = (pt.x == -9999 && pt.y == -9999)
+        }
+    }
+}
+
+struct InlineCurrentPositionEditView: View {
+    @Binding var action: MacroAction
+    let onPreSave: () -> Void
+    let onSave: () -> Void
+    let detailWidth: CGFloat
+    
+    @State private var buttonType: CGMouseButton = .left
+    
+    var body: some View {
+        HStack(spacing: 6) {
+            Menu {
+                Button(action: {
+                    onPreSave()
+                    buttonType = .left
+                    action = .currentPosition(button: .left)
+                    onSave()
+                }) {
+                    HStack {
+                        Text("Left Click")
+                        if buttonType == .left {
+                            Image(systemName: "checkmark")
+                        }
+                    }
+                }
+                
+                Button(action: {
+                    onPreSave()
+                    buttonType = .right
+                    action = .currentPosition(button: .right)
+                    onSave()
+                }) {
+                    HStack {
+                        Text("Right Click")
+                        if buttonType == .right {
+                            Image(systemName: "checkmark")
+                        }
+                    }
+                }
+            } label: {
+                HStack(spacing: 4) {
+                    Text(buttonType == .left ? "Left Click" : "Right Click")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundColor(buttonType == .left ? Color(red: 0.08, green: 0.55, blue: 1.0) : Color(red: 0.04, green: 0.52, blue: 0.54))
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundColor(.secondary)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color(white: 0.12))
+                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                )
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+        }
+        .onAppear {
+            loadValues()
+        }
+        .onChange(of: action) { _, _ in
+            loadValues()
+        }
+    }
+    
+    private func loadValues() {
+        if case .currentPosition(let btn) = action {
+            buttonType = btn
         }
     }
 }

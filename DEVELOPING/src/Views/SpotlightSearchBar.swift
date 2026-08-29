@@ -18,6 +18,7 @@ struct SearchableActionDef: Identifiable {
     
     static let allActions: [SearchableActionDef] = [
         .init(title: "Path", icon: "point.topleft.down.to.point.bottomright.curvepath.fill", color: Color(red: 0.65, green: 0.25, blue: 0.85), category: "Utility"),
+        .init(title: "Current Position", icon: "cursorarrow.click.2", color: Color(red: 0.08, green: 0.45, blue: 0.82), category: "Mouse"),
         .init(title: "Left Click", icon: "cursorarrow.click", color: Color(red: 0.08, green: 0.45, blue: 0.82), category: "Mouse"),
         .init(title: "Right Click", icon: "cursorarrow.click", color: Color(red: 0.04, green: 0.52, blue: 0.54), category: "Mouse"),
         .init(title: "Drag", icon: "hand.draw", color: Color(red: 0.52, green: 0.22, blue: 0.75), category: "Mouse"),

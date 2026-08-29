@@ -128,13 +128,22 @@ class InputSimulator {
                     executeSubActions(items: subActions, originQuartzPos: &originQuartzPos, originWindowRect: &originWindowRect, macroID: macroID, cursorRestorePos: cursorRestorePos)
                     
                 case .click(let point, let button):
-                    let clickPt: CGPoint
-                    if point.x == -9999 && point.y == -9999 {
-                        // Use the cursor position from before macro started (real cursor is off-screen during execution)
-                        clickPt = cursorRestorePos
-                    } else {
-                        clickPt = point
-                    }
+                    let clickPt = point
+                    let dT: CGEventType = button == .left ? .leftMouseDown : .rightMouseDown
+                    let uT: CGEventType = button == .left ? .leftMouseUp   : .rightMouseUp
+                    CGWarpMouseCursorPosition(clickPt)
+                    usleep(15000)
+                    let d = CGEvent(mouseEventSource: source, mouseType: dT, mouseCursorPosition: clickPt, mouseButton: button)
+                    let u = CGEvent(mouseEventSource: source, mouseType: uT, mouseCursorPosition: clickPt, mouseButton: button)
+                    d?.flags = []
+                    u?.flags = []
+                    d?.post(tap: .cghidEventTap)
+                    usleep(25000)
+                    u?.post(tap: .cghidEventTap)
+                    usleep(30000)
+
+                case .currentPosition(let button):
+                    let clickPt = cursorRestorePos
                     let dT: CGEventType = button == .left ? .leftMouseDown : .rightMouseDown
                     let uT: CGEventType = button == .left ? .leftMouseUp   : .rightMouseUp
                     CGWarpMouseCursorPosition(clickPt)

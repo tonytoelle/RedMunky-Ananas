@@ -254,10 +254,12 @@ enum MacroAction: Equatable {
     indirect case group(name: String, actions: [MacroActionItem])
     case windowTransform(p1: CGPoint, p2: CGPoint, p3: CGPoint, p4: CGPoint)
     case originAction(type: OriginType)
+    case currentPosition(button: CGMouseButton)
 
     var iconName: String {
         switch self {
         case .click:        return "cursorarrow.click"
+        case .currentPosition: return "cursorarrow.click.2"
         case .drag:         return "hand.draw"
         case .path:         return "point.topleft.down.to.point.bottomright.curvepath.fill"
         case .delay:        return "timer"
@@ -280,6 +282,7 @@ enum MacroAction: Equatable {
     var color: Color {
         switch self {
         case .click(_, let button): return button == .left ? Color(red: 0.08, green: 0.45, blue: 0.82) : Color(red: 0.04, green: 0.52, blue: 0.54)
+        case .currentPosition(let button): return button == .left ? Color(red: 0.08, green: 0.45, blue: 0.82) : Color(red: 0.04, green: 0.52, blue: 0.54)
         case .drag:         return Color(red: 0.52, green: 0.22, blue: 0.75)
         case .path:         return Color(red: 0.65, green: 0.25, blue: 0.85)
         case .delay:        return Color(red: 0.88, green: 0.42, blue: 0.04)
@@ -300,6 +303,7 @@ enum MacroAction: Equatable {
     var title: String {
         switch self {
         case .click(_, let b):      return "\(b == .left ? "Left" : "Right") Click"
+        case .currentPosition:      return "Current Position"
         case .drag:                 return "Drag"
         case .path:                 return "Path"
         case .delay:                return "Delay"
@@ -322,10 +326,9 @@ enum MacroAction: Equatable {
     var details: String {
         switch self {
         case .click(let p, let b):
-            if p.x == -9999 && p.y == -9999 {
-                return "Click \(b == .left ? "Left Button" : "Right Button") at current position"
-            }
             return "Click \(b == .left ? "Left Button" : "Right Button") at coordinates (\(Int(p.x)), \(Int(p.y)))"
+        case .currentPosition(let b):
+            return "Click \(b == .left ? "Left Button" : "Right Button") at current cursor position"
         case .drag(let s, let e):   return "Drag cursor from (\(Int(s.x)), \(Int(s.y))) to (\(Int(e.x)), \(Int(e.y)))"
         case .path(let pts):        return "\(pts.count) steps cursor sequence"
         case .delay(let ms):        return "Wait \(ms) milliseconds before next step"
@@ -369,10 +372,9 @@ enum MacroAction: Equatable {
     var parameterString: String {
         switch self {
         case .click(let point, _):
-            if point.x == -9999 && point.y == -9999 {
-                return "current"
-            }
             return "\(Int(point.x)), \(Int(point.y))"
+        case .currentPosition(let b):
+            return "\(b == .left ? "Left" : "Right") Click"
         case .drag(let start, let end):
             return "(\(Int(start.x)), \(Int(start.y))) → (\(Int(end.x)), \(Int(end.y)))"
         case .path(let pts):
@@ -421,10 +423,9 @@ enum MacroAction: Equatable {
     var scriptLine: String {
         switch self {
         case .click(let p, let b):
-            if p.x == -9999 && p.y == -9999 {
-                return b == .left ? "ACTION: click current" : "ACTION: right_click current"
-            }
             return b == .left ? "ACTION: click \(Int(p.x)) \(Int(p.y))" : "ACTION: right_click \(Int(p.x)) \(Int(p.y))"
+        case .currentPosition(let b):
+            return "ACTION: current_position \(b == .left ? "left" : "right")"
         case .drag(let s, let e):   return "ACTION: drag \(Int(s.x)) \(Int(s.y)) to \(Int(e.x)) \(Int(e.y))"
         case .path(let pts):
             let pStr = pts.map { pt -> String in

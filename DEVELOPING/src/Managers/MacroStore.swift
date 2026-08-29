@@ -1224,6 +1224,7 @@ class MacroStore: ObservableObject {
         let newAction: MacroAction
         switch typeName {
         case "Path": newAction = .path(points: [])
+        case "Current Position": newAction = .currentPosition(button: .left)
         case "Left Click": newAction = .click(point: .zero, button: .left)
         case "Right Click": newAction = .click(point: .zero, button: .right)
         case "Drag": newAction = .drag(start: .zero, end: .zero)

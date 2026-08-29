@@ -5,6 +5,4 @@ TRIGGER: cmd+shift+k
 ACTION: path 848,702:click 964,720:click 879,807:click 988,900:click
 ACTION: click 1156 630
 ACTION: right_click 1071 858
-ACTION: click 1385 656
-ACTION: path 1077,619:click 1321,530:click 1262,707:click 1195,705:click 1225,638:click
 ACTION: path 818,685:click 994,626:click 1047,804:click
