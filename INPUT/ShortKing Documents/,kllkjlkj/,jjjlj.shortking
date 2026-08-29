@@ -2,8 +2,8 @@
 TRIGGER: cmd+shift+k
 
 # Actions:
-ACTION: press enter
-ACTION: move 943 594
 ACTION: type "Hello ShortKing"
+ACTION: move 943 594
 ACTION: delay 300
+ACTION: press return
 ACTION: click 1116 465

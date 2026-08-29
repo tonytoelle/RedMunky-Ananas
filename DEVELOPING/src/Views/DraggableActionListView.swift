@@ -15,6 +15,10 @@ struct ActionCardView: View {
     var onSave: () -> Void
     let detailWidth: CGFloat
     var store = MacroStore.shared
+    
+    var isDragging: Bool = false
+    var onDragChanged: ((DragGesture.Value) -> Void)? = nil
+    var onDragEnded: ((DragGesture.Value) -> Void)? = nil
 
     @FocusState private var isGroupFocused: Bool
     @State private var isCollapsed = false
@@ -24,12 +28,18 @@ struct ActionCardView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: detailWidth < 520 ? 8 : 12) {
-                // Drag handle (hide if extremely small)
+                // Drag handle
                 if detailWidth >= 340 {
                     Image(systemName: "line.3.horizontal")
-                        .foregroundColor(.secondary.opacity(0.6))
-                        .font(.system(size: 13))
-                        .frame(width: 14)
+                        .foregroundColor(isDragging ? Color.accentColor : Color.secondary.opacity(0.6))
+                        .font(.system(size: 13, weight: isDragging ? .bold : .regular))
+                        .frame(width: 20, height: 26)
+                        .contentShape(Rectangle())
+                        .gesture(
+                            DragGesture(minimumDistance: 1, coordinateSpace: .global)
+                                .onChanged { val in onDragChanged?(val) }
+                                .onEnded { val in onDragEnded?(val) }
+                        )
                 }
 
                 // Squircle Icon with step ID inside
@@ -399,14 +409,19 @@ struct ActionCardView: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 11)
-        .background(Color(white: 0.18))
+        .background(Color(white: isDragging ? 0.22 : 0.18))
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .stroke(store.selectedActionIDs.contains(item.id) ? Color.accentColor : Color.white.opacity(0.06),
-                        lineWidth: store.selectedActionIDs.contains(item.id) ? 1.5 : 1)
+                .stroke(store.selectedActionIDs.contains(item.id) || isDragging ? Color.accentColor : Color.white.opacity(0.06),
+                        lineWidth: store.selectedActionIDs.contains(item.id) || isDragging ? 1.5 : 1)
         )
         .contentShape(Rectangle())
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 8, coordinateSpace: .global)
+                .onChanged { val in onDragChanged?(val) }
+                .onEnded { val in onDragEnded?(val) }
+        )
         .onTapGesture {
             let modifiers = NSEvent.modifierFlags
             store.focusedPane = .right
@@ -606,8 +621,15 @@ struct ActionCardView: View {
     }
 }
 
+struct CardHeightPreferenceKey: PreferenceKey {
+    static var defaultValue: [UUID: CGFloat] = [:]
+    static func reduce(value: inout [UUID: CGFloat], nextValue: () -> [UUID: CGFloat]) {
+        value.merge(nextValue()) { $1 }
+    }
+}
+
 // ==========================================
-// MARK: - Draggable Action List (macOS drag-reorder)
+// MARK: - Draggable Action List (Fluid Apple Physics)
 // ==========================================
 struct DraggableActionList: View {
     @Binding var actionItems: [MacroActionItem]
@@ -615,13 +637,47 @@ struct DraggableActionList: View {
     var onInsertTemplate: (String, Int) -> Void
     let detailWidth: CGFloat
 
-    @State private var draggingID: UUID?
+    // Gesture-driven Fluid Physics State
+    @State private var draggingItemID: UUID? = nil
+    @State private var dragOffsetY: CGFloat = 0
+    @State private var initialDragIndex: Int? = nil
+    @State private var currentTargetIndex: Int? = nil
+    @State private var cardHeights: [UUID: CGFloat] = [:]
+
+    // Template Drop State
     @State private var draggingTemplate: String? = nil
     @State private var placeholderIndex: Int? = nil
-    @State private var isListTargeted = false
+
+    private let defaultCardHeight: CGFloat = 58.0
+    private let cardSpacing: CGFloat = 8.0
+
+    private func offsetForCard(at index: Int, id: UUID) -> CGFloat {
+        guard let draggingID = draggingItemID,
+              let fromIdx = initialDragIndex,
+              let targetIdx = currentTargetIndex else { return 0 }
+        
+        if id == draggingID {
+            return dragOffsetY
+        }
+        
+        let shiftDistance = (cardHeights[draggingID] ?? defaultCardHeight) + cardSpacing
+        
+        if fromIdx < targetIdx {
+            // Dragged downwards: intermediate items shift UP
+            if index > fromIdx && index <= targetIdx {
+                return -shiftDistance
+            }
+        } else if fromIdx > targetIdx {
+            // Dragged upwards: intermediate items shift DOWN
+            if index >= targetIdx && index < fromIdx {
+                return shiftDistance
+            }
+        }
+        return 0
+    }
 
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: cardSpacing) {
             if actionItems.isEmpty {
                 VStack(spacing: 8) {
                     Image(systemName: "plus.circle")
@@ -643,6 +699,7 @@ struct DraggableActionList: View {
             
             ForEach(Array(actionItems.enumerated()), id: \.element.id) { index, actionItem in
                 let itemID = actionItem.id
+                let isDraggingThis = draggingItemID == itemID
                 let itemBinding = Binding<MacroActionItem>(
                     get: {
                         if index < actionItems.count && actionItems[index].id == itemID {
@@ -685,36 +742,91 @@ struct DraggableActionList: View {
                             }
                         },
                         onSave: onSave,
-                        detailWidth: detailWidth
+                        detailWidth: detailWidth,
+                        isDragging: isDraggingThis,
+                        onDragChanged: { gestureValue in
+                            if draggingItemID == nil {
+                                draggingItemID = itemID
+                                initialDragIndex = index
+                                currentTargetIndex = index
+                                if !MacroStore.shared.selectedActionIDs.contains(itemID) {
+                                    MacroStore.shared.selectedActionIDs = [itemID]
+                                    MacroStore.shared.lastSelectedActionID = itemID
+                                }
+                                if let selected = MacroStore.shared.selectedMacro {
+                                    MacroStore.shared.registerUndoState(for: selected)
+                                }
+                            }
+                            
+                            dragOffsetY = gestureValue.translation.height
+                            
+                            let singleStep = (cardHeights[itemID] ?? defaultCardHeight) + cardSpacing
+                            let steps = Int(round(dragOffsetY / singleStep))
+                            let newTarget = min(max(0, (initialDragIndex ?? index) + steps), actionItems.count - 1)
+                            
+                            if newTarget != currentTargetIndex {
+                                withAnimation(.spring(response: 0.22, dampingFraction: 0.82)) {
+                                    currentTargetIndex = newTarget
+                                }
+                            }
+                        },
+                        onDragEnded: { _ in
+                            guard let fromIdx = initialDragIndex,
+                                  let toIdx = currentTargetIndex,
+                                  fromIdx != toIdx else {
+                                withAnimation(.spring(response: 0.2, dampingFraction: 0.85)) {
+                                    draggingItemID = nil
+                                    dragOffsetY = 0
+                                    initialDragIndex = nil
+                                    currentTargetIndex = nil
+                                }
+                                return
+                            }
+                            
+                            withAnimation(.spring(response: 0.25, dampingFraction: 0.85)) {
+                                let destination = toIdx > fromIdx ? toIdx + 1 : toIdx
+                                actionItems.move(fromOffsets: IndexSet(integer: fromIdx), toOffset: destination)
+                                draggingItemID = nil
+                                dragOffsetY = 0
+                                initialDragIndex = nil
+                                currentTargetIndex = nil
+                            }
+                            onSave()
+                        }
                     )
-                    .onDrag {
-                        draggingID = itemID
-                        if !MacroStore.shared.selectedActionIDs.contains(itemID) {
-                            MacroStore.shared.selectedActionIDs = [itemID]
-                            MacroStore.shared.lastSelectedActionID = itemID
+                    .background(
+                        GeometryReader { geo in
+                            Color.clear.preference(key: CardHeightPreferenceKey.self, value: [itemID: geo.size.height])
                         }
-                        if let selected = MacroStore.shared.selectedMacro {
-                            MacroStore.shared.registerUndoState(for: selected)
-                        }
-                        return NSItemProvider(object: itemID.uuidString as NSString)
-                    }
-                    .onDrop(of: [.text], delegate: ActionDropDelegate(
+                    )
+                    .offset(y: offsetForCard(at: index, id: itemID))
+                    .zIndex(isDraggingThis ? 100 : Double(index))
+                    .shadow(
+                        color: isDraggingThis ? Color.black.opacity(0.4) : Color.clear,
+                        radius: isDraggingThis ? 14 : 0,
+                        x: 0,
+                        y: isDraggingThis ? 8 : 0
+                    )
+                    .scaleEffect(isDraggingThis ? 1.02 : 1.0)
+                    .animation(.spring(response: 0.22, dampingFraction: 0.82), value: offsetForCard(at: index, id: itemID))
+                    .onDrop(of: [.text], delegate: TemplateDropDelegate(
                         item: actionItem,
                         index: index,
                         items: $actionItems,
-                        draggingID: $draggingID,
                         draggingTemplate: $draggingTemplate,
                         placeholderIndex: $placeholderIndex,
-                        onSave: onSave,
                         onInsertTemplate: onInsertTemplate
                     ))
-                    .opacity(draggingID == itemID ? 0.92 : 1.0)
-                    .shadow(color: draggingID == itemID ? Color.accentColor.opacity(0.4) : Color.clear, radius: 4, x: 0, y: 2)
                 }
             }
             
             if placeholderIndex == actionItems.count, let templateName = draggingTemplate {
                 PlaceholderSlotView(title: templateName)
+            }
+        }
+        .onPreferenceChange(CardHeightPreferenceKey.self) { preferences in
+            for (k, v) in preferences {
+                cardHeights[k] = v
             }
         }
     }
@@ -744,6 +856,56 @@ struct PlaceholderSlotView: View {
                 .stroke(Color.accentColor.opacity(0.4), style: StrokeStyle(lineWidth: 1.5, dash: [4, 4]))
         )
         .transition(.opacity.combined(with: .scale(scale: 0.95)))
+    }
+}
+
+struct TemplateDropDelegate: DropDelegate {
+    let item: MacroActionItem
+    let index: Int
+    @Binding var items: [MacroActionItem]
+    @Binding var draggingTemplate: String?
+    @Binding var placeholderIndex: Int?
+    var onInsertTemplate: (String, Int) -> Void
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        return DropProposal(operation: .copy)
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        if let provider = info.itemProviders(for: [.text]).first {
+            _ = provider.loadObject(ofClass: NSString.self) { (str, error) in
+                if let s = str as? String, s.hasPrefix("action_template:") {
+                    let typeName = s.replacingOccurrences(of: "action_template:", with: "")
+                    DispatchQueue.main.async {
+                        let targetIndex = placeholderIndex ?? (items.firstIndex(where: { $0.id == item.id }) ?? index)
+                        onInsertTemplate(typeName, targetIndex)
+                        draggingTemplate = nil
+                        placeholderIndex = nil
+                    }
+                }
+            }
+            return true
+        }
+        draggingTemplate = nil
+        placeholderIndex = nil
+        return false
+    }
+
+    func dropEntered(info: DropInfo) {
+        if let provider = info.itemProviders(for: [.text]).first {
+            _ = provider.loadObject(ofClass: NSString.self) { (str, error) in
+                if let s = str as? String, s.hasPrefix("action_template:") {
+                    let typeName = s.replacingOccurrences(of: "action_template:", with: "")
+                    DispatchQueue.main.async {
+                        let currIdx = items.firstIndex(where: { $0.id == item.id }) ?? index
+                        withAnimation(.easeInOut(duration: 0.12)) {
+                            draggingTemplate = typeName
+                            placeholderIndex = currIdx
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -781,89 +943,6 @@ struct GroupActionDropDelegate: DropDelegate {
                         }
                     }
                 }
-            }
-        }
-    }
-}
-
-struct ActionDropDelegate: DropDelegate {
-    let item: MacroActionItem
-    let index: Int
-    @Binding var items: [MacroActionItem]
-    @Binding var draggingID: UUID?
-    @Binding var draggingTemplate: String?
-    @Binding var placeholderIndex: Int?
-    var onSave: () -> Void
-    var onInsertTemplate: (String, Int) -> Void
-
-    func dropUpdated(info: DropInfo) -> DropProposal? {
-        return DropProposal(operation: .move)
-    }
-
-    func performDrop(info: DropInfo) -> Bool {
-        if draggingID != nil {
-            draggingID = nil
-            onSave()
-            return true
-        }
-        
-        if let provider = info.itemProviders(for: [.text]).first {
-            _ = provider.loadObject(ofClass: NSString.self) { (str, error) in
-                if let s = str as? String, s.hasPrefix("action_template:") {
-                    let typeName = s.replacingOccurrences(of: "action_template:", with: "")
-                    DispatchQueue.main.async {
-                        let targetIndex = placeholderIndex ?? (items.firstIndex(where: { $0.id == item.id }) ?? index)
-                        onInsertTemplate(typeName, targetIndex)
-                        draggingTemplate = nil
-                        placeholderIndex = nil
-                    }
-                }
-            }
-            return true
-        }
-        
-        draggingTemplate = nil
-        placeholderIndex = nil
-        return false
-    }
-
-    func dropEntered(info: DropInfo) {
-        guard let dragID = draggingID else {
-            if let provider = info.itemProviders(for: [.text]).first {
-                _ = provider.loadObject(ofClass: NSString.self) { (str, error) in
-                    if let s = str as? String, s.hasPrefix("action_template:") {
-                        let typeName = s.replacingOccurrences(of: "action_template:", with: "")
-                        DispatchQueue.main.async {
-                            let currIdx = items.firstIndex(where: { $0.id == item.id }) ?? index
-                            withAnimation(.easeInOut(duration: 0.12)) {
-                                draggingTemplate = typeName
-                                placeholderIndex = currIdx
-                            }
-                        }
-                    }
-                }
-            }
-            return
-        }
-
-        guard item.id != dragID else { return }
-        guard let targetIdx = items.firstIndex(where: { $0.id == item.id }) else { return }
-
-        let selectedIDs = MacroStore.shared.selectedActionIDs
-        if selectedIDs.contains(dragID) {
-            guard !selectedIDs.contains(item.id) else { return }
-            let indices = items.enumerated().filter { selectedIDs.contains($1.id) }.map { $0.offset }
-            guard !indices.isEmpty else { return }
-            let fromOffsets = IndexSet(indices)
-            withAnimation(.easeInOut(duration: 0.12)) {
-                let to = targetIdx > (indices.first ?? 0) ? targetIdx + 1 : targetIdx
-                items.move(fromOffsets: fromOffsets, toOffset: to)
-            }
-        } else {
-            guard let fromIdx = items.firstIndex(where: { $0.id == dragID }),
-                  fromIdx != targetIdx else { return }
-            withAnimation(.easeInOut(duration: 0.12)) {
-                items.move(fromOffsets: IndexSet(integer: fromIdx), toOffset: targetIdx > fromIdx ? targetIdx + 1 : targetIdx)
             }
         }
     }
