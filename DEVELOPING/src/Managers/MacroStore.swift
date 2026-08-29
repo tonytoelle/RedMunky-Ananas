@@ -588,20 +588,20 @@ class MacroStore: ObservableObject {
     }
 
     func saveMacro(_ macro: MacroItem) {
-        let content = ShortKingParser.generateScript(triggers: macro.triggers, actionItems: macro.actionItems, isEnabled: macro.isEnabled)
+        let triggers = macro.triggers
+        let actionItems = macro.actionItems
+        let isEnabled = macro.isEnabled
         let fileURL = macro.fileURL
-        let trigger = macro.trigger
         
         self.isSavingInternally = true
         
-        DispatchQueue.global(qos: .userInitiated).async {
+        DispatchQueue.global(qos: .utility).async {
+            let content = ShortKingParser.generateScript(triggers: triggers, actionItems: actionItems, isEnabled: isEnabled)
             try? content.write(to: fileURL, atomically: true, encoding: .utf8)
-            updateMacroFinderIcon(for: fileURL, trigger: trigger)
             
             DispatchQueue.main.async {
                 self.registerAllCarbonHotKeys()
-                // Reset saving flag after disk latency window
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                     self.isSavingInternally = false
                 }
             }

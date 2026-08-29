@@ -781,7 +781,7 @@ struct GroupActionDropDelegate: DropDelegate {
                               fromIdx != index else { return }
                         DispatchQueue.main.async {
                             onPreSave()
-                            withAnimation(.spring(response: 0.2, dampingFraction: 0.8)) {
+                            withAnimation(.easeInOut(duration: 0.12)) {
                                 let movingItem = subActions.remove(at: fromIdx)
                                 subActions.insert(movingItem, at: index)
                                 groupItem.action = .group(name: groupName, actions: subActions)
@@ -811,9 +811,7 @@ struct ActionDropDelegate: DropDelegate {
     func performDrop(info: DropInfo) -> Bool {
         if draggingID != nil {
             draggingID = nil
-            DispatchQueue.main.async {
-                onSave()
-            }
+            onSave()
             return true
         }
         
