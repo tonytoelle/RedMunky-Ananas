@@ -2058,12 +2058,23 @@ struct MainEditorView: View {
                         return nil // consume
                     } else {
                         let targetPath = store.selectedFolderPath ?? selectedPaths.first
-                        if let path = targetPath, !path.hasSuffix(".shortking") {
-                            if expandedFolders.contains(path) {
+                        if let path = targetPath {
+                            if !path.hasSuffix(".shortking") && expandedFolders.contains(path) {
+                                // Collapse open folder
                                 withAnimation(.easeInOut(duration: 0.15)) {
                                     _ = expandedFolders.remove(path)
                                 }
                                 return nil // consume
+                            } else {
+                                // If inside a subfolder, navigate to parent folder
+                                let parentURL = URL(fileURLWithPath: path).deletingLastPathComponent()
+                                if parentURL.path != store.watchDirectoryURL.path && parentURL.path.hasPrefix(store.watchDirectoryURL.path) {
+                                    store.selectedFolderPath = parentURL.path
+                                    store.selectedFilePath = nil
+                                    selectedPaths = [parentURL.path]
+                                    lastClickedPath = parentURL.path
+                                    return nil
+                                }
                             }
                         }
                     }
@@ -2078,13 +2089,24 @@ struct MainEditorView: View {
                     }
                     if store.focusedPane == .left {
                         let targetPath = store.selectedFolderPath ?? selectedPaths.first
-                        if let path = targetPath, !path.hasSuffix(".shortking"), !expandedFolders.contains(path) {
-                            withAnimation(.easeInOut(duration: 0.15)) {
-                                _ = expandedFolders.insert(path)
+                        if let path = targetPath, !path.hasSuffix(".shortking") {
+                            if !expandedFolders.contains(path) {
+                                // Expand closed folder
+                                withAnimation(.easeInOut(duration: 0.15)) {
+                                    _ = expandedFolders.insert(path)
+                                }
+                                return nil // consume
+                            } else {
+                                // Folder already expanded -> move down to its first child item!
+                                store.moveSelectionDown(expandedFolders: expandedFolders)
+                                if let curr = store.selectedFilePath ?? store.selectedFolderPath {
+                                    selectedPaths = [curr]
+                                    lastClickedPath = curr
+                                }
+                                return nil // consume
                             }
-                            return nil // consume
                         } else {
-                            // Jump from sidebar to editor pane
+                            // Macro selected -> Jump from sidebar to editor pane
                             store.focusedPane = .right
                             NSApp.keyWindow?.makeFirstResponder(nil)
                             if let selected = store.selectedMacro, let firstAction = selected.actionItems.first {
@@ -2140,6 +2162,33 @@ struct MainEditorView: View {
                             store.insertDefaultAction(typeName: actionDef.title)
                         }
                         return nil
+                    } else if store.focusedPane == .left {
+                        let targetPath = store.selectedFolderPath ?? selectedPaths.first
+                        if let path = targetPath, !path.hasSuffix(".shortking") {
+                            // Toggle folder expand/collapse on Enter
+                            withAnimation(.easeInOut(duration: 0.15)) {
+                                if expandedFolders.contains(path) {
+                                    _ = expandedFolders.remove(path)
+                                } else {
+                                    _ = expandedFolders.insert(path)
+                                }
+                            }
+                            return nil
+                        } else {
+                            // Jump to right editor
+                            store.focusedPane = .right
+                            NSApp.keyWindow?.makeFirstResponder(nil)
+                            if let selected = store.selectedMacro, let firstAction = selected.actionItems.first {
+                                store.selectedActionIDs = [firstAction.id]
+                                store.lastSelectedActionID = firstAction.id
+                                store.isTriggerFocused = false
+                                store.isGridFocused = false
+                            } else {
+                                store.isTriggerFocused = true
+                                store.isGridFocused = false
+                            }
+                            return nil
+                        }
                     }
                 } else if event.keyCode == 51 || event.keyCode == 117 { // Delete or Backspace
                     if let responder = NSApp.keyWindow?.firstResponder {
