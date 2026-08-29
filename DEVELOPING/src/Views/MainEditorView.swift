@@ -46,66 +46,13 @@ struct MacroInspectorView: View {
         ZStack(alignment: .top) {
             // Main Detail ScrollView — 2 areas: Trigger + Actions
             ScrollView(showsIndicators: false) {
-                VStack(spacing: 0) {
-                    // Geometry Tracker at top of ScrollView
-                    GeometryReader { geo in
-                        Color.clear
-                            .preference(key: ScrollOffsetPreferenceKey.self, value: geo.frame(in: .named("scroll_macro")).minY)
-                    }
-                    .frame(height: 0)
-
-                    VStack(alignment: .leading, spacing: 14) {
-                        // Dynamic Large Title
-                        HStack(spacing: 8) {
-                            if isEditingName {
-                                TextField("Macro Name", text: $tempName)
-                                    .font(.system(size: 28, weight: .bold))
-                                    .textFieldStyle(.plain)
-                                    .foregroundColor(.white)
-                                    .lineLimit(1)
-                                    .frame(minWidth: 80, maxWidth: 320)
-                                    .focused($isNameFocused)
-                                    .onSubmit {
-                                        store.renameMacro(macro, newBaseName: tempName)
-                                        isNameFocused = false
-                                        isEditingName = false
-                                    }
-                                    .onChange(of: isNameFocused) { _, focused in
-                                        if !focused {
-                                            store.renameMacro(macro, newBaseName: tempName)
-                                            isEditingName = false
-                                        }
-                                    }
-                                    .onAppear {
-                                        isNameFocused = true
-                                    }
-                            } else {
-                                Text(tempName.isEmpty ? "Untitled Macro" : tempName.capitalized)
-                                    .font(.system(size: 28, weight: .bold))
-                                    .foregroundColor(.white)
-                                    .lineLimit(1)
-                                    .onTapGesture(count: 2) {
-                                        isEditingName = true
-                                    }
-                            }
-                            Spacer()
-                        }
-                        .padding(.top, 6)
-                        .padding(.bottom, 6)
-                        .opacity(max(0.0, 1.0 - scrollProgress * 1.5))
-                        .offset(y: scrollOffset > 0 ? 0 : scrollOffset * 0.4)
-
-                        triggerSection
-                        actionsSection
-                    }
-                    .padding(.horizontal, 24)
-                    .padding(.bottom, 24)
-                    .padding(.top, 48)
+                VStack(alignment: .leading, spacing: 14) {
+                    triggerSection
+                    actionsSection
                 }
-            }
-            .coordinateSpace(name: "scroll_macro")
-            .onPreferenceChange(ScrollOffsetPreferenceKey.self) { value in
-                scrollOffset = value
+                .padding(.horizontal, 22)
+                .padding(.bottom, 22)
+                .padding(.top, 72)
             }
             .background(Color(white: 0.1))
             
@@ -129,77 +76,66 @@ struct MacroInspectorView: View {
     // MARK: - Header Section
     @ViewBuilder
     private var headerSection: some View {
-        ZStack {
-            // Background frosted glass with smooth blur fade mask
-            Rectangle()
-                .fill(.ultraThinMaterial)
-                .mask(
-                    LinearGradient(
-                        stops: [
-                            .init(color: .black, location: 0.0),
-                            .init(color: .black, location: 0.7),
-                            .init(color: .clear, location: 1.0)
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
-                .opacity(scrollProgress)
-                .overlay(
-                    Divider()
-                        .background(Color.white.opacity(0.10))
-                        .opacity(scrollProgress),
-                    alignment: .bottom
-                )
-
-            // Center inline title (fades in)
-            Text(tempName.isEmpty ? "Untitled Macro" : tempName.capitalized)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundColor(.white)
-                .lineLimit(1)
-                .opacity(scrollProgress)
-                .frame(maxWidth: .infinity, alignment: .center)
-
-            HStack(spacing: 10) {
-                Spacer()
-
-                if !permissions.isAccessibilityGranted {
-                    Button {
-                        permissions.openAccessibilitySettings()
-                    } label: {
-                        Image(systemName: "exclamationmark.shield.fill")
-                            .foregroundColor(.yellow)
-                            .font(.system(size: 13, weight: .bold))
-                            .frame(width: 28, height: 28)
-                            .background(.ultraThinMaterial)
-                            .clipShape(Circle())
-                            .overlay(Circle().stroke(Color.white.opacity(0.15), lineWidth: 0.5))
-                    }
-                    .buttonStyle(.plain)
-                    .help("Accessibility permission required to simulate keystrokes and mouse clicks")
+        HStack(spacing: 12) {
+            HStack(spacing: 4) {
+                if isEditingName {
+                    TextField("Macro Name", text: $tempName)
+                        .font(.system(size: 24, weight: .bold))
+                        .textFieldStyle(.plain)
+                        .foregroundColor(.white)
+                        .lineLimit(1)
+                        .frame(minWidth: 80, maxWidth: 320)
+                        .focused($isNameFocused)
+                        .onSubmit {
+                            store.renameMacro(macro, newBaseName: tempName)
+                            isNameFocused = false
+                            isEditingName = false
+                        }
+                        .onChange(of: isNameFocused) { _, focused in
+                            if !focused {
+                                store.renameMacro(macro, newBaseName: tempName)
+                                isEditingName = false
+                            }
+                        }
+                        .onAppear {
+                            isNameFocused = true
+                        }
+                } else {
+                    Text(tempName.isEmpty ? "Untitled Macro" : tempName.capitalized)
+                        .font(.system(size: 24, weight: .bold))
+                        .foregroundColor(.white)
+                        .lineLimit(1)
+                        .onTapGesture(count: 2) {
+                            isEditingName = true
+                        }
                 }
+            }
+            .fixedSize(horizontal: true, vertical: false)
 
-                if isDirty {
-                    Button {
-                        store.saveMacro(macro)
-                        isDirty = false
-                    } label: {
-                        Text("Save")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 6)
-                            .background(.ultraThinMaterial)
-                            .clipShape(Capsule())
-                            .overlay(Capsule().stroke(Color.white.opacity(0.15), lineWidth: 0.5))
-                    }
-                    .buttonStyle(.plain)
-                }
+            Spacer()
 
+            if !permissions.isAccessibilityGranted {
                 Button {
-                    store.runMacro(macro)
+                    permissions.openAccessibilitySettings()
                 } label: {
-                    Label("Test Run", systemImage: "play.fill")
+                    Image(systemName: "exclamationmark.shield.fill")
+                        .foregroundColor(.yellow)
+                        .font(.system(size: 13, weight: .bold))
+                        .frame(width: 30, height: 30)
+                        .background(.ultraThinMaterial)
+                        .clipShape(Circle())
+                        .overlay(Circle().stroke(Color.white.opacity(0.15), lineWidth: 0.5))
+                }
+                .buttonStyle(.plain)
+                .help("Accessibility permission required to simulate keystrokes and mouse clicks")
+            }
+
+            if isDirty {
+                Button {
+                    store.saveMacro(macro)
+                    isDirty = false
+                } label: {
+                    Text("Save")
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(.white)
                         .padding(.horizontal, 14)
@@ -209,27 +145,57 @@ struct MacroInspectorView: View {
                         .overlay(Capsule().stroke(Color.white.opacity(0.15), lineWidth: 0.5))
                 }
                 .buttonStyle(.plain)
-
-                Button {
-                    alwaysOnTop.toggle()
-                    if let appDelegate = NSApp.delegate as? AppDelegate {
-                        appDelegate.updateAlwaysOnTop()
-                    }
-                } label: {
-                    Image(systemName: alwaysOnTop ? "pin.fill" : "pin")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(alwaysOnTop ? .accentColor : .secondary)
-                        .frame(width: 28, height: 28)
-                        .background(.ultraThinMaterial)
-                        .clipShape(Circle())
-                        .overlay(Circle().stroke(Color.white.opacity(0.15), lineWidth: 0.5))
-                }
-                .buttonStyle(.plain)
-                .help("Always on Top")
             }
-            .padding(.horizontal, 20)
+
+            Button {
+                store.runMacro(macro)
+            } label: {
+                Label("Test Run", systemImage: "play.fill")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 6)
+                    .background(.ultraThinMaterial)
+                    .clipShape(Capsule())
+                    .overlay(Capsule().stroke(Color.white.opacity(0.15), lineWidth: 0.5))
+            }
+            .buttonStyle(.plain)
+
+            Button {
+                alwaysOnTop.toggle()
+                if let appDelegate = NSApp.delegate as? AppDelegate {
+                    appDelegate.updateAlwaysOnTop()
+                }
+            } label: {
+                Image(systemName: alwaysOnTop ? "pin.fill" : "pin")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(alwaysOnTop ? .accentColor : .secondary)
+                    .frame(width: 30, height: 30)
+                    .background(.ultraThinMaterial)
+                    .clipShape(Circle())
+                    .overlay(Circle().stroke(Color.white.opacity(0.15), lineWidth: 0.5))
+            }
+            .buttonStyle(.plain)
+            .help("Always on Top")
         }
-        .frame(height: 52)
+        .padding(.horizontal, 22)
+        .padding(.top, 16)
+        .padding(.bottom, 22)
+        .background(
+            Rectangle()
+                .fill(.ultraThinMaterial)
+                .mask(
+                    LinearGradient(
+                        stops: [
+                            .init(color: .black, location: 0.0),
+                            .init(color: .black, location: 0.65),
+                            .init(color: .clear, location: 1.0)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+        )
         .background(WindowDragView())
     }
 
@@ -763,15 +729,7 @@ struct FolderInspectorView: View {
     var body: some View {
         ZStack(alignment: .top) {
             ScrollView(showsIndicators: false) {
-                VStack(spacing: 0) {
-                    // Geometry Tracker at top of ScrollView
-                    GeometryReader { geo in
-                        Color.clear
-                            .preference(key: ScrollOffsetPreferenceKey.self, value: geo.frame(in: .named("scroll_folder")).minY)
-                    }
-                    .frame(height: 0)
-
-                    VStack(spacing: 24) {
+                VStack(spacing: 24) {
                     // ═══════════════════════════════════════════════════
                     // CENTERED HEADER
                     // ═══════════════════════════════════════════════════
@@ -1162,68 +1120,49 @@ struct FolderInspectorView: View {
             }
             .padding(.horizontal, 24)
             .padding(.bottom, 24)
-            .padding(.top, 48)
+            .padding(.top, 72)
         }
-    }
-    .coordinateSpace(name: "scroll_folder")
-    .onPreferenceChange(ScrollOffsetPreferenceKey.self) { value in
-        scrollOffset = value
-    }
-        
-        // Header bar (Window draggable area) - dynamic frosted glass matching Mac App Store
-        ZStack {
+        .background(Color(white: 0.1))
+
+        // Header bar (Window draggable area) - AppleMusicUI blur fade header
+        HStack(spacing: 12) {
+            Spacer()
+
+            Button {
+                alwaysOnTop.toggle()
+                if let appDelegate = NSApp.delegate as? AppDelegate {
+                    appDelegate.updateAlwaysOnTop()
+                }
+            } label: {
+                Image(systemName: alwaysOnTop ? "pin.fill" : "pin")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(alwaysOnTop ? .accentColor : .secondary)
+                    .frame(width: 30, height: 30)
+                    .background(.ultraThinMaterial)
+                    .clipShape(Circle())
+                    .overlay(Circle().stroke(Color.white.opacity(0.15), lineWidth: 0.5))
+            }
+            .buttonStyle(.plain)
+            .help("Always on Top")
+        }
+        .padding(.horizontal, 22)
+        .padding(.top, 16)
+        .padding(.bottom, 22)
+        .background(
             Rectangle()
                 .fill(.ultraThinMaterial)
                 .mask(
                     LinearGradient(
                         stops: [
                             .init(color: .black, location: 0.0),
-                            .init(color: .black, location: 0.7),
+                            .init(color: .black, location: 0.65),
                             .init(color: .clear, location: 1.0)
                         ],
                         startPoint: .top,
                         endPoint: .bottom
                     )
                 )
-                .opacity(scrollProgress)
-                .overlay(
-                    Divider()
-                        .background(Color.white.opacity(0.10))
-                        .opacity(scrollProgress),
-                    alignment: .bottom
-                )
-
-            // Center inline title (fades in)
-            Text(folderName)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundColor(.white)
-                .lineLimit(1)
-                .opacity(scrollProgress)
-                .frame(maxWidth: .infinity, alignment: .center)
-
-            HStack(spacing: 12) {
-                Spacer()
-
-                Button {
-                    alwaysOnTop.toggle()
-                    if let appDelegate = NSApp.delegate as? AppDelegate {
-                        appDelegate.updateAlwaysOnTop()
-                    }
-                } label: {
-                    Image(systemName: alwaysOnTop ? "pin.fill" : "pin")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(alwaysOnTop ? .accentColor : .secondary)
-                        .frame(width: 28, height: 28)
-                        .background(.ultraThinMaterial)
-                        .clipShape(Circle())
-                        .overlay(Circle().stroke(Color.white.opacity(0.15), lineWidth: 0.5))
-                }
-                .buttonStyle(.plain)
-                .help("Always on Top")
-            }
-            .padding(.horizontal, 20)
-        }
-        .frame(height: 52)
+        )
         .background(WindowDragView())
     }
     .background(Color(white: 0.1))
