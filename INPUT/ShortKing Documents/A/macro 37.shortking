@@ -7,3 +7,4 @@ ACTION: press return
 ACTION: delay 300
 ACTION: click 1016 729
 ACTION: press return
+ACTION: right_click 1112 610

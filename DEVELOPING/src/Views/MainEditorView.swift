@@ -2101,22 +2101,14 @@ struct MainEditorView: View {
                         }
                         return nil // consume
                     } else {
-                        let visible = store.getVisiblePaths(expandedFolders: expandedFolders)
-                        let current = store.selectedFilePath ?? store.selectedFolderPath
-                        let currentIndex = current.flatMap { visible.firstIndex(of: $0) } ?? -1
-                        
-                        if event.keyCode == 126 && currentIndex <= 0 {
-                            // Reached top of sidebar list -> focus search bar!
-                            isSearchFocused = true
-                            return nil
-                        } else if event.keyCode == 125 { // Down
+                        if event.keyCode == 125 { // Down in Sidebar
                             store.moveSelectionDown(expandedFolders: expandedFolders)
                             if let curr = store.selectedFilePath ?? store.selectedFolderPath {
                                 selectedPaths = [curr]
                                 lastClickedPath = curr
                             }
                             return nil // consume
-                        } else { // Up
+                        } else { // Up in Sidebar
                             store.moveSelectionUp(expandedFolders: expandedFolders)
                             if let curr = store.selectedFilePath ?? store.selectedFolderPath {
                                 selectedPaths = [curr]
