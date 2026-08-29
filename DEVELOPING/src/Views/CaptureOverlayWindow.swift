@@ -1693,11 +1693,11 @@ class CaptureOverlayWindow: NSPanel {
             switch self.mode {
             case .click:
                 if let pt = currentPoints.first?.point {
-                    self.onClickCaptured?(pt)
+                    self.onClickRealTime?(pt)
                 }
             case .drag:
                 if currentPoints.count >= 2 {
-                    self.onDragCaptured?(currentPoints[0].point, currentPoints[1].point)
+                    self.onDragRealTime?(currentPoints[0].point, currentPoints[1].point)
                 }
             case .sequence:
                 self.onSequenceRealTime?(currentPoints)

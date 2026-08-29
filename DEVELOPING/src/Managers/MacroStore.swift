@@ -559,7 +559,7 @@ class MacroStore: ObservableObject {
     }
 
     private var isReloading = false
-    private var isSavingInternally = false
+    private var lastInternalSaveTime: Date = .distantPast
 
     func startWatching() {
         stopWatching()
@@ -578,8 +578,8 @@ class MacroStore: ObservableObject {
             guard let info = clientCallBackInfo else { return }
             let store = Unmanaged<MacroStore>.fromOpaque(info).takeUnretainedValue()
             
-            // If the app itself just wrote to disk, ignore the filesystem bounce
-            guard !store.isSavingInternally else { return }
+            // If the app itself just wrote to disk within 2.0s, ignore the filesystem bounce
+            guard Date().timeIntervalSince(store.lastInternalSaveTime) > 2.0 else { return }
             guard !store.isReloading else { return }
             store.isReloading = true
             
@@ -612,7 +612,7 @@ class MacroStore: ObservableObject {
         let isEnabled = macro.isEnabled
         let fileURL = macro.fileURL
         
-        self.isSavingInternally = true
+        self.lastInternalSaveTime = Date()
         
         DispatchQueue.global(qos: .utility).async {
             let content = ShortKingParser.generateScript(triggers: triggers, actionItems: actionItems, isEnabled: isEnabled)
@@ -620,9 +620,6 @@ class MacroStore: ObservableObject {
             
             DispatchQueue.main.async {
                 self.registerAllCarbonHotKeys()
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    self.isSavingInternally = false
-                }
             }
         }
     }

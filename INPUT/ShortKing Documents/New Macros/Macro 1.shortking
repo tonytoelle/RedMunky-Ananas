@@ -3,11 +3,13 @@ TRIGGER: cmd+shift+k
 
 # Actions:
 ACTION: path 848,702:click 964,720:click 903,841:click 988,900:click
-ACTION: right_click 1052 603
-ACTION: move 1413 351
-ACTION: move 1443 617
-ACTION: right_click 1128 714
-ACTION: right_click 972 702
 ACTION: click 1156 630
 ACTION: right_click 1071 858
-ACTION: right_click 1081 971
+ACTION: click 1385 656
+ACTION: click 1339 597
+ACTION: right_click 1282 591
+ACTION: right_click 1320 931
+ACTION: click 1354 879
+ACTION: right_click 1294 935
+ACTION: click 1333 899
+ACTION: right_click 1332 824
