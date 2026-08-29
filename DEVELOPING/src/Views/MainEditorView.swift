@@ -1983,8 +1983,8 @@ struct MainEditorView: View {
         .navigationSplitViewStyle(.balanced)
         .background(
             ZStack {
-                VisualEffectView(material: .sidebar, blendingMode: .behindWindow)
-                Color.black.opacity(0.15)
+                VisualEffectView(material: .fullScreenUI, blendingMode: .behindWindow)
+                Color.black.opacity(0.12)
             }
             .ignoresSafeArea()
         )
