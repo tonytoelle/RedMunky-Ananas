@@ -32,9 +32,9 @@ struct MacroInspectorView: View {
     @State private var scrollOffset: CGFloat = 0
     
     var scrollProgress: CGFloat {
-        let threshold: CGFloat = 36.0
-        let offset = -scrollOffset
-        return min(1.0, max(0.0, offset / threshold))
+        let offset = max(0, -scrollOffset)
+        let threshold: CGFloat = 40.0
+        return min(1.0, offset / threshold)
     }
     
     // Detect if any trigger is key switch
@@ -46,63 +46,66 @@ struct MacroInspectorView: View {
         ZStack(alignment: .top) {
             // Main Detail ScrollView — 2 areas: Trigger + Actions
             ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 14) {
-                    // Dynamic Large Title
-                    HStack(spacing: 8) {
-                        if isEditingName {
-                            TextField("Macro Name", text: $tempName)
-                                .font(.system(size: 28, weight: .bold))
-                                .textFieldStyle(.plain)
-                                .foregroundColor(.white)
-                                .lineLimit(1)
-                                .frame(minWidth: 80, maxWidth: 320)
-                                .focused($isNameFocused)
-                                .onSubmit {
-                                    store.renameMacro(macro, newBaseName: tempName)
-                                    isNameFocused = false
-                                    isEditingName = false
-                                }
-                                .onChange(of: isNameFocused) { _, focused in
-                                    if !focused {
-                                        store.renameMacro(macro, newBaseName: tempName)
-                                        isEditingName = false
-                                    }
-                                }
-                                .onAppear {
-                                    isNameFocused = true
-                                }
-                        } else {
-                            Text(tempName.isEmpty ? "Untitled Macro" : tempName.capitalized)
-                                .font(.system(size: 28, weight: .bold))
-                                .foregroundColor(.white)
-                                .lineLimit(1)
-                                .onTapGesture(count: 2) {
-                                    isEditingName = true
-                                }
-                        }
-                        Spacer()
-                    }
-                    .padding(.top, 6)
-                    .padding(.bottom, 6)
-                    .opacity(max(0.0, 1.0 - scrollProgress * 1.5))
-                    .offset(y: scrollOffset > 0 ? 0 : scrollOffset * 0.4)
-
-                    triggerSection
-                    actionsSection
-                }
-                .padding(.horizontal, 22)
-                .padding(.bottom, 22)
-                .padding(.top, 56)
-                .background(
+                VStack(spacing: 0) {
+                    // Geometry Tracker at top of ScrollView
                     GeometryReader { geo in
                         Color.clear
                             .preference(key: ScrollOffsetPreferenceKey.self, value: geo.frame(in: .named("scroll_macro")).minY)
                     }
-                )
+                    .frame(height: 0)
+
+                    VStack(alignment: .leading, spacing: 14) {
+                        // Dynamic Large Title
+                        HStack(spacing: 8) {
+                            if isEditingName {
+                                TextField("Macro Name", text: $tempName)
+                                    .font(.system(size: 28, weight: .bold))
+                                    .textFieldStyle(.plain)
+                                    .foregroundColor(.white)
+                                    .lineLimit(1)
+                                    .frame(minWidth: 80, maxWidth: 320)
+                                    .focused($isNameFocused)
+                                    .onSubmit {
+                                        store.renameMacro(macro, newBaseName: tempName)
+                                        isNameFocused = false
+                                        isEditingName = false
+                                    }
+                                    .onChange(of: isNameFocused) { _, focused in
+                                        if !focused {
+                                            store.renameMacro(macro, newBaseName: tempName)
+                                            isEditingName = false
+                                        }
+                                    }
+                                    .onAppear {
+                                        isNameFocused = true
+                                    }
+                            } else {
+                                Text(tempName.isEmpty ? "Untitled Macro" : tempName.capitalized)
+                                    .font(.system(size: 28, weight: .bold))
+                                    .foregroundColor(.white)
+                                    .lineLimit(1)
+                                    .onTapGesture(count: 2) {
+                                        isEditingName = true
+                                    }
+                            }
+                            Spacer()
+                        }
+                        .padding(.top, 6)
+                        .padding(.bottom, 6)
+                        .opacity(max(0.0, 1.0 - scrollProgress * 1.5))
+                        .offset(y: scrollOffset > 0 ? 0 : scrollOffset * 0.4)
+
+                        triggerSection
+                        actionsSection
+                    }
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 24)
+                    .padding(.top, 48)
+                }
             }
             .coordinateSpace(name: "scroll_macro")
             .onPreferenceChange(ScrollOffsetPreferenceKey.self) { value in
-                scrollOffset = value - 56
+                scrollOffset = value
             }
             .background(Color(white: 0.1))
             
@@ -731,9 +734,9 @@ struct FolderInspectorView: View {
     @State private var scrollOffset: CGFloat = 0
     
     var scrollProgress: CGFloat {
-        let threshold: CGFloat = 36.0
-        let offset = -scrollOffset
-        return min(1.0, max(0.0, offset / threshold))
+        let offset = max(0, -scrollOffset)
+        let threshold: CGFloat = 40.0
+        return min(1.0, offset / threshold)
     }
 
     var runningApps: [NSRunningApplication] {
@@ -748,7 +751,15 @@ struct FolderInspectorView: View {
     var body: some View {
         ZStack(alignment: .top) {
             ScrollView(showsIndicators: false) {
-                VStack(spacing: 24) {
+                VStack(spacing: 0) {
+                    // Geometry Tracker at top of ScrollView
+                    GeometryReader { geo in
+                        Color.clear
+                            .preference(key: ScrollOffsetPreferenceKey.self, value: geo.frame(in: .named("scroll_folder")).minY)
+                    }
+                    .frame(height: 0)
+
+                    VStack(spacing: 24) {
                     // ═══════════════════════════════════════════════════
                     // CENTERED HEADER
                     // ═══════════════════════════════════════════════════
@@ -1129,7 +1140,6 @@ struct FolderInspectorView: View {
                                         }
                                     }
                                 }
-                                .padding(.vertical, 4)
                             }
                         }
                     }
@@ -1140,18 +1150,13 @@ struct FolderInspectorView: View {
             }
             .padding(.horizontal, 24)
             .padding(.bottom, 24)
-            .padding(.top, 56)
-            .background(
-                GeometryReader { geo in
-                    Color.clear
-                        .preference(key: ScrollOffsetPreferenceKey.self, value: geo.frame(in: .named("scroll_folder")).minY)
-                }
-            )
+            .padding(.top, 48)
         }
-        .coordinateSpace(name: "scroll_folder")
-        .onPreferenceChange(ScrollOffsetPreferenceKey.self) { value in
-            scrollOffset = value - 56
-        }
+    }
+    .coordinateSpace(name: "scroll_folder")
+    .onPreferenceChange(ScrollOffsetPreferenceKey.self) { value in
+        scrollOffset = value
+    }
         
         // Header bar (Window draggable area) - dynamic frosted glass matching Mac App Store
         ZStack {
