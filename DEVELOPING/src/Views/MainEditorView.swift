@@ -526,35 +526,41 @@ struct MacroInspectorView: View {
                 defaultType: .click,
                 onSequenceCaptured: { newPts in
                     guard !newPts.isEmpty else { return }
-                    updateActionItem(id: actionItem.id, action: .path(points: newPts), isAlternate: isAlternate, switchTriggerIndex: switchTriggerIndex)
+                    updateActionItem(id: actionItem.id, action: .path(points: newPts), isAlternate: isAlternate, switchTriggerIndex: switchTriggerIndex, shouldSave: true)
                 },
                 onSequenceRealTime: { tempPts in
-                    updateActionItem(id: actionItem.id, action: .path(points: tempPts), isAlternate: isAlternate, switchTriggerIndex: switchTriggerIndex)
+                    updateActionItem(id: actionItem.id, action: .path(points: tempPts), isAlternate: isAlternate, switchTriggerIndex: switchTriggerIndex, shouldSave: false)
                 }
             )
         case .click(let pt, let button):
             CaptureOverlayWindow.shared = CaptureOverlayWindow(
                 mode: .click(button: button, initialPoint: pt == .zero ? nil : pt),
                 onClickCaptured: { capturedPt in
-                    updateActionItem(id: actionItem.id, action: .click(point: capturedPt, button: button), isAlternate: isAlternate, switchTriggerIndex: switchTriggerIndex)
+                    updateActionItem(id: actionItem.id, action: .click(point: capturedPt, button: button), isAlternate: isAlternate, switchTriggerIndex: switchTriggerIndex, shouldSave: true)
                 },
-                onClickRealTime: { _ in }
+                onClickRealTime: { tempPt in
+                    updateActionItem(id: actionItem.id, action: .click(point: tempPt, button: button), isAlternate: isAlternate, switchTriggerIndex: switchTriggerIndex, shouldSave: false)
+                }
             )
         case .drag(let start, let end):
             CaptureOverlayWindow.shared = CaptureOverlayWindow(
                 mode: .drag(initialStart: start == .zero ? nil : start, initialEnd: end == .zero ? nil : end),
                 onDragCaptured: { capturedStart, capturedEnd in
-                    updateActionItem(id: actionItem.id, action: .drag(start: capturedStart, end: capturedEnd), isAlternate: isAlternate, switchTriggerIndex: switchTriggerIndex)
+                    updateActionItem(id: actionItem.id, action: .drag(start: capturedStart, end: capturedEnd), isAlternate: isAlternate, switchTriggerIndex: switchTriggerIndex, shouldSave: true)
                 },
-                onDragRealTime: { _, _ in }
+                onDragRealTime: { tempStart, tempEnd in
+                    updateActionItem(id: actionItem.id, action: .drag(start: tempStart, end: tempEnd), isAlternate: isAlternate, switchTriggerIndex: switchTriggerIndex, shouldSave: false)
+                }
             )
         case .moveCursor(let pt):
             CaptureOverlayWindow.shared = CaptureOverlayWindow(
                 mode: .click(button: .left, initialPoint: pt == .zero ? nil : pt),
                 onClickCaptured: { capturedPt in
-                    updateActionItem(id: actionItem.id, action: .moveCursor(point: capturedPt), isAlternate: isAlternate, switchTriggerIndex: switchTriggerIndex)
+                    updateActionItem(id: actionItem.id, action: .moveCursor(point: capturedPt), isAlternate: isAlternate, switchTriggerIndex: switchTriggerIndex, shouldSave: true)
                 },
-                onClickRealTime: { _ in }
+                onClickRealTime: { tempPt in
+                    updateActionItem(id: actionItem.id, action: .moveCursor(point: tempPt), isAlternate: isAlternate, switchTriggerIndex: switchTriggerIndex, shouldSave: false)
+                }
             )
         case .windowTransform(let p1, _, let p3, _):
             let initialPoints: [SequencePoint] = (p1 == .zero && p3 == .zero) ? [] : [
@@ -562,7 +568,7 @@ struct MacroInspectorView: View {
                 SequencePoint(point: p3, type: .click)
             ]
             CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .windowTransform(initialPoints: initialPoints)) { np1, np2, np3, np4 in
-                updateActionItem(id: actionItem.id, action: .windowTransform(p1: np1, p2: np2, p3: np3, p4: np4), isAlternate: isAlternate, switchTriggerIndex: switchTriggerIndex)
+                updateActionItem(id: actionItem.id, action: .windowTransform(p1: np1, p2: np2, p3: np3, p4: np4), isAlternate: isAlternate, switchTriggerIndex: switchTriggerIndex, shouldSave: true)
             }
         default:
             break
@@ -578,16 +584,20 @@ struct MacroInspectorView: View {
         store.saveMacro(macro)
     }
     
-    private func updateActionItem(id: UUID, action: MacroAction, isAlternate: Bool, switchTriggerIndex: Int?) {
+    private func updateActionItem(id: UUID, action: MacroAction, isAlternate: Bool, switchTriggerIndex: Int?, shouldSave: Bool = true) {
         if isAlternate, let idx = switchTriggerIndex {
             if let aIdx = macro.triggers[idx].alternateActionItems.firstIndex(where: { $0.id == id }) {
                 macro.triggers[idx].alternateActionItems[aIdx].action = action
-                store.saveMacro(macro)
+                if shouldSave {
+                    store.saveMacro(macro)
+                }
             }
         } else {
             if let aIdx = macro.actionItems.firstIndex(where: { $0.id == id }) {
                 macro.actionItems[aIdx].action = action
-                store.saveMacro(macro)
+                if shouldSave {
+                    store.saveMacro(macro)
+                }
             }
         }
     }
