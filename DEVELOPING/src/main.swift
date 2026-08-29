@@ -461,8 +461,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDele
     @objc func showEditorWindow() {
         NSApp.setActivationPolicy(.regular)
         if window == nil {
-            let defaultSize = NSSize(width: 960, height: 710)
-            let minSize = NSSize(width: 960, height: 620)
+            let defaultSize = NSSize(width: 980, height: 770)
+            let minSize = NSSize(width: 980, height: 770)
 
             let win = EditorWindow(
                 contentRect: NSRect(x: 0, y: 0, width: defaultSize.width, height: defaultSize.height),
@@ -473,6 +473,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDele
             if !win.setFrameAutosaveName("ShortKingMainWindow") {
                 win.setContentSize(defaultSize)
                 win.center()
+            }
+            if win.frame.size.width < 980 || win.frame.size.height < 770 {
+                var currentFrame = win.frame
+                currentFrame.size.width = max(currentFrame.size.width, 980)
+                currentFrame.size.height = max(currentFrame.size.height, 770)
+                win.setFrame(currentFrame, display: true)
             }
             win.title = "👑 ShortKing — Macro Editor"
             win.titlebarAppearsTransparent = true

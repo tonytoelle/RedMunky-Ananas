@@ -72,8 +72,11 @@ struct MacroInspectorView: View {
     // MARK: - Header Section
     @ViewBuilder
     private var headerSection: some View {
-        HStack(spacing: 12) {
-            HStack(spacing: 4) {
+        HStack(alignment: .center, spacing: 12) {
+            if !store.isSidebarVisible {
+                Spacer().frame(width: 84)
+            }
+            HStack(spacing: 8) {
                 if isEditingName {
                     TextField("Macro Name", text: $tempName)
                         .font(.system(size: 24, weight: .bold))
@@ -2243,7 +2246,7 @@ struct MainEditorView: View {
                 keyMonitor = nil
             }
         }
-        .frame(minWidth: 500, minHeight: 400)
+        .frame(minWidth: 980, minHeight: 770)
     }
 }
 
