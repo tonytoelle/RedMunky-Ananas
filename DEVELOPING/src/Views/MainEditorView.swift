@@ -156,23 +156,6 @@ struct MacroInspectorView: View {
                     .overlay(Capsule().stroke(Color.white.opacity(0.15), lineWidth: 0.5))
             }
             .buttonStyle(.plain)
-
-            Button {
-                alwaysOnTop.toggle()
-                if let appDelegate = NSApp.delegate as? AppDelegate {
-                    appDelegate.updateAlwaysOnTop()
-                }
-            } label: {
-                Image(systemName: alwaysOnTop ? "pin.fill" : "pin")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(alwaysOnTop ? .accentColor : .secondary)
-                    .frame(width: 30, height: 30)
-                    .background(.ultraThinMaterial)
-                    .clipShape(Circle())
-                    .overlay(Circle().stroke(Color.white.opacity(0.15), lineWidth: 0.5))
-            }
-            .buttonStyle(.plain)
-            .help("Always on Top")
         }
         .padding(.vertical, 4)
         .background(WindowDragView())
@@ -719,23 +702,8 @@ struct FolderInspectorView: View {
                 // Top Action Bar
                 HStack {
                     Spacer()
-                    Button {
-                        alwaysOnTop.toggle()
-                        if let appDelegate = NSApp.delegate as? AppDelegate {
-                            appDelegate.updateAlwaysOnTop()
-                        }
-                    } label: {
-                        Image(systemName: alwaysOnTop ? "pin.fill" : "pin")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundColor(alwaysOnTop ? .accentColor : .secondary)
-                            .frame(width: 30, height: 30)
-                            .background(.ultraThinMaterial)
-                            .clipShape(Circle())
-                            .overlay(Circle().stroke(Color.white.opacity(0.15), lineWidth: 0.5))
-                    }
-                    .buttonStyle(.plain)
-                    .help("Always on Top")
                 }
+                .frame(height: 16)
                 .background(WindowDragView())
 
                 // ═══════════════════════════════════════════════════
@@ -1492,6 +1460,20 @@ struct SidebarNodeView: View {
                     Label("Run Macro", systemImage: "play.fill")
                 }
 
+                Button {
+                    let parentFolderURL = macro.fileURL.deletingLastPathComponent()
+                    store.createNewMacro(inFolder: parentFolderURL)
+                } label: {
+                    Label("New Macro", systemImage: "plus.circle")
+                }
+
+                Button {
+                    let parentFolderURL = macro.fileURL.deletingLastPathComponent()
+                    onPromptFolder(true, parentFolderURL, "")
+                } label: {
+                    Label("New Folder…", systemImage: "folder.badge.plus")
+                }
+
                 Divider()
 
                 Button {
@@ -1760,6 +1742,30 @@ struct MainEditorView: View {
                 }
                 .listStyle(.sidebar)
                 .scrollContentBackground(.hidden)
+                .contextMenu {
+                    Button {
+                        store.createNewMacro()
+                    } label: {
+                        Label("New Macro", systemImage: "plus.circle")
+                    }
+
+                    Button {
+                        folderPrompt = FolderPromptState(isNewFolder: true, targetURL: nil, initialName: "")
+                        folderInputText = ""
+                        showingFolderAlert = true
+                    } label: {
+                        Label("New Folder…", systemImage: "folder.badge.plus")
+                    }
+
+                    if store.copiedMacroURL != nil {
+                        Divider()
+                        Button {
+                            store.pasteCopiedMacro(toFolder: store.watchDirectoryURL)
+                        } label: {
+                            Label("Paste Macro", systemImage: "doc.on.clipboard")
+                        }
+                    }
+                }
                 .safeAreaInset(edge: .bottom) {
                     // Finder-style Frosted Bottom Action Bar matching AppleMusicUI template
                     HStack(spacing: 12) {
@@ -1923,27 +1929,11 @@ struct MainEditorView: View {
                             NSApp.keyWindow?.makeFirstResponder(nil)
                         }
                         
-                        // Top Header Bar (unified transparent bar matching AppleMusicUI)
+                        // Top Header Bar
                         HStack(spacing: 12) {
                             Spacer()
-
-                            Button {
-                                alwaysOnTop.toggle()
-                                if let appDelegate = NSApp.delegate as? AppDelegate {
-                                    appDelegate.updateAlwaysOnTop()
-                                }
-                            } label: {
-                                Image(systemName: alwaysOnTop ? "pin.fill" : "pin")
-                                    .font(.system(size: 13, weight: .semibold))
-                                    .foregroundColor(alwaysOnTop ? .accentColor : .secondary)
-                                    .frame(width: 30, height: 30)
-                                    .background(.ultraThinMaterial)
-                                    .clipShape(Circle())
-                                    .overlay(Circle().stroke(Color.white.opacity(0.15), lineWidth: 0.5))
-                            }
-                            .buttonStyle(.plain)
-                            .help("Always on Top")
                         }
+                        .frame(height: 16)
                         .padding(.horizontal, 22)
                         .padding(.top, 12)
                         .padding(.bottom, 16)
