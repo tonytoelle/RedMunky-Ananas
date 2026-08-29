@@ -5,3 +5,12 @@ TRIGGER: cmd+shift+k
 ACTION: path 773,585:click 935,600:click 982,523:click 1088,615:click
 ACTION: path 773,582:click 958,667:click 1094,610:click
 ACTION: drag 867 552 to 1004 502
+ACTION: click 817 609
+ACTION: right_click 961 652
+ACTION: drag 983 739 to 1113 623
+ACTION: move 1089 677
+ACTION: delay 700
+ACTION: type "Hello ShortKing"
+ACTION: press return
+ACTION: do_again
+ACTION: path 1188,677:click

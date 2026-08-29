@@ -990,7 +990,7 @@ class CaptureOverlayHostingView: NSView {
             }
             
             if globalMouseMonitor == nil {
-                globalMouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged, .rightMouseDragged, .scrollWheel]) { [weak self] event in
+                globalMouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved, .leftMouseDown, .leftMouseDragged, .rightMouseDragged, .scrollWheel]) { [weak self] event in
                     guard let self = self, self.window != nil else { return }
                     let screenPt = NSEvent.mouseLocation
                     
@@ -999,14 +999,18 @@ class CaptureOverlayHostingView: NSView {
                     
                     DispatchQueue.main.async {
                         self.stateModel.quartzLocation = quartzPt
-                        self.updateHover(quartzPt: quartzPt)
-                        self.updatePassthrough(quartzPt: quartzPt)
+                        if event.type == .leftMouseDown && self.stateModel.isFollowingCursor {
+                            self.handleCanvasClick(at: quartzPt)
+                        } else {
+                            self.updateHover(quartzPt: quartzPt)
+                            self.updatePassthrough(quartzPt: quartzPt)
+                        }
                     }
                 }
             }
             
             if localMouseMonitor == nil {
-                localMouseMonitor = NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged, .rightMouseDragged, .scrollWheel]) { [weak self] event in
+                localMouseMonitor = NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved, .leftMouseDown, .leftMouseDragged, .rightMouseDragged, .scrollWheel]) { [weak self] event in
                     guard let self = self, self.window != nil else { return event }
                     let screenPt = NSEvent.mouseLocation
                     
@@ -1014,8 +1018,12 @@ class CaptureOverlayHostingView: NSView {
                     let quartzPt = CGPoint(x: screenPt.x, y: screenHeight - screenPt.y)
                     
                     self.stateModel.quartzLocation = quartzPt
-                    self.updateHover(quartzPt: quartzPt)
-                    self.updatePassthrough(quartzPt: quartzPt)
+                    if event.type == .leftMouseDown && self.stateModel.isFollowingCursor {
+                        self.handleCanvasClick(at: quartzPt)
+                    } else {
+                        self.updateHover(quartzPt: quartzPt)
+                        self.updatePassthrough(quartzPt: quartzPt)
+                    }
                     
                     return event
                 }
@@ -1247,18 +1255,13 @@ class CaptureOverlayHostingView: NSView {
         }
     }
     
-    override func mouseDown(with event: NSEvent) {
-        updateMouse(event: event)
-        
-        let winHeight = self.window?.frame.size.height ?? self.bounds.height
-        let localPt = CGPoint(x: event.locationInWindow.x, y: winHeight - event.locationInWindow.y)
-        
+    func handleCanvasClick(at quartzPt: CGPoint) {
         // If clicking on the HUD card, do NOT drop a point — let SwiftUI handle HUD buttons (+, -, type, checkmark, etc.)
         if stateModel.isHudVisible {
             let hudPos = stateModel.lastHudCenter
+            let localPt = localPoint(from: quartzPt)
             let hudRect = CGRect(x: hudPos.x - 170, y: hudPos.y - 35, width: 340, height: 70)
             if hudRect.contains(localPt) {
-                super.mouseDown(with: event)
                 return
             }
         }
@@ -1266,7 +1269,7 @@ class CaptureOverlayHostingView: NSView {
         // Check if user clicked directly on an existing pin to select/drag it
         var foundPin: Int? = nil
         for (i, p) in stateModel.points.enumerated() {
-            if dist(stateModel.quartzLocation, p.point) <= 26 {
+            if dist(quartzPt, p.point) <= 26 {
                 foundPin = i
                 break
             }
@@ -1281,7 +1284,9 @@ class CaptureOverlayHostingView: NSView {
             return
         }
         
-        let newPt = SequencePoint(point: stateModel.quartzLocation, type: stateModel.defaultPointType)
+        guard stateModel.isFollowingCursor else { return }
+        
+        let newPt = SequencePoint(point: quartzPt, type: stateModel.defaultPointType)
         
         switch stateModel.mode {
         case .click:
@@ -1322,7 +1327,7 @@ class CaptureOverlayHostingView: NSView {
             stateModel.isFollowingCursor = false
             stateModel.phase = .editing
             
-            updatePassthrough(quartzPt: stateModel.quartzLocation)
+            updatePassthrough(quartzPt: quartzPt)
             stateModel.notifyPointsCommitted()
             stateModel.notifyPointsRealtime()
             
@@ -1343,6 +1348,25 @@ class CaptureOverlayHostingView: NSView {
                 window?.makeFirstResponder(self)
             }
         }
+    }
+    
+    override func mouseDown(with event: NSEvent) {
+        updateMouse(event: event)
+        
+        let winHeight = self.window?.frame.size.height ?? self.bounds.height
+        let localPt = CGPoint(x: event.locationInWindow.x, y: winHeight - event.locationInWindow.y)
+        
+        // If clicking on the HUD card, let SwiftUI handle HUD buttons (+, -, type, checkmark, etc.)
+        if stateModel.isHudVisible {
+            let hudPos = stateModel.lastHudCenter
+            let hudRect = CGRect(x: hudPos.x - 170, y: hudPos.y - 35, width: 340, height: 70)
+            if hudRect.contains(localPt) {
+                super.mouseDown(with: event)
+                return
+            }
+        }
+        
+        handleCanvasClick(at: stateModel.quartzLocation)
     }
     
     override func rightMouseDown(with event: NSEvent) {
