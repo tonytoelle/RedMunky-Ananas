@@ -14,6 +14,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDele
     var statusMenu: NSMenu!
     var window: NSWindow?
     var settingsWindow: NSWindow?
+    var inspectorWindow: NSWindow?
     
     private var lastModificationDate: Date? = nil
     private var binaryWatchTimer: Timer? = nil
@@ -333,7 +334,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDele
         macroMenuItem.submenu = macroMenu
         mainMenu.addItem(macroMenuItem)
 
-        // 5. Window Menu
+        // 5. Tools Menu
+        let toolsMenuItem = NSMenuItem()
+        let toolsMenu = NSMenu(title: "Tools")
+        let inspectorItem = NSMenuItem(title: "UI Element Inspector…", action: #selector(showInspectorWindow), keyEquivalent: "i")
+        inspectorItem.keyEquivalentModifierMask = [.command, .option]
+        inspectorItem.target = self
+        toolsMenu.addItem(inspectorItem)
+        toolsMenuItem.submenu = toolsMenu
+        mainMenu.addItem(toolsMenuItem)
+
+        // 6. Window Menu
         let windowMenuItem = NSMenuItem()
         let windowMenu = NSMenu(title: "Window")
         NSApp.windowsMenu = windowMenu
@@ -397,6 +408,18 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDele
         let settingsItem = NSMenuItem(title: "Settings…", action: #selector(showSettingsWindow), keyEquivalent: ",")
         settingsItem.target = self
         statusMenu.addItem(settingsItem)
+
+        // Tools Submenu
+        let toolsItem = NSMenuItem(title: "Tools", action: nil, keyEquivalent: "")
+        let toolsSubmenu = NSMenu(title: "Tools")
+        
+        let inspectorMenuItem = NSMenuItem(title: "🔍 UI Element Inspector…", action: #selector(showInspectorWindow), keyEquivalent: "i")
+        inspectorMenuItem.keyEquivalentModifierMask = [.command, .option]
+        inspectorMenuItem.target = self
+        toolsSubmenu.addItem(inspectorMenuItem)
+        
+        toolsItem.submenu = toolsSubmenu
+        statusMenu.addItem(toolsItem)
 
         let alwaysOnTopItem = NSMenuItem(title: "Always on Top", action: #selector(toggleAlwaysOnTopFromMenu(_:)), keyEquivalent: "")
         alwaysOnTopItem.target = self
@@ -560,14 +583,41 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDele
         settingsWindow?.makeKeyAndOrderFront(nil)
     }
 
+    @objc func showInspectorWindow() {
+        NSApp.setActivationPolicy(.regular)
+        if inspectorWindow == nil {
+            let win = NSWindow(
+                contentRect: NSRect(x: 0, y: 0, width: 880, height: 620),
+                styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
+                backing: .buffered, defer: false)
+            win.center()
+            win.title = "🔍 ShortKing — UI Element & Accessibility Inspector"
+            win.titlebarAppearsTransparent = true
+            win.titleVisibility = .hidden
+            win.level = .floating
+            win.contentViewController = NSHostingController(rootView: UIInspectorView().preferredColorScheme(.dark))
+            win.isReleasedWhenClosed = false
+            win.delegate = self
+            inspectorWindow = win
+        }
+        NSApp.activate(ignoringOtherApps: true)
+        inspectorWindow?.makeKeyAndOrderFront(nil)
+        AXInspectorManager.shared.startInspecting()
+    }
+
     // MARK: - NSWindowDelegate
     func windowShouldClose(_ sender: NSWindow) -> Bool {
         sender.orderOut(nil)
         
+        if sender == inspectorWindow {
+            AXInspectorManager.shared.stopInspecting()
+        }
+        
         let isEditorVisible = window?.isVisible == true && sender != window
         let isSettingsVisible = settingsWindow?.isVisible == true && sender != settingsWindow
+        let isInspectorVisible = inspectorWindow?.isVisible == true && sender != inspectorWindow
         
-        if !isEditorVisible && !isSettingsVisible {
+        if !isEditorVisible && !isSettingsVisible && !isInspectorVisible {
             NSApp.setActivationPolicy(.accessory)
         }
         return false
