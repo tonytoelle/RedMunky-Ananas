@@ -2002,12 +2002,46 @@ struct MainEditorView: View {
                     isSearchFocused = true
                     return nil // consume
                 }
+                
+                // Handle navigation when search bar is focused
+                if isSearchFocused {
+                    if event.keyCode == 125 { // Down Arrow from search bar -> enter sidebar list
+                        isSearchFocused = false
+                        store.focusedPane = .left
+                        let visible = store.getVisiblePaths(expandedFolders: expandedFolders)
+                        if let first = visible.first {
+                            selectedPaths = [first]
+                            lastClickedPath = first
+                            if first.hasSuffix(".shortking") {
+                                store.selectedFilePath = first
+                                store.selectedFolderPath = nil
+                            } else {
+                                store.selectedFolderPath = first
+                                store.selectedFilePath = nil
+                            }
+                        }
+                        return nil
+                    } else if event.keyCode == 124 && searchText.isEmpty { // Right Arrow from search bar -> jump to editor
+                        isSearchFocused = false
+                        store.focusedPane = .right
+                        if let selected = store.selectedMacro, let firstAction = selected.actionItems.first {
+                            store.selectedActionIDs = [firstAction.id]
+                            store.lastSelectedActionID = firstAction.id
+                            store.isTriggerFocused = false
+                        } else {
+                            store.isTriggerFocused = true
+                        }
+                        return nil
+                    }
+                }
+                
                 if event.keyCode == 123 { // Left Arrow
                     if let responder = NSApp.keyWindow?.firstResponder {
                         if let tv = responder as? NSTextView, tv.isEditable { return event }
                         if let tf = responder as? NSTextField, tf.isEditable { return event }
                     }
                     if store.focusedPane == .right {
+                        // Switch from editor pane back to sidebar
                         store.focusedPane = .left
                         store.selectedActionIDs.removeAll()
                         store.lastSelectedActionID = nil
@@ -2041,7 +2075,9 @@ struct MainEditorView: View {
                             }
                             return nil // consume
                         } else {
+                            // Jump from sidebar to editor pane
                             store.focusedPane = .right
+                            NSApp.keyWindow?.makeFirstResponder(nil)
                             if let selected = store.selectedMacro, let firstAction = selected.actionItems.first {
                                 store.selectedActionIDs = [firstAction.id]
                                 store.lastSelectedActionID = firstAction.id
@@ -2065,18 +2101,26 @@ struct MainEditorView: View {
                         }
                         return nil // consume
                     } else {
-                        if event.keyCode == 125 { // Down
+                        let visible = store.getVisiblePaths(expandedFolders: expandedFolders)
+                        let current = store.selectedFilePath ?? store.selectedFolderPath
+                        let currentIndex = current.flatMap { visible.firstIndex(of: $0) } ?? -1
+                        
+                        if event.keyCode == 126 && currentIndex <= 0 {
+                            // Reached top of sidebar list -> focus search bar!
+                            isSearchFocused = true
+                            return nil
+                        } else if event.keyCode == 125 { // Down
                             store.moveSelectionDown(expandedFolders: expandedFolders)
-                            if let current = store.selectedFilePath ?? store.selectedFolderPath {
-                                selectedPaths = [current]
-                                lastClickedPath = current
+                            if let curr = store.selectedFilePath ?? store.selectedFolderPath {
+                                selectedPaths = [curr]
+                                lastClickedPath = curr
                             }
                             return nil // consume
                         } else { // Up
                             store.moveSelectionUp(expandedFolders: expandedFolders)
-                            if let current = store.selectedFilePath ?? store.selectedFolderPath {
-                                selectedPaths = [current]
-                                lastClickedPath = current
+                            if let curr = store.selectedFilePath ?? store.selectedFolderPath {
+                                selectedPaths = [curr]
+                                lastClickedPath = curr
                             }
                             return nil // consume
                         }
