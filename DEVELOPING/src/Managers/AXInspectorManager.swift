@@ -116,7 +116,7 @@ class AXInspectorManager: ObservableObject {
     @Published var isInspecting: Bool = false
     @Published var isLocked: Bool = false
     @Published var highlightOnScreen: Bool = true
-    @Published var ignoreShortKingApp: Bool = true
+    @Published var isAccessibilityGranted: Bool = true
     
     @Published var currentMousePosition: CGPoint = .zero
     @Published var targetApp: TargetAppInfo?
@@ -134,15 +134,31 @@ class AXInspectorManager: ObservableObject {
     
     private var trackingTimer: Timer?
     private var overlayWindow: AXHighlightOverlayWindow?
-    private var globalKeyMonitor: Any?
     
     private init() {
         setupOverlay()
+        checkAccessibility()
         refreshRunningApps()
     }
     
     private func setupOverlay() {
         overlayWindow = AXHighlightOverlayWindow()
+    }
+    
+    func checkAccessibility() {
+        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: false] as CFDictionary
+        let trusted = AXIsProcessTrustedWithOptions(options)
+        DispatchQueue.main.async {
+            self.isAccessibilityGranted = trusted
+        }
+    }
+    
+    func requestAccessibilityPermission() {
+        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+        _ = AXIsProcessTrustedWithOptions(options)
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
+            NSWorkspace.shared.open(url)
+        }
     }
     
     func refreshRunningApps() {
@@ -167,10 +183,11 @@ class AXInspectorManager: ObservableObject {
     
     func startInspecting() {
         guard !isInspecting else { return }
+        checkAccessibility()
         isInspecting = true
         isLocked = false
         refreshRunningApps()
-        statusMessage = "Tracking mouse cursor over all applications… (Press Space to freeze)"
+        statusMessage = "Tracking mouse cursor… (Press Spacebar to freeze inspection)"
         
         trackingTimer = Timer.scheduledTimer(withTimeInterval: 0.08, repeats: true) { [weak self] _ in
             guard let self = self else { return }
@@ -248,24 +265,54 @@ class AXInspectorManager: ObservableObject {
     }
     
     func inspectElement(at quartzPoint: CGPoint) {
+        var foundElement: AXUIElement? = nil
+        
+        // 1. Primary Method: SystemWide Copy Element At Position
         let systemWide = AXUIElementCreateSystemWide()
         var elementRef: AXUIElement?
+        let sysResult = AXUIElementCopyElementAtPosition(systemWide, Float(quartzPoint.x), Float(quartzPoint.y), &elementRef)
+        if sysResult == .success, let el = elementRef {
+            foundElement = el
+        }
         
-        let result = AXUIElementCopyElementAtPosition(systemWide, Float(quartzPoint.x), Float(quartzPoint.y), &elementRef)
-        guard result == .success, let element = elementRef else {
+        // 2. Secondary Method: Window owner PID query if SystemWide missed or returned empty
+        if foundElement == nil {
+            if let windowList = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] {
+                for win in windowList {
+                    guard let boundsDict = win[kCGWindowBounds as String] as? [String: Any],
+                          let bounds = CGRect(dictionaryRepresentation: boundsDict as CFDictionary),
+                          let pid = win[kCGWindowOwnerPID as String] as? pid_t,
+                          pid > 0 else { continue }
+                    
+                    if bounds.contains(quartzPoint) {
+                        let appElem = AXUIElementCreateApplication(pid)
+                        var appElRef: AXUIElement?
+                        if AXUIElementCopyElementAtPosition(appElem, Float(quartzPoint.x), Float(quartzPoint.y), &appElRef) == .success,
+                           let el = appElRef {
+                            foundElement = el
+                            break
+                        }
+                    }
+                }
+            }
+        }
+        
+        // 3. Fallback: Frontmost Application
+        if foundElement == nil, let frontApp = NSWorkspace.shared.frontmostApplication {
+            let appElem = AXUIElementCreateApplication(frontApp.processIdentifier)
+            var appElRef: AXUIElement?
+            if AXUIElementCopyElementAtPosition(appElem, Float(quartzPoint.x), Float(quartzPoint.y), &appElRef) == .success,
+               let el = appElRef {
+                foundElement = el
+            }
+        }
+        
+        guard let element = foundElement else {
             DispatchQueue.main.async {
                 if !self.isLocked {
                     self.overlayWindow?.orderOut(nil)
                 }
             }
-            return
-        }
-        
-        var pid: pid_t = 0
-        AXUIElementGetPid(element, &pid)
-        
-        // If ignoreShortKingApp is true and cursor is hovering over ShortKing itself, skip updating unless locked
-        if ignoreShortKingApp && pid == NSRunningApplication.current.processIdentifier {
             return
         }
         

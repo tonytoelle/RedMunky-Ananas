@@ -24,6 +24,11 @@ struct UIInspectorView: View {
     
     var body: some View {
         VStack(spacing: 0) {
+            // Permission Alert Banner if Accessibility not granted
+            if !inspector.isAccessibilityGranted {
+                permissionAlertBanner
+            }
+            
             // ═══════════════════════════════════════════════════
             // TOP TOOLBAR & APP SELECTOR
             // ═══════════════════════════════════════════════════
@@ -76,6 +81,45 @@ struct UIInspectorView: View {
         }
     }
     
+    // MARK: - Permission Alert Banner
+    private var permissionAlertBanner: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 14))
+                .foregroundColor(.yellow)
+            
+            Text("Accessibility permission is required for ShortKing to inspect other apps & context menus.")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundColor(.white)
+            
+            Spacer()
+            
+            Button("Grant Permission") {
+                inspector.requestAccessibilityPermission()
+            }
+            .buttonStyle(PlainButtonStyle())
+            .font(.system(size: 11, weight: .bold))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+            .background(Color.yellow.opacity(0.25))
+            .foregroundColor(.yellow)
+            .cornerRadius(6)
+            
+            Button(action: {
+                inspector.checkAccessibility()
+            }) {
+                Image(systemName: "arrow.clockwise")
+                    .font(.system(size: 11))
+                    .foregroundColor(.white.opacity(0.8))
+            }
+            .buttonStyle(PlainButtonStyle())
+            .help("Re-check permission status")
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .background(Color(red: 0.45, green: 0.25, blue: 0.05))
+    }
+    
     // MARK: - Top Toolbar
     private var topToolbar: some View {
         VStack(spacing: 8) {
@@ -122,7 +166,7 @@ struct UIInspectorView: View {
                     HStack(spacing: 8) {
                         ProgressView()
                             .scaleEffect(0.7)
-                        Text("Hover over any app window or context menu…")
+                        Text("Hover cursor over any application window or context menu…")
                             .font(.system(size: 12))
                             .foregroundColor(.white.opacity(0.6))
                     }
@@ -208,18 +252,18 @@ struct UIInspectorView: View {
                 .help("Freeze current element inspection (Press Spacebar)")
             }
             
-            // Sub-bar: App Quick Picker & Ignore ShortKing Toggle
+            // Sub-bar: App Quick Picker
             HStack(spacing: 12) {
                 HStack(spacing: 6) {
                     Image(systemName: "app.badge.checkmark")
                         .font(.system(size: 11))
                         .foregroundColor(.white.opacity(0.5))
-                    Text("Target App:")
+                    Text("Filter App:")
                         .font(.system(size: 11, weight: .medium))
                         .foregroundColor(.white.opacity(0.6))
                     
                     Menu {
-                        Button("Any App (Follow Cursor)") {
+                        Button("Any App (Live Cursor)") {
                             inspector.selectedAppPID = nil
                             inspector.startInspecting()
                         }
@@ -240,13 +284,9 @@ struct UIInspectorView: View {
                 
                 Spacer()
                 
-                Toggle(isOn: $inspector.ignoreShortKingApp) {
-                    Text("Ignore ShortKing Window")
-                        .font(.system(size: 11))
-                        .foregroundColor(.white.opacity(0.7))
-                }
-                .toggleStyle(CheckboxToggleStyle())
-                .help("When enabled, hovering inside ShortKing's own window will not replace the inspected external app element")
+                Text("Hover cursor over any UI element on screen")
+                    .font(.system(size: 10))
+                    .foregroundColor(.white.opacity(0.4))
             }
             .padding(.horizontal, 2)
         }
@@ -843,7 +883,7 @@ struct UIInspectorView: View {
             
             Spacer()
             
-            Text("ShortKing UI Inspector • Press Spacebar to freeze inspection")
+            Text("Press Spacebar to freeze inspection")
                 .font(.system(size: 10))
                 .foregroundColor(.white.opacity(0.35))
         }
