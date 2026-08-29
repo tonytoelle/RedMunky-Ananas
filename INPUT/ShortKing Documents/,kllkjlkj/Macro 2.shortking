@@ -2,3 +2,5 @@
 TRIGGER: cmd+shift+k
 
 # Actions:
+ACTION: path 1195,576:click 1415,533:click 1400,747:click 1268,456:click
+ACTION: path 1172,656:click 1393,673:click 1351,786:click

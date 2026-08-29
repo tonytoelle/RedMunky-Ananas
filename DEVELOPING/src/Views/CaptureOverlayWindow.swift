@@ -109,8 +109,11 @@ class CaptureOverlayState: ObservableObject {
     }
     
     func insertPoint() {
-        guard !isFollowingCursor else { return }
         isFollowingCursor = true
+        selectedPointIndex = nil
+        activeDraggingIndex = nil
+        phase = .recording
+        onIsFollowingCursorChanged?(true)
     }
 }
 
@@ -617,7 +620,7 @@ struct CaptureOverlaySwiftUIView: View {
             // Plus button to insert/add a point
             ZStack {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(Color.white.opacity(0.15))
+                    .fill(state.isFollowingCursor ? Color.accentColor : Color.white.opacity(0.15))
                     .frame(width: 34, height: 34)
                 
                 Image(systemName: "plus")
@@ -1246,6 +1249,19 @@ class CaptureOverlayHostingView: NSView {
     
     override func mouseDown(with event: NSEvent) {
         updateMouse(event: event)
+        
+        let winHeight = self.window?.frame.size.height ?? self.bounds.height
+        let localPt = CGPoint(x: event.locationInWindow.x, y: winHeight - event.locationInWindow.y)
+        
+        // If clicking on the HUD card, do NOT drop a point — let SwiftUI handle HUD buttons (+, -, type, checkmark, etc.)
+        if stateModel.isHudVisible {
+            let hudPos = stateModel.lastHudCenter
+            let hudRect = CGRect(x: hudPos.x - 170, y: hudPos.y - 35, width: 340, height: 70)
+            if hudRect.contains(localPt) {
+                super.mouseDown(with: event)
+                return
+            }
+        }
         
         if stateModel.isFollowingCursor {
             let newPt = SequencePoint(point: stateModel.quartzLocation, type: stateModel.defaultPointType)
