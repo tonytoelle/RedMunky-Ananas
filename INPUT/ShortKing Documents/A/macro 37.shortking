@@ -2,5 +2,5 @@
 TRIGGER: cmd+shift+k
 
 # Actions:
-ACTION: drag 1218 141 to 3426 883
+ACTION: drag 1150 238 to 3426 883
 ACTION: click 1016 729

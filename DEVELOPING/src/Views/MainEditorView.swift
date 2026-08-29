@@ -1820,19 +1820,10 @@ struct MainEditorView: View {
                         .help("Relaunch App")
 
                         Spacer()
-                        
-                        Text("\(store.macros.count) macros")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(.secondary)
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
                     .background(.ultraThinMaterial)
-                    .overlay(
-                        Divider()
-                            .background(Color.white.opacity(0.08)),
-                        alignment: .top
-                    )
                 }
                 .onDrop(of: [.plainText, .utf8PlainText, .fileURL], isTargeted: $isRootDropTarget) { providers in
                     for provider in providers {
