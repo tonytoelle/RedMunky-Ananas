@@ -461,7 +461,11 @@ struct MacroInspectorView: View {
         
         let newAction: MacroAction
         switch typeName {
-        case "Path": newAction = .path(points: [])
+        case "Path":
+            let primaryScreenH = NSScreen.screens.first?.frame.height ?? 1080
+            let mouseLoc = NSEvent.mouseLocation
+            let currentQuartz = CGPoint(x: mouseLoc.x, y: primaryScreenH - mouseLoc.y)
+            newAction = .path(points: [SequencePoint(point: currentQuartz, type: .click)])
         case "Left Click": newAction = .click(point: .zero, button: .left)
         case "Right Click": newAction = .click(point: .zero, button: .right)
         case "Drag": newAction = .drag(start: .zero, end: .zero)
@@ -511,16 +515,18 @@ struct MacroInspectorView: View {
 
     private func triggerCaptureIfNeeded(for actionItem: MacroActionItem, index: Int, isAlternate: Bool, switchTriggerIndex: Int?) {
         switch actionItem.action {
-        case .path:
+        case .path(let initialPts):
+            let primaryScreenH = NSScreen.screens.first?.frame.height ?? 1080
+            let mouseLoc = NSEvent.mouseLocation
+            let currentQuartz = CGPoint(x: mouseLoc.x, y: primaryScreenH - mouseLoc.y)
+            let pts = initialPts.isEmpty ? [SequencePoint(point: currentQuartz, type: .click)] : initialPts
+            
             CaptureOverlayWindow.shared = CaptureOverlayWindow(
-                initialPoints: [],
+                initialPoints: pts,
                 defaultType: .click,
-                onSequenceCaptured: { pts in
-                    if pts.isEmpty {
-                        removeActionItem(id: actionItem.id, isAlternate: isAlternate, switchTriggerIndex: switchTriggerIndex)
-                    } else {
-                        updateActionItem(id: actionItem.id, action: .path(points: pts), isAlternate: isAlternate, switchTriggerIndex: switchTriggerIndex)
-                    }
+                onSequenceCaptured: { newPts in
+                    guard !newPts.isEmpty else { return }
+                    updateActionItem(id: actionItem.id, action: .path(points: newPts), isAlternate: isAlternate, switchTriggerIndex: switchTriggerIndex)
                 },
                 onSequenceRealTime: { tempPts in
                     updateActionItem(id: actionItem.id, action: .path(points: tempPts), isAlternate: isAlternate, switchTriggerIndex: switchTriggerIndex)

@@ -1153,11 +1153,13 @@ class MacroStore: ObservableObject {
     
     func insertDefaultAction(typeName: String) {
         guard let macro = selectedMacro else { return }
-        registerUndoState(for: macro)
-        
         let newAction: MacroAction
         switch typeName {
-        case "Path": newAction = .path(points: [])
+        case "Path":
+            let primaryScreenH = NSScreen.screens.first?.frame.height ?? 1080
+            let mouseLoc = NSEvent.mouseLocation
+            let currentQuartz = CGPoint(x: mouseLoc.x, y: primaryScreenH - mouseLoc.y)
+            newAction = .path(points: [SequencePoint(point: currentQuartz, type: .click)])
         case "Left Click": newAction = .click(point: .zero, button: .left)
         case "Right Click": newAction = .click(point: .zero, button: .right)
         case "Drag": newAction = .drag(start: .zero, end: .zero)
