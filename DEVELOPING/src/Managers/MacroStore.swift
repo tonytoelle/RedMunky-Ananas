@@ -759,6 +759,25 @@ class MacroStore: ObservableObject {
         loadMacros()
     }
 
+    func renameMacro(_ macro: MacroItem, newName: String) {
+        let clean = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !clean.isEmpty else { return }
+        let baseName = clean.hasSuffix(".shortking") ? String(clean.dropLast(10)) : clean
+        let parentDir = macro.fileURL.deletingLastPathComponent()
+        let newURL = parentDir.appendingPathComponent("\(baseName).shortking")
+        guard newURL != macro.fileURL else { return }
+        
+        do {
+            try FileManager.default.moveItem(at: macro.fileURL, to: newURL)
+            if selectedFilePath == macro.fileURL.path {
+                selectedFilePath = newURL.path
+            }
+            loadMacros()
+        } catch {
+            print("❌ Failed to rename macro: \(error)")
+        }
+    }
+
     func duplicateMacro(_ macro: MacroItem) {
         let baseName = macro.fileName.replacingOccurrences(of: ".shortking", with: "")
         let parentDir = macro.fileURL.deletingLastPathComponent()

@@ -1191,7 +1191,7 @@ struct VisualEffectView: NSViewRepresentable {
 // ==========================================
 // MARK: - Sidebar Tree Node View (macOS Tahoe / Finder Style)
 // ==========================================
-struct InlineFolderRenameField: View {
+struct InlineRenameField: View {
     @State private var text: String
     @FocusState private var isFocused: Bool
     var onCommit: (String) -> Void
@@ -1298,7 +1298,7 @@ struct SidebarNodeView: View {
                     }
 
                     if store.editingFolderPath == url.path {
-                        InlineFolderRenameField(
+                        InlineRenameField(
                             initialName: name,
                             onCommit: { newName in
                                 store.renameFolder(at: url, newName: newName)
@@ -1439,10 +1439,23 @@ struct SidebarNodeView: View {
                         .font(.system(size: 9, weight: .bold))
                 }
 
-                Text(macro.fileName.replacingOccurrences(of: ".shortking", with: "").toTitleCase())
-                    .font(.system(size: 13, weight: isSelected ? .bold : .regular))
-                    .foregroundColor(isSelected ? Color.accentColor : (macro.isEnabled ? Color(white: 0.90) : Color.secondary.opacity(0.7)))
-                    .lineLimit(1)
+                if store.editingFolderPath == macro.fileURL.path {
+                    InlineRenameField(
+                        initialName: macro.fileName.replacingOccurrences(of: ".shortking", with: ""),
+                        onCommit: { newName in
+                            store.renameMacro(macro, newName: newName)
+                            store.editingFolderPath = nil
+                        },
+                        onCancel: {
+                            store.editingFolderPath = nil
+                        }
+                    )
+                } else {
+                    Text(macro.fileName.replacingOccurrences(of: ".shortking", with: "").toTitleCase())
+                        .font(.system(size: 13, weight: isSelected ? .bold : .regular))
+                        .foregroundColor(isSelected ? Color.accentColor : (macro.isEnabled ? Color(white: 0.90) : Color.secondary.opacity(0.7)))
+                        .lineLimit(1)
+                }
 
                 Spacer()
 
@@ -1524,6 +1537,12 @@ struct SidebarNodeView: View {
                 }
 
                 Divider()
+
+                Button {
+                    store.editingFolderPath = macro.fileURL.path
+                } label: {
+                    Label("Rename…", systemImage: "pencil")
+                }
 
                 Button {
                     store.duplicateMacro(macro)
@@ -1811,78 +1830,6 @@ struct MainEditorView: View {
                             Label("Paste Macro", systemImage: "doc.on.clipboard")
                         }
                     }
-                }
-                .safeAreaInset(edge: .bottom) {
-                    // Finder-style Frosted Bottom Action Bar matching AppleMusicUI template
-                    HStack(spacing: 12) {
-                        Button {
-                            store.createNewMacro()
-                        } label: {
-                            Image(systemName: "plus")
-                                .font(.system(size: 12, weight: .semibold))
-                                .frame(width: 28, height: 28)
-                                .background(.ultraThinMaterial)
-                                .clipShape(Circle())
-                                .overlay(Circle().stroke(Color.white.opacity(0.15), lineWidth: 0.5))
-                        }
-                        .buttonStyle(.plain)
-                        .help("New Macro (⌘N)")
-
-                        Button {
-                            let newF = store.createNewFolder()
-                            _ = expandedFolders.insert(newF.path)
-                        } label: {
-                            Image(systemName: "folder.badge.plus")
-                                .font(.system(size: 12))
-                                .frame(width: 28, height: 28)
-                                .background(.ultraThinMaterial)
-                                .clipShape(Circle())
-                                .overlay(Circle().stroke(Color.white.opacity(0.15), lineWidth: 0.5))
-                        }
-                        .buttonStyle(.plain)
-                        .help("New Folder (⇧⌘N)")
-
-                        if !selectedPaths.isEmpty || store.selectedMacro != nil {
-                            Button {
-                                if !selectedPaths.isEmpty {
-                                    store.deleteItems(paths: Array(selectedPaths))
-                                    selectedPaths.removeAll()
-                                } else if let m = store.selectedMacro {
-                                    store.deleteMacro(m)
-                                }
-                            } label: {
-                                Image(systemName: "trash")
-                                    .font(.system(size: 12))
-                                    .foregroundColor(.red.opacity(0.85))
-                                    .frame(width: 28, height: 28)
-                                    .background(.ultraThinMaterial)
-                                    .clipShape(Circle())
-                                    .overlay(Circle().stroke(Color.red.opacity(0.2), lineWidth: 0.5))
-                            }
-                            .buttonStyle(.plain)
-                            .help("Delete Selected Items")
-                        }
-                        
-                        Button {
-                            if let appDelegate = NSApp.delegate as? AppDelegate {
-                                appDelegate.relaunchApp()
-                            }
-                        } label: {
-                            Image(systemName: "arrow.triangle.2.circlepath")
-                                .font(.system(size: 12))
-                                .foregroundColor(.secondary)
-                                .frame(width: 28, height: 28)
-                                .background(.ultraThinMaterial)
-                                .clipShape(Circle())
-                                .overlay(Circle().stroke(Color.white.opacity(0.15), lineWidth: 0.5))
-                        }
-                        .buttonStyle(.plain)
-                        .help("Relaunch App")
-
-                        Spacer()
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
                 }
                 .onDrop(of: [.plainText, .utf8PlainText, .fileURL], isTargeted: $isRootDropTarget) { providers in
                     for provider in providers {
