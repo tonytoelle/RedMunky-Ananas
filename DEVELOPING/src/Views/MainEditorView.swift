@@ -1300,7 +1300,6 @@ struct SidebarNodeView: View {
                     Text(name.toTitleCase())
                         .font(.system(size: 13, weight: isSelected ? .bold : .medium))
                         .foregroundColor(isSelected ? Color.accentColor : (config.isEnabled ? Color(white: 0.92) : Color.secondary.opacity(0.7)))
-                        .strikethrough(!config.isEnabled, color: Color.secondary.opacity(0.6))
                         .lineLimit(1)
                     
                     Spacer()
@@ -1428,7 +1427,6 @@ struct SidebarNodeView: View {
                 Text(macro.fileName.replacingOccurrences(of: ".shortking", with: "").toTitleCase())
                     .font(.system(size: 13, weight: isSelected ? .bold : .regular))
                     .foregroundColor(isSelected ? Color.accentColor : (macro.isEnabled ? Color(white: 0.90) : Color.secondary.opacity(0.7)))
-                    .strikethrough(!macro.isEnabled, color: Color.secondary.opacity(0.6))
                     .lineLimit(1)
 
                 Spacer()

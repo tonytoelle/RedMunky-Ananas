@@ -61,14 +61,14 @@ struct SpotlightSearchBar: View {
     // Statically compute the correct columns count to prevent layout feedback loops
     var columnsCount: Int {
         let availableWidth = max(100, width - 60)
-        let itemWidth: CGFloat = 72
-        let spacing: CGFloat = 10
+        let itemWidth: CGFloat = 78
+        let spacing: CGFloat = 12
         let cols = max(1, Int((availableWidth + spacing) / (itemWidth + spacing)))
         return cols
     }
     
     var columns: [GridItem] {
-        Array(repeating: GridItem(.flexible(), spacing: 10), count: columnsCount)
+        Array(repeating: GridItem(.flexible(), spacing: 12), count: columnsCount)
     }
     
     var filteredItems: [(item: SearchableActionDef, score: Int)] {
@@ -171,41 +171,42 @@ struct SpotlightSearchBar: View {
                             .padding(.vertical, 24)
                             .frame(maxWidth: .infinity)
                     } else {
-                        LazyVGrid(columns: columns, spacing: 12) {
+                        LazyVGrid(columns: columns, spacing: 14) {
                             ForEach(visibleItems, id: \.element.item.id) { idx, entry in
                                 Button {
                                     onSelect(entry.item)
                                     query = ""
                                 } label: {
-                                    VStack(spacing: 6) {
+                                    VStack(spacing: 5) {
                                         ZStack {
-                                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                            RoundedRectangle(cornerRadius: 12, style: .continuous)
                                                 .fill(entry.item.color)
-                                                .frame(width: 38, height: 38)
+                                                .frame(width: 42, height: 42)
                                             Image(systemName: entry.item.icon)
                                                 .foregroundColor(.white)
-                                                .font(.system(size: 15, weight: .semibold))
+                                                .font(.system(size: 17, weight: .semibold))
                                         }
                                         
                                         Text(entry.item.title)
-                                            .font(.system(size: 10, weight: .medium))
+                                            .font(.system(size: 11, weight: .medium))
                                             .foregroundColor(.white)
                                             .lineLimit(1)
                                             .frame(maxWidth: .infinity)
                                         
                                         Text(entry.item.category)
-                                            .font(.system(size: 8))
+                                            .font(.system(size: 9))
                                             .foregroundColor(.secondary)
                                             .lineLimit(1)
                                     }
-                                    .padding(6)
-                                    .frame(width: 72, height: 76)
+                                    .padding(.vertical, 8)
+                                    .padding(.horizontal, 6)
+                                    .frame(maxWidth: .infinity)
                                     .background(
-                                        RoundedRectangle(cornerRadius: 12)
+                                        RoundedRectangle(cornerRadius: 14, style: .continuous)
                                             .fill((store.isGridFocused && idx == store.gridSelectedIndex) || idx == selectedIndex ? Color.white.opacity(0.12) : Color.clear)
                                     )
                                     .overlay(
-                                        RoundedRectangle(cornerRadius: 12)
+                                        RoundedRectangle(cornerRadius: 14, style: .continuous)
                                             .stroke(store.isGridFocused && idx == store.gridSelectedIndex ? Color.accentColor : Color.clear, lineWidth: 1.5)
                                     )
                                     .contentShape(Rectangle())
