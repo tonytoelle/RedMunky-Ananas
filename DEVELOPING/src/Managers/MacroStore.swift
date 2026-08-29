@@ -103,6 +103,19 @@ class MacroStore: ObservableObject {
         registerUndoState(for: macros[idx])
         
         let targetIDs = selectedActionIDs
+        
+        // Find next item to select before removing
+        var nextToSelect: UUID? = nil
+        let remaining = macros[idx].actionItems.filter { !targetIDs.contains($0.id) }
+        if let lastSelected = lastSelectedActionID ?? targetIDs.first,
+           let currentIdx = macros[idx].actionItems.firstIndex(where: { $0.id == lastSelected }) {
+            if currentIdx < remaining.count {
+                nextToSelect = remaining[currentIdx].id
+            } else if !remaining.isEmpty {
+                nextToSelect = remaining.last?.id
+            }
+        }
+        
         func recursiveRemove(from list: inout [MacroActionItem]) {
             list.removeAll { targetIDs.contains($0.id) }
             for i in 0..<list.count {
@@ -118,8 +131,14 @@ class MacroStore: ObservableObject {
             recursiveRemove(from: &macros[idx].triggers[tIdx].alternateActionItems)
         }
         
-        selectedActionIDs.removeAll()
-        lastSelectedActionID = nil
+        if let next = nextToSelect {
+            selectedActionIDs = [next]
+            lastSelectedActionID = next
+        } else {
+            selectedActionIDs.removeAll()
+            lastSelectedActionID = nil
+        }
+        
         saveMacro(macros[idx])
         objectWillChange.send()
     }

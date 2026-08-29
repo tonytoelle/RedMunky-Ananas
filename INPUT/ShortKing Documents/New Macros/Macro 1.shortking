@@ -2,17 +2,16 @@
 TRIGGER: cmd+shift+k
 
 # Actions:
-ACTION: click 1305 549
-ACTION: path 1201,755:click
-ACTION: path 1198,845:click
-ACTION: path 1194,913:click 1319,866:click 1444,850:click 1529,879:click
-ACTION: path 1194,957:click 1318,881:click 1429,918:click 1532,917:click
-ACTION: path 899,891:click
-ACTION: path 892,948:click
-ACTION: path 
-ACTION: path 
-ACTION: path 
-ACTION: path 
-ACTION: path 
-ACTION: path 
-ACTION: path 
+ACTION: path 848,702:click 964,720:click 903,841:click 988,900:click
+ACTION: path 1304,693:click 1417,762:click 1470,673:click 1558,728:click 1608,653:click
+ACTION: click 853 666
+ACTION: click 1096 575
+ACTION: right_click 974 654
+ACTION: right_click 1052 603
+ACTION: move 1413 351
+ACTION: move 1443 617
+ACTION: delay 300
+ACTION: drag 1057 710 to 1323 643
+ACTION: right_click 1019 364
+ACTION: right_click 1031 410
+ACTION: click 1023 390

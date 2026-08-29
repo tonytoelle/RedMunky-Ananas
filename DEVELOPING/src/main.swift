@@ -79,7 +79,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDele
                 }
                 
                 // If action(s) are selected in ShortKing, delete them immediately
-                if MacroStore.shared.focusedPane == .right && !MacroStore.shared.selectedActionIDs.isEmpty {
+                if !MacroStore.shared.selectedActionIDs.isEmpty {
                     MacroStore.shared.deleteSelectedActions()
                     return nil
                 }
