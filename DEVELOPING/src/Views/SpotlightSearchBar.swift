@@ -39,7 +39,7 @@ struct SearchableActionDef: Identifiable {
 }
 
 // ==========================================
-// MARK: - Raycast/Spotlight Search View
+// MARK: - Raycast/Spotlight Search View (Grid Results)
 // ==========================================
 struct SpotlightSearchBar: View {
     let placeholder: String
@@ -49,9 +49,11 @@ struct SpotlightSearchBar: View {
     @State private var query: String = ""
     @State private var selectedIndex: Int = 0
     @State private var activeCategory: String = "All"
+    @State private var showAllResults: Bool = false
     @FocusState private var isFocused: Bool
     
     let categories = ["All", "Mouse", "Keyboard", "System", "Utility"]
+    let columns = [GridItem(.adaptive(minimum: 64, maximum: 74), spacing: 10)]
     
     var filteredItems: [(item: SearchableActionDef, score: Int)] {
         let matchingCategoryItems = items.filter { item in
@@ -66,6 +68,15 @@ struct SpotlightSearchBar: View {
             let result = fuzzyMatch(query, in: item.title)
             return result.matches ? (item, result.score) : nil
         }.sorted { $0.score < $1.score }
+    }
+    
+    var visibleItems: [(offset: Int, element: (item: SearchableActionDef, score: Int))] {
+        let allFiltered = Array(filteredItems.enumerated())
+        if showAllResults {
+            return allFiltered
+        } else {
+            return Array(allFiltered.prefix(10))
+        }
     }
     
     var body: some View {
@@ -119,6 +130,7 @@ struct SpotlightSearchBar: View {
                     query = ""
                     activeCategory = "All"
                     selectedIndex = 0
+                    showAllResults = false
                 } label: {
                     Image(systemName: "arrow.counterclockwise")
                         .font(.system(size: 12, weight: .bold))
@@ -140,6 +152,7 @@ struct SpotlightSearchBar: View {
                         Button {
                             activeCategory = cat
                             selectedIndex = 0
+                            showAllResults = false
                         } label: {
                             Text(cat)
                                 .font(.system(size: 11, weight: .semibold))
@@ -159,71 +172,101 @@ struct SpotlightSearchBar: View {
                 .padding(.horizontal, 4)
             }
             
-            // Results List
+            // Results Grid Area
             ScrollView(showsIndicators: true) {
-                VStack(spacing: 4) {
+                VStack(spacing: 12) {
                     if filteredItems.isEmpty {
                         Text("No matching actions found")
                             .font(.system(size: 12))
                             .foregroundColor(.secondary)
-                            .padding(.vertical, 12)
+                            .padding(.vertical, 24)
+                            .frame(maxWidth: .infinity)
                     } else {
-                        ForEach(Array(filteredItems.enumerated()), id: \.element.item.id) { idx, entry in
-                            Button {
-                                onSelect(entry.item)
-                                query = ""
-                            } label: {
-                                HStack(spacing: 10) {
-                                    // Circular Action Icon
-                                    ZStack {
-                                        Circle()
-                                            .fill(entry.item.color)
-                                            .frame(width: 24, height: 24)
-                                        Image(systemName: entry.item.icon)
-                                            .foregroundColor(.white)
-                                            .font(.system(size: 11, weight: .semibold))
-                                    }
-                                    
-                                    VStack(alignment: .leading, spacing: 2) {
+                        LazyVGrid(columns: columns, spacing: 12) {
+                            ForEach(visibleItems, id: \.element.item.id) { idx, entry in
+                                Button {
+                                    onSelect(entry.item)
+                                    query = ""
+                                } label: {
+                                    VStack(spacing: 6) {
+                                        ZStack {
+                                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                                .fill(entry.item.color)
+                                                .frame(width: 38, height: 38)
+                                            Image(systemName: entry.item.icon)
+                                                .foregroundColor(.white)
+                                                .font(.system(size: 15, weight: .semibold))
+                                        }
+                                        
                                         Text(entry.item.title)
-                                            .font(.system(size: 12, weight: .medium))
+                                            .font(.system(size: 10, weight: .medium))
                                             .foregroundColor(.white)
+                                            .lineLimit(1)
+                                            .frame(maxWidth: .infinity)
+                                        
                                         Text(entry.item.category)
-                                            .font(.system(size: 9))
+                                            .font(.system(size: 8))
                                             .foregroundColor(.secondary)
+                                            .lineLimit(1)
                                     }
-                                    
-                                    Spacer()
-                                    
-                                    // Tag badge
-                                    Text("Add")
-                                        .font(.system(size: 10, weight: .medium))
-                                        .foregroundColor(.white.opacity(0.7))
-                                        .padding(.horizontal, 8)
-                                        .padding(.vertical, 3)
-                                        .background(Color.white.opacity(0.08))
-                                        .clipShape(Capsule())
+                                    .padding(6)
+                                    .frame(width: 72, height: 76)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 12)
+                                            .fill(idx == selectedIndex ? Color.white.opacity(0.12) : Color.clear)
+                                    )
+                                    .contentShape(Rectangle())
                                 }
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 6)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 10)
-                                        .fill(idx == selectedIndex ? Color.white.opacity(0.12) : Color.clear)
-                                )
-                                .contentShape(Rectangle())
+                                .buttonStyle(.plain)
+                                .onHover { isHovered in
+                                    if isHovered {
+                                        selectedIndex = idx
+                                    }
+                                }
+                            }
+                        }
+                        .padding(.top, 4)
+                        
+                        // "See More" Button
+                        if !showAllResults && filteredItems.count > 10 {
+                            Button {
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    showAllResults = true
+                                }
+                            } label: {
+                                Text("See More (\(filteredItems.count - 10) more)")
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 6)
+                                    .background(.ultraThinMaterial)
+                                    .clipShape(Capsule())
+                                    .overlay(Capsule().stroke(Color.white.opacity(0.15), lineWidth: 0.5))
                             }
                             .buttonStyle(.plain)
-                            .onHover { isHovered in
-                                if isHovered {
-                                    selectedIndex = idx
+                            .padding(.vertical, 8)
+                        } else if showAllResults && filteredItems.count > 10 {
+                            Button {
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    showAllResults = false
                                 }
+                            } label: {
+                                Text("Show Less")
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 6)
+                                    .background(.ultraThinMaterial)
+                                    .clipShape(Capsule())
+                                    .overlay(Capsule().stroke(Color.white.opacity(0.15), lineWidth: 0.5))
                             }
+                            .buttonStyle(.plain)
+                            .padding(.vertical, 8)
                         }
                     }
                 }
                 .padding(.horizontal, 4)
             }
-            .frame(maxHeight: 180)
         }
         .padding(12)
         .background(Color(nsColor: .windowBackgroundColor))
