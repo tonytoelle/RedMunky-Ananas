@@ -399,7 +399,7 @@ struct MacroInspectorView: View {
 
     @ViewBuilder
     private var actionSelectionDrawer: some View {
-        SpotlightSearchBar(placeholder: "Search actions...", items: SearchableActionDef.allActions) { actionDef in
+        SpotlightSearchBar(placeholder: "Search actions...", items: SearchableActionDef.allActions, width: detailWidth) { actionDef in
             let isAlt = hasKeySwitchTrigger && activeActionTarget == .alternate
             let tIdx = isAlt ? (macro.triggers.first(where: { $0.mode == .keySwitch })?.alternateActionItems.count ?? 0) : macro.actionItems.count
             insertAction(typeName: actionDef.title, targetIndex: tIdx, isAlternate: isAlt)

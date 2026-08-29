@@ -7,14 +7,6 @@ import CoreImage
 import CoreImage.CIFilterBuiltins
 import ServiceManagement
 
-// MARK: - Width Preference Key
-struct WidthPreferenceKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = nextValue()
-    }
-}
-
 // MARK: - Searchable Action Item Definition
 // ==========================================
 struct SearchableActionDef: Identifiable {
@@ -52,6 +44,7 @@ struct SearchableActionDef: Identifiable {
 struct SpotlightSearchBar: View {
     let placeholder: String
     let items: [SearchableActionDef]
+    let width: CGFloat // Width passed directly from parent container to prevent layout loops
     let onSelect: (SearchableActionDef) -> Void
     
     @State private var query: String = ""
@@ -60,10 +53,18 @@ struct SpotlightSearchBar: View {
     @State private var showAllResults: Bool = false
     @FocusState private var isFocused: Bool
     
-    @State private var columnsCount: Int = 4
     @State private var keyMonitor: Any? = nil
     
     let categories = ["All", "Mouse", "Keyboard", "System", "Utility"]
+    
+    // Statically compute the correct columns count to prevent layout feedback loops
+    var columnsCount: Int {
+        let availableWidth = max(100, width - 60)
+        let itemWidth: CGFloat = 72
+        let spacing: CGFloat = 10
+        let cols = max(1, Int((availableWidth + spacing) / (itemWidth + spacing)))
+        return cols
+    }
     
     var columns: [GridItem] {
         Array(repeating: GridItem(.flexible(), spacing: 10), count: columnsCount)
@@ -285,18 +286,6 @@ struct SpotlightSearchBar: View {
         .padding(12)
         .background(Color(nsColor: .windowBackgroundColor))
         .clipShape(RoundedRectangle(cornerRadius: 18))
-        .background(
-            GeometryReader { geo in
-                Color.clear
-                    .preference(key: WidthPreferenceKey.self, value: geo.size.width)
-            }
-        )
-        .onPreferenceChange(WidthPreferenceKey.self) { width in
-            // Subtract padding (12 * 2 + 8) to get available width for grid
-            let availableWidth = max(100, width - 32)
-            let colWidth: CGFloat = 82 // grid spacing (10) + item width (72)
-            columnsCount = max(1, Int(availableWidth / colWidth))
-        }
         .onAppear {
             isFocused = true
             setupKeyMonitor()
