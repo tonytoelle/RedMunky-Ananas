@@ -74,7 +74,7 @@ struct MacroInspectorView: View {
     private var headerSection: some View {
         HStack(alignment: .center, spacing: 12) {
             if !store.isSidebarVisible {
-                Spacer().frame(width: 84)
+                Spacer().frame(width: 120)
             }
             HStack(spacing: 8) {
                 if isEditingName {
