@@ -1,7 +1,0 @@
-# ShortKing Macro Script
-TRIGGER: cmd+shift+k
-
-# Actions:
-ACTION: path 773,585:click 935,600:click 982,523:click 1088,615:click 1233,596:click
-ACTION: path 1189,739:click 1393,704:click 1533,706:click
-ACTION: click 0 0

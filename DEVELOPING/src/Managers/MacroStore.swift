@@ -1155,11 +1155,7 @@ class MacroStore: ObservableObject {
         guard let macro = selectedMacro else { return }
         let newAction: MacroAction
         switch typeName {
-        case "Path":
-            let primaryScreenH = NSScreen.screens.first?.frame.height ?? 1080
-            let mouseLoc = NSEvent.mouseLocation
-            let currentQuartz = CGPoint(x: mouseLoc.x, y: primaryScreenH - mouseLoc.y)
-            newAction = .path(points: [SequencePoint(point: currentQuartz, type: .click)])
+        case "Path": newAction = .path(points: [])
         case "Left Click": newAction = .click(point: .zero, button: .left)
         case "Right Click": newAction = .click(point: .zero, button: .right)
         case "Drag": newAction = .drag(start: .zero, end: .zero)

@@ -899,11 +899,11 @@ class CaptureOverlayHostingView: NSView {
         
         stateModel.onConfirmAll = { [weak self] in
             guard let self = self else { return }
-            if self.stateModel.isFollowingCursor {
+            if self.stateModel.points.isEmpty && self.stateModel.isFollowingCursor {
                 let newPt = SequencePoint(point: self.stateModel.quartzLocation, type: self.stateModel.defaultPointType)
                 self.stateModel.points.append(newPt)
-                self.stateModel.isFollowingCursor = false
             }
+            self.stateModel.isFollowingCursor = false
             self.cleanupMonitors()
             self.onFinishSequence(self.stateModel.points)
         }
