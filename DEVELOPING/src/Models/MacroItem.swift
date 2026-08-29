@@ -53,6 +53,29 @@ class MacroItem: Identifiable, ObservableObject {
         self.isEnabled = isEnabled
         self.parentFolderConfig = parentFolderConfig
     }
+
+    func matchesSearchQuery(_ query: String) -> Bool {
+        let q = query.lowercased().trimmingCharacters(in: .whitespaces)
+        guard !q.isEmpty else { return true }
+        
+        // 1. Check all triggers
+        for trig in triggers {
+            if trig.matchesSearchQuery(q) {
+                return true
+            }
+        }
+        
+        // 2. Check file name
+        let cleanFileName = fileName.replacingOccurrences(of: ".shortking", with: "")
+        if cleanFileName.lowercased().contains(q) {
+            return true
+        }
+        if fuzzyMatch(q, in: cleanFileName).matches {
+            return true
+        }
+        
+        return false
+    }
 }
 
 // ==========================================

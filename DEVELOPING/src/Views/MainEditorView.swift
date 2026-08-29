@@ -1687,14 +1687,12 @@ struct MainEditorView: View {
             switch node {
             case .folder(let name, let url, let config, let children):
                 let matching = filterTree(nodes: children, query: query)
-                let nameMatches = fuzzyMatch(query, in: name).matches
+                let nameMatches = fuzzyMatch(query, in: name).matches || name.lowercased().contains(query.lowercased())
                 if !matching.isEmpty || nameMatches {
                     result.append(.folder(name: name, url: url, config: config, children: matching))
                 }
             case .macro(let item):
-                let fileMatches = fuzzyMatch(query, in: item.fileName).matches
-                let trigMatches = fuzzyMatch(query, in: item.trigger.displayString).matches
-                if fileMatches || trigMatches {
+                if item.matchesSearchQuery(query) {
                     result.append(.macro(item: item))
                 }
             }
