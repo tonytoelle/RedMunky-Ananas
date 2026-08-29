@@ -1240,7 +1240,7 @@ struct SidebarNodeView: View {
     let depth: Int
     @Binding var expandedFolders: Set<String>
     @Binding var selectedPaths: Set<String>
-    @ObservedObject var store = MacroStore.shared
+    var store = MacroStore.shared
     var onSelect: (String, NSEvent.ModifierFlags) -> Void
 
     @State private var isDropTarget = false
@@ -1253,12 +1253,10 @@ struct SidebarNodeView: View {
             let isExpanded = Binding<Bool>(
                 get: { expandedFolders.contains(url.path) },
                 set: { val in
-                    withAnimation(.easeInOut(duration: 0.15)) {
-                        if val {
-                            _ = expandedFolders.insert(url.path)
-                        } else {
-                            _ = expandedFolders.remove(url.path)
-                        }
+                    if val {
+                        _ = expandedFolders.insert(url.path)
+                    } else {
+                        _ = expandedFolders.remove(url.path)
                     }
                 }
             )
@@ -1286,8 +1284,7 @@ struct SidebarNodeView: View {
                     }()
                     
                     if let bundleId = appBundleId,
-                       let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId),
-                       let nsImage = NSWorkspace.shared.icon(forFile: appURL.path) as NSImage? {
+                       let nsImage = AppIconCache.shared.icon(forBundleId: bundleId) {
                         Image(nsImage: nsImage)
                             .resizable()
                             .frame(width: 18, height: 18)

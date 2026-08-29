@@ -252,3 +252,26 @@ func generateAppIcon() -> NSImage {
     image.unlockFocus()
     return image
 }
+
+// ==========================================
+// MARK: - In-Memory App Icon Cache for Zero-Lag UI Rendering
+// ==========================================
+final class AppIconCache {
+    static let shared = AppIconCache()
+    private var cache = [String: NSImage]()
+    private let lock = NSLock()
+    
+    func icon(forBundleId bundleId: String) -> NSImage? {
+        lock.lock()
+        defer { lock.unlock() }
+        if let cached = cache[bundleId] {
+            return cached
+        }
+        if let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId),
+           let img = NSWorkspace.shared.icon(forFile: appURL.path) as NSImage? {
+            cache[bundleId] = img
+            return img
+        }
+        return nil
+    }
+}
