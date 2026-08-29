@@ -1897,7 +1897,7 @@ struct MainEditorView: View {
                     return true
                 }
             }
-            .navigationSplitViewColumnWidth(min: 200, ideal: 240, max: 280)
+            .navigationSplitViewColumnWidth(min: 180, ideal: 260, max: 700)
         } detail: {
             GeometryReader { detailGeo in
                 if let macro = store.selectedMacro {
