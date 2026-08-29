@@ -255,6 +255,7 @@ enum MacroAction: Equatable {
     case windowTransform(p1: CGPoint, p2: CGPoint, p3: CGPoint, p4: CGPoint)
     case originAction(type: OriginType)
     case currentPosition(button: CGMouseButton)
+    case axPress(target: String)
 
     var iconName: String {
         switch self {
@@ -277,6 +278,7 @@ enum MacroAction: Equatable {
         case .group:        return "folder"
         case .windowTransform: return "macwindow"
         case .originAction:  return "scope"
+        case .axPress:       return "hand.tap"
         }
     }
     var color: Color {
@@ -298,6 +300,7 @@ enum MacroAction: Equatable {
         case .group:        return Color.orange
         case .windowTransform: return Color(red: 0.1, green: 0.58, blue: 0.8)
         case .originAction: return Color(red: 0.85, green: 0.15, blue: 0.45)
+        case .axPress:      return Color.purple
         }
     }
     var title: String {
@@ -321,6 +324,7 @@ enum MacroAction: Equatable {
         case .group:                return "Group"
         case .windowTransform:      return "Window Transform"
         case .originAction:         return "Origin"
+        case .axPress:              return "AX Press"
         }
     }
     var details: String {
@@ -367,6 +371,8 @@ enum MacroAction: Equatable {
             return "Window Transform coordinates starting at (\(Int(p1.x)), \(Int(p1.y)))"
         case .originAction(let type):
             return "Record current \(type == .cursor ? "cursor position" : "active window state") as origin"
+        case .axPress(let target):
+            return "Perform Accessibility Press on \"\(target)\""
         }
     }
     var parameterString: String {
@@ -418,6 +424,8 @@ enum MacroAction: Equatable {
             return "4 corners"
         case .originAction(let type):
             return type.title
+        case .axPress(let target):
+            return "\"\(target)\""
         }
     }
     var scriptLine: String {
@@ -469,6 +477,8 @@ enum MacroAction: Equatable {
             return "ACTION: window_transform \(Int(p1.x)),\(Int(p1.y)) \(Int(p2.x)),\(Int(p2.y)) \(Int(p3.x)),\(Int(p3.y)) \(Int(p4.x)),\(Int(p4.y))"
         case .originAction(let type):
             return "ACTION: origin \(type.rawValue)"
+        case .axPress(let target):
+            return "ACTION: ax_press \"\(target)\""
         }
     }
     

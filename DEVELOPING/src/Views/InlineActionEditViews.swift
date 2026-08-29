@@ -642,3 +642,56 @@ struct InlineCurrentPositionEditView: View {
         }
     }
 }
+
+struct InlineAXPressEditView: View {
+    @Binding var action: MacroAction
+    var onPreSave: () -> Void
+    var onSave: () -> Void
+    let detailWidth: CGFloat
+    
+    @State private var targetValue: String = ""
+    @FocusState private var isFocused: Bool
+    
+    var body: some View {
+        TextField("Target UI Element Title", text: $targetValue)
+            .textFieldStyle(.plain)
+            .font(.system(size: 11, weight: .medium, design: .rounded))
+            .foregroundColor(.white)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(isFocused ? Color(white: 0.12) : Color.clear)
+            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .stroke(isFocused ? Color.white.opacity(0.1) : Color.clear, lineWidth: 1)
+            )
+            .frame(width: detailWidth < 400 ? 120 : (detailWidth < 520 ? 180 : 260))
+            .multilineTextAlignment(.leading)
+            .onSubmit {
+                save()
+                isFocused = false
+            }
+            .onAppear {
+                if case .axPress(let target) = action {
+                    targetValue = target
+                }
+            }
+            .onChange(of: action) { _, newValue in
+                if case .axPress(let target) = newValue {
+                    targetValue = target
+                }
+            }
+            .onChange(of: isFocused) { _, focused in
+                if !focused {
+                    save()
+                }
+            }
+    }
+    
+    private func save() {
+        onPreSave()
+        action = .axPress(target: targetValue)
+        onSave()
+    }
+}
+

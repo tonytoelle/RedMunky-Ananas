@@ -416,6 +416,11 @@ class InputSimulator {
                         print("💻 Failed to run process: \(error)")
                     }
                     
+                case .axPress(let target):
+                    guard !isEmergencyStopped else { return }
+                    InputSimulator.performAXPress(target: target)
+                    usleep(50000)
+                    
                 case .volumeUp:
                     guard !isEmergencyStopped else { return }
                     postMediaKey(key: 0) // NX_KEYTYPE_SOUND_UP
@@ -564,6 +569,124 @@ class InputSimulator {
         AXValueGetValue(sizeValue as! AXValue, .cgSize, &size)
         
         return CGRect(origin: position, size: size)
+    }
+    
+    static func performAXPress(target: String) {
+        let targetLower = target.lowercased().trimmingCharacters(in: .whitespaces)
+        guard !targetLower.isEmpty else { return }
+        
+        var pidsToTry: [pid_t] = []
+        let davinciApps = NSRunningApplication.runningApplications(withBundleIdentifier: "com.blackmagic-design.DaVinciResolve")
+        for app in davinciApps {
+            pidsToTry.append(app.processIdentifier)
+        }
+        
+        if let frontApp = NSWorkspace.shared.frontmostApplication, !pidsToTry.contains(frontApp.processIdentifier) {
+            pidsToTry.insert(frontApp.processIdentifier, at: 0)
+        }
+        
+        var visitedCount = 0
+        
+        func triggerElement(_ element: AXUIElement) -> Bool {
+            let pressRes = AXUIElementPerformAction(element, kAXPressAction as CFString)
+            if pressRes == .success {
+                print("🎯 Successfully executed AXPress on element for target '\(target)'")
+                return true
+            }
+            
+            let pickRes = AXUIElementPerformAction(element, "AXPick" as CFString)
+            if pickRes == .success {
+                print("🎯 Successfully executed AXPick on element for target '\(target)'")
+                return true
+            }
+            
+            var posRef: CFTypeRef?
+            var sizeRef: CFTypeRef?
+            if AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &posRef) == .success,
+               AXUIElementCopyAttributeValue(element, kAXSizeAttribute as CFString, &sizeRef) == .success,
+               let posVal = posRef, let sizeVal = sizeRef {
+                var pt = CGPoint.zero
+                var sz = CGSize.zero
+                if AXValueGetValue(posVal as! AXValue, .cgPoint, &pt),
+                   AXValueGetValue(sizeVal as! AXValue, .cgSize, &sz) {
+                    let center = CGPoint(x: pt.x + sz.width / 2.0, y: pt.y + sz.height / 2.0)
+                    print("🎯 Clicking coordinates for '\(target)': (\(center.x), \(center.y))")
+                    CGWarpMouseCursorPosition(center)
+                    usleep(20000)
+                    let d = CGEvent(mouseEventSource: source, mouseType: .leftMouseDown, mouseCursorPosition: center, mouseButton: .left)
+                    let u = CGEvent(mouseEventSource: source, mouseType: .leftMouseUp, mouseCursorPosition: center, mouseButton: .left)
+                    d?.flags = []
+                    u?.flags = []
+                    d?.post(tap: .cghidEventTap)
+                    usleep(20000)
+                    u?.post(tap: .cghidEventTap)
+                    return true
+                }
+            }
+            return false
+        }
+        
+        func searchAndTrigger(element: AXUIElement, depth: Int) -> Bool {
+            guard depth < 10, visitedCount < 300 else { return false }
+            visitedCount += 1
+            
+            var titleRef: CFTypeRef?
+            var descRef: CFTypeRef?
+            var valueRef: CFTypeRef?
+            
+            if AXUIElementCopyAttributeValue(element, kAXTitleAttribute as CFString, &titleRef) == .success,
+               let titleStr = titleRef as? String,
+               !titleStr.isEmpty,
+               titleStr.lowercased().contains(targetLower) {
+                return triggerElement(element)
+            }
+            
+            if AXUIElementCopyAttributeValue(element, kAXDescriptionAttribute as CFString, &descRef) == .success,
+               let descStr = descRef as? String,
+               !descStr.isEmpty,
+               descStr.lowercased().contains(targetLower) {
+                return triggerElement(element)
+            }
+
+            if AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &valueRef) == .success,
+               let valStr = valueRef as? String,
+               !valStr.isEmpty,
+               valStr.lowercased().contains(targetLower) {
+                return triggerElement(element)
+            }
+            
+            let attrs: [CFString] = [
+                kAXChildrenAttribute as CFString,
+                kAXWindowsAttribute as CFString,
+                kAXMenuBarAttribute as CFString,
+                kAXVisibleChildrenAttribute as CFString
+            ]
+            
+            for attr in attrs {
+                var childrenRef: CFTypeRef?
+                if AXUIElementCopyAttributeValue(element, attr, &childrenRef) == .success,
+                   let children = childrenRef as? [AXUIElement] {
+                    for child in children {
+                        if searchAndTrigger(element: child, depth: depth + 1) {
+                            return true
+                        }
+                    }
+                }
+            }
+            return false
+        }
+        
+        for pid in pidsToTry {
+            visitedCount = 0
+            let appElement = AXUIElementCreateApplication(pid)
+            if searchAndTrigger(element: appElement, depth: 0) {
+                return
+            }
+        }
+        
+        visitedCount = 0
+        let systemWide = AXUIElementCreateSystemWide()
+        _ = searchAndTrigger(element: systemWide, depth: 0)
     }
 }
 

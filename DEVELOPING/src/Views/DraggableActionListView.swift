@@ -424,6 +424,8 @@ struct ActionCardView: View {
             InlineOpenFileEditView(action: $item.action, onPreSave: onPreSave, onSave: onSave, detailWidth: detailWidth)
         case .customAction:
             InlineCustomActionEditView(action: $item.action, onPreSave: onPreSave, onSave: onSave, detailWidth: detailWidth)
+        case .axPress:
+            InlineAXPressEditView(action: $item.action, onPreSave: onPreSave, onSave: onSave, detailWidth: detailWidth)
         case .delay:
             InlineDelayEditView(action: $item.action, onPreSave: onPreSave, onSave: onSave, detailWidth: detailWidth)
         case .pressKey, .pressShortcut:
