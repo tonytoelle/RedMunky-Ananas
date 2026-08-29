@@ -43,19 +43,15 @@ struct MacroInspectorView: View {
     }
 
     var body: some View {
-        ZStack(alignment: .top) {
-            // Main Detail ScrollView — 2 areas: Trigger + Actions
-            ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 14) {
-                    triggerSection
-                    actionsSection
-                }
-                .padding(.horizontal, 22)
-                .padding(.bottom, 22)
-                .padding(.top, 64)
+        ScrollView(showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 14) {
+                headerSection
+                triggerSection
+                actionsSection
             }
-            
-            headerSection
+            .padding(.horizontal, 22)
+            .padding(.bottom, 22)
+            .padding(.top, 12)
         }
         .ignoresSafeArea(.container, edges: .top)
         .onAppear {
@@ -178,9 +174,7 @@ struct MacroInspectorView: View {
             .buttonStyle(.plain)
             .help("Always on Top")
         }
-        .padding(.horizontal, 22)
-        .padding(.top, 12)
-        .padding(.bottom, 16)
+        .padding(.vertical, 4)
         .background(WindowDragView())
     }
 
@@ -712,12 +706,33 @@ struct FolderInspectorView: View {
     }
 
     var body: some View {
-        ZStack(alignment: .top) {
-            ScrollView(showsIndicators: false) {
-                VStack(spacing: 24) {
-                    // ═══════════════════════════════════════════════════
-                    // CENTERED HEADER
-                    // ═══════════════════════════════════════════════════
+        ScrollView(showsIndicators: false) {
+            VStack(spacing: 20) {
+                // Top Action Bar
+                HStack {
+                    Spacer()
+                    Button {
+                        alwaysOnTop.toggle()
+                        if let appDelegate = NSApp.delegate as? AppDelegate {
+                            appDelegate.updateAlwaysOnTop()
+                        }
+                    } label: {
+                        Image(systemName: alwaysOnTop ? "pin.fill" : "pin")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(alwaysOnTop ? .accentColor : .secondary)
+                            .frame(width: 30, height: 30)
+                            .background(.ultraThinMaterial)
+                            .clipShape(Circle())
+                            .overlay(Circle().stroke(Color.white.opacity(0.15), lineWidth: 0.5))
+                    }
+                    .buttonStyle(.plain)
+                    .help("Always on Top")
+                }
+                .background(WindowDragView())
+
+                // ═══════════════════════════════════════════════════
+                // CENTERED HEADER
+                // ═══════════════════════════════════════════════════
                 VStack(spacing: 10) {
                     // Big Squircle Icon
                     Button {
@@ -1105,36 +1120,9 @@ struct FolderInspectorView: View {
             }
             .padding(.horizontal, 24)
             .padding(.bottom, 24)
-            .padding(.top, 72)
+            .padding(.top, 12)
         }
-
-        // Header bar (Window draggable area) - AppleMusicUI blur fade header
-        HStack(spacing: 12) {
-            Spacer()
-
-            Button {
-                alwaysOnTop.toggle()
-                if let appDelegate = NSApp.delegate as? AppDelegate {
-                    appDelegate.updateAlwaysOnTop()
-                }
-            } label: {
-                Image(systemName: alwaysOnTop ? "pin.fill" : "pin")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(alwaysOnTop ? .accentColor : .secondary)
-                    .frame(width: 30, height: 30)
-                    .background(.ultraThinMaterial)
-                    .clipShape(Circle())
-                    .overlay(Circle().stroke(Color.white.opacity(0.15), lineWidth: 0.5))
-            }
-            .buttonStyle(.plain)
-            .help("Always on Top")
-        }
-        .padding(.horizontal, 22)
-        .padding(.top, 12)
-        .padding(.bottom, 16)
-        .background(WindowDragView())
-    }
-    .ignoresSafeArea(.container, edges: .top)
+        .ignoresSafeArea(.container, edges: .top)
         .onAppear {
             folderName = folderURL.lastPathComponent
             tempFolderName = folderName
