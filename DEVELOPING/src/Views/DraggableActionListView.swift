@@ -638,9 +638,10 @@ struct DraggableActionList: View {
     let detailWidth: CGFloat
 
     // Gesture-driven Fluid Physics State
-    @State private var draggingItemID: UUID? = nil
+    @State private var draggingAnchorID: UUID? = nil
+    @State private var activeBatchIDs: Set<UUID> = []
     @State private var dragOffsetY: CGFloat = 0
-    @State private var initialDragIndex: Int? = nil
+    @State private var initialAnchorIndex: Int? = nil
     @State private var currentTargetIndex: Int? = nil
     @State private var cardHeights: [UUID: CGFloat] = [:]
 
@@ -652,25 +653,27 @@ struct DraggableActionList: View {
     private let cardSpacing: CGFloat = 8.0
 
     private func offsetForCard(at index: Int, id: UUID) -> CGFloat {
-        guard let draggingID = draggingItemID,
-              let fromIdx = initialDragIndex,
+        guard let _ = draggingAnchorID,
+              let fromIdx = initialAnchorIndex,
               let targetIdx = currentTargetIndex else { return 0 }
         
-        if id == draggingID {
+        if activeBatchIDs.contains(id) {
             return dragOffsetY
         }
         
-        let shiftDistance = (cardHeights[draggingID] ?? defaultCardHeight) + cardSpacing
+        let batchTotalHeight = activeBatchIDs.reduce(0.0) { sum, batchID in
+            sum + (cardHeights[batchID] ?? defaultCardHeight) + cardSpacing
+        }
         
         if fromIdx < targetIdx {
-            // Dragged downwards: intermediate items shift UP
+            // Dragged downwards: intermediate non-selected items shift UP
             if index > fromIdx && index <= targetIdx {
-                return -shiftDistance
+                return -batchTotalHeight
             }
         } else if fromIdx > targetIdx {
-            // Dragged upwards: intermediate items shift DOWN
+            // Dragged upwards: intermediate non-selected items shift DOWN
             if index >= targetIdx && index < fromIdx {
-                return shiftDistance
+                return batchTotalHeight
             }
         }
         return 0
@@ -699,7 +702,7 @@ struct DraggableActionList: View {
             
             ForEach(Array(actionItems.enumerated()), id: \.element.id) { index, actionItem in
                 let itemID = actionItem.id
-                let isDraggingThis = draggingItemID == itemID
+                let isDraggingThis = activeBatchIDs.contains(itemID)
                 let itemBinding = Binding<MacroActionItem>(
                     get: {
                         if index < actionItems.count && actionItems[index].id == itemID {
@@ -745,16 +748,20 @@ struct DraggableActionList: View {
                         detailWidth: detailWidth,
                         isDragging: isDraggingThis,
                         onDragChanged: { gestureValue in
-                            if draggingItemID == nil {
-                                draggingItemID = itemID
-                                initialDragIndex = index
-                                currentTargetIndex = index
-                                if !MacroStore.shared.selectedActionIDs.contains(itemID) {
+                            if draggingAnchorID == nil {
+                                let selected = MacroStore.shared.selectedActionIDs
+                                if selected.contains(itemID) && selected.count > 1 {
+                                    activeBatchIDs = selected
+                                } else {
+                                    activeBatchIDs = [itemID]
                                     MacroStore.shared.selectedActionIDs = [itemID]
                                     MacroStore.shared.lastSelectedActionID = itemID
                                 }
-                                if let selected = MacroStore.shared.selectedMacro {
-                                    MacroStore.shared.registerUndoState(for: selected)
+                                draggingAnchorID = itemID
+                                initialAnchorIndex = index
+                                currentTargetIndex = index
+                                if let selectedMacro = MacroStore.shared.selectedMacro {
+                                    MacroStore.shared.registerUndoState(for: selectedMacro)
                                 }
                             }
                             
@@ -762,7 +769,7 @@ struct DraggableActionList: View {
                             
                             let singleStep = (cardHeights[itemID] ?? defaultCardHeight) + cardSpacing
                             let steps = Int(round(dragOffsetY / singleStep))
-                            let newTarget = min(max(0, (initialDragIndex ?? index) + steps), actionItems.count - 1)
+                            let newTarget = min(max(0, (initialAnchorIndex ?? index) + steps), actionItems.count - 1)
                             
                             if newTarget != currentTargetIndex {
                                 withAnimation(.spring(response: 0.22, dampingFraction: 0.82)) {
@@ -771,24 +778,44 @@ struct DraggableActionList: View {
                             }
                         },
                         onDragEnded: { _ in
-                            guard let fromIdx = initialDragIndex,
+                            guard let fromIdx = initialAnchorIndex,
                                   let toIdx = currentTargetIndex,
-                                  fromIdx != toIdx else {
+                                  fromIdx != toIdx,
+                                  !activeBatchIDs.isEmpty else {
                                 withAnimation(.spring(response: 0.2, dampingFraction: 0.85)) {
-                                    draggingItemID = nil
+                                    draggingAnchorID = nil
+                                    activeBatchIDs.removeAll()
                                     dragOffsetY = 0
-                                    initialDragIndex = nil
+                                    initialAnchorIndex = nil
+                                    currentTargetIndex = nil
+                                }
+                                return
+                            }
+                            
+                            let movingIDs = activeBatchIDs
+                            let selectedIndices = actionItems.enumerated()
+                                .filter { movingIDs.contains($1.id) }
+                                .map { $0.offset }
+                                
+                            guard !selectedIndices.isEmpty, let minIdx = selectedIndices.first else {
+                                withAnimation(.spring(response: 0.2, dampingFraction: 0.85)) {
+                                    draggingAnchorID = nil
+                                    activeBatchIDs.removeAll()
+                                    dragOffsetY = 0
+                                    initialAnchorIndex = nil
                                     currentTargetIndex = nil
                                 }
                                 return
                             }
                             
                             withAnimation(.spring(response: 0.25, dampingFraction: 0.85)) {
-                                let destination = toIdx > fromIdx ? toIdx + 1 : toIdx
-                                actionItems.move(fromOffsets: IndexSet(integer: fromIdx), toOffset: destination)
-                                draggingItemID = nil
+                                let fromOffsets = IndexSet(selectedIndices)
+                                let destination = toIdx > minIdx ? min(toIdx + 1, actionItems.count) : toIdx
+                                actionItems.move(fromOffsets: fromOffsets, toOffset: destination)
+                                draggingAnchorID = nil
+                                activeBatchIDs.removeAll()
                                 dragOffsetY = 0
-                                initialDragIndex = nil
+                                initialAnchorIndex = nil
                                 currentTargetIndex = nil
                             }
                             onSave()

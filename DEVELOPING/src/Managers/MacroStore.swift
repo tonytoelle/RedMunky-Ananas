@@ -613,9 +613,7 @@ class MacroStore: ObservableObject {
         let selected = selectedActionIDs
         let indices = macro.actionItems.enumerated().filter { selected.contains($1.id) }.map { $0.offset }
         guard let first = indices.first, first > 0 else { return }
-        for idx in indices {
-            macro.actionItems.swapAt(idx, idx - 1)
-        }
+        macro.actionItems.move(fromOffsets: IndexSet(indices), toOffset: first - 1)
         saveMacro(macro)
     }
 
@@ -624,9 +622,7 @@ class MacroStore: ObservableObject {
         let selected = selectedActionIDs
         let indices = macro.actionItems.enumerated().filter { selected.contains($1.id) }.map { $0.offset }
         guard let last = indices.last, last < macro.actionItems.count - 1 else { return }
-        for idx in indices.reversed() {
-            macro.actionItems.swapAt(idx, idx + 1)
-        }
+        macro.actionItems.move(fromOffsets: IndexSet(indices), toOffset: last + 2)
         saveMacro(macro)
     }
     
