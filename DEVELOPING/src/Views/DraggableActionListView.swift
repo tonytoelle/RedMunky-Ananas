@@ -692,40 +692,6 @@ struct DraggableActionList: View {
                 PlaceholderSlotView(title: templateName)
             }
         }
-        .onDrop(of: [.text], isTargeted: $isListTargeted) { providers in
-            if draggingID != nil {
-                draggingID = nil
-                DispatchQueue.main.async {
-                    onSave()
-                }
-                return true
-            }
-            if let provider = providers.first {
-                _ = provider.loadObject(ofClass: NSString.self) { (str, error) in
-                    if let s = str as? String, s.hasPrefix("action_template:") {
-                        let typeName = s.replacingOccurrences(of: "action_template:", with: "")
-                        DispatchQueue.main.async {
-                            let targetIndex = placeholderIndex ?? actionItems.count
-                            onInsertTemplate(typeName, targetIndex)
-                            draggingTemplate = nil
-                            placeholderIndex = nil
-                        }
-                    }
-                }
-                return true
-            }
-            draggingTemplate = nil
-            placeholderIndex = nil
-            return false
-        }
-        .onChange(of: isListTargeted) { _, targeted in
-            if !targeted {
-                withAnimation(.easeInOut(duration: 0.12)) {
-                    draggingTemplate = nil
-                    placeholderIndex = nil
-                }
-            }
-        }
     }
 }
 
@@ -836,36 +802,40 @@ struct ActionDropDelegate: DropDelegate {
     }
 
     func dropEntered(info: DropInfo) {
-        if let dragID = draggingID {
-            let selectedIDs = MacroStore.shared.selectedActionIDs
-            if selectedIDs.contains(dragID) {
-                let indices = items.enumerated().filter { selectedIDs.contains($1.id) }.map { $0.offset }
-                guard !indices.isEmpty else { return }
-                if !selectedIDs.contains(item.id) {
-                    let fromOffsets = IndexSet(indices)
-                    withAnimation(.easeInOut(duration: 0.12)) {
-                        let to = index > (indices.first ?? 0) ? index + 1 : index
-                        items.move(fromOffsets: fromOffsets, toOffset: to)
-                    }
-                }
-            } else {
-                guard let fromIdx = items.firstIndex(where: { $0.id == dragID }),
-                      fromIdx != index else { return }
-                withAnimation(.easeInOut(duration: 0.12)) {
-                    items.move(fromOffsets: IndexSet(integer: fromIdx), toOffset: index > fromIdx ? index + 1 : index)
-                }
-            }
-        } else if let provider = info.itemProviders(for: [.text]).first {
-            _ = provider.loadObject(ofClass: NSString.self) { (str, error) in
-                if let s = str as? String, s.hasPrefix("action_template:") {
-                    let typeName = s.replacingOccurrences(of: "action_template:", with: "")
-                    DispatchQueue.main.async {
-                        withAnimation(.easeInOut(duration: 0.12)) {
-                            draggingTemplate = typeName
-                            placeholderIndex = index
+        guard let dragID = draggingID else {
+            if let provider = info.itemProviders(for: [.text]).first {
+                _ = provider.loadObject(ofClass: NSString.self) { (str, error) in
+                    if let s = str as? String, s.hasPrefix("action_template:") {
+                        let typeName = s.replacingOccurrences(of: "action_template:", with: "")
+                        DispatchQueue.main.async {
+                            withAnimation(.easeInOut(duration: 0.12)) {
+                                draggingTemplate = typeName
+                                placeholderIndex = index
+                            }
                         }
                     }
                 }
+            }
+            return
+        }
+
+        guard item.id != dragID else { return }
+
+        let selectedIDs = MacroStore.shared.selectedActionIDs
+        if selectedIDs.contains(dragID) {
+            guard !selectedIDs.contains(item.id) else { return }
+            let indices = items.enumerated().filter { selectedIDs.contains($1.id) }.map { $0.offset }
+            guard !indices.isEmpty else { return }
+            let fromOffsets = IndexSet(indices)
+            withAnimation(.easeInOut(duration: 0.15)) {
+                let to = index > (indices.first ?? 0) ? index + 1 : index
+                items.move(fromOffsets: fromOffsets, toOffset: to)
+            }
+        } else {
+            guard let fromIdx = items.firstIndex(where: { $0.id == dragID }),
+                  fromIdx != index else { return }
+            withAnimation(.easeInOut(duration: 0.15)) {
+                items.move(fromOffsets: IndexSet(integer: fromIdx), toOffset: index > fromIdx ? index + 1 : index)
             }
         }
     }
