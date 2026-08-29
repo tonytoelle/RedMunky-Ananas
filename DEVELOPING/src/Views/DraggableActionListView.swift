@@ -14,7 +14,7 @@ struct ActionCardView: View {
     var onPreSave: () -> Void
     var onSave: () -> Void
     let detailWidth: CGFloat
-    @ObservedObject var store = MacroStore.shared
+    var store = MacroStore.shared
 
     @FocusState private var isGroupFocused: Bool
     @State private var isCollapsed = false
@@ -601,7 +601,7 @@ struct DraggableActionList: View {
     @State private var isListTargeted = false
 
     var body: some View {
-        LazyVStack(spacing: 8) {
+        VStack(spacing: 8) {
             if actionItems.isEmpty {
                 VStack(spacing: 8) {
                     Image(systemName: "plus.circle")
@@ -621,72 +621,70 @@ struct DraggableActionList: View {
                 .padding(.vertical, 4)
             }
             
-            // Removed implicit origin indicator
-            
-            ForEach(actionItems) { actionItem in
+            ForEach(Array(actionItems.enumerated()), id: \.element.id) { index, actionItem in
                 let itemID = actionItem.id
-                if let index = actionItems.firstIndex(where: { $0.id == itemID }) {
-                    let itemBinding = Binding<MacroActionItem>(
-                        get: {
-                            if let idx = actionItems.firstIndex(where: { $0.id == itemID }) {
-                                return actionItems[idx]
-                            }
-                            return actionItem
-                        },
-                        set: { newValue in
-                            if let idx = actionItems.firstIndex(where: { $0.id == itemID }) {
-                                actionItems[idx] = newValue
-                            }
+                let itemBinding = Binding<MacroActionItem>(
+                    get: {
+                        if index < actionItems.count && actionItems[index].id == itemID {
+                            return actionItems[index]
                         }
-                    )
+                        return actionItems.first(where: { $0.id == itemID }) ?? actionItem
+                    },
+                    set: { newValue in
+                        if index < actionItems.count && actionItems[index].id == itemID {
+                            actionItems[index] = newValue
+                        } else if let idx = actionItems.firstIndex(where: { $0.id == itemID }) {
+                            actionItems[idx] = newValue
+                        }
+                    }
+                )
+                
+                Group {
+                    if index == placeholderIndex, let templateName = draggingTemplate {
+                        PlaceholderSlotView(title: templateName)
+                    }
                     
-                    Group {
-                        if index == placeholderIndex, let templateName = draggingTemplate {
-                            PlaceholderSlotView(title: templateName)
-                        }
-                        
-                        ActionCardView(
-                            index: index,
-                            item: itemBinding,
-                            onDelete: {
-                                if let selected = MacroStore.shared.selectedMacro {
-                                    MacroStore.shared.registerUndoState(for: selected)
-                                }
-                                withAnimation(.easeInOut(duration: 0.15)) {
-                                    actionItems.removeAll { $0.id == itemID }
-                                }
-                                if MacroStore.shared.selectedActionIDs.contains(itemID) {
-                                    MacroStore.shared.selectedActionIDs.remove(itemID)
-                                }
-                                onSave()
-                            },
-                            onPreSave: {
-                                if let selected = MacroStore.shared.selectedMacro {
-                                    MacroStore.shared.registerUndoState(for: selected)
-                                }
-                            },
-                            onSave: onSave,
-                            detailWidth: detailWidth
-                        )
-                        .onDrag {
-                            draggingID = itemID
+                    ActionCardView(
+                        index: index,
+                        item: itemBinding,
+                        onDelete: {
                             if let selected = MacroStore.shared.selectedMacro {
                                 MacroStore.shared.registerUndoState(for: selected)
                             }
-                            return NSItemProvider(object: itemID.uuidString as NSString)
+                            withAnimation(.easeInOut(duration: 0.12)) {
+                                actionItems.removeAll { $0.id == itemID }
+                            }
+                            if MacroStore.shared.selectedActionIDs.contains(itemID) {
+                                MacroStore.shared.selectedActionIDs.remove(itemID)
+                            }
+                            onSave()
+                        },
+                        onPreSave: {
+                            if let selected = MacroStore.shared.selectedMacro {
+                                MacroStore.shared.registerUndoState(for: selected)
+                            }
+                        },
+                        onSave: onSave,
+                        detailWidth: detailWidth
+                    )
+                    .onDrag {
+                        draggingID = itemID
+                        if let selected = MacroStore.shared.selectedMacro {
+                            MacroStore.shared.registerUndoState(for: selected)
                         }
-                        .onDrop(of: [.text], delegate: ActionDropDelegate(
-                            item: actionItem,
-                            index: index,
-                            items: $actionItems,
-                            draggingID: $draggingID,
-                            draggingTemplate: $draggingTemplate,
-                            placeholderIndex: $placeholderIndex,
-                            onSave: onSave,
-                            onInsertTemplate: onInsertTemplate
-                        ))
-                        .opacity(draggingID == itemID ? 0.3 : 1.0)
+                        return NSItemProvider(object: itemID.uuidString as NSString)
                     }
+                    .onDrop(of: [.text], delegate: ActionDropDelegate(
+                        item: actionItem,
+                        index: index,
+                        items: $actionItems,
+                        draggingID: $draggingID,
+                        draggingTemplate: $draggingTemplate,
+                        placeholderIndex: $placeholderIndex,
+                        onSave: onSave,
+                        onInsertTemplate: onInsertTemplate
+                    ))
+                    .opacity(draggingID == itemID ? 0.3 : 1.0)
                 }
             }
             
@@ -722,7 +720,7 @@ struct DraggableActionList: View {
         }
         .onChange(of: isListTargeted) { _, targeted in
             if !targeted {
-                withAnimation(.spring(response: 0.2, dampingFraction: 0.8)) {
+                withAnimation(.easeInOut(duration: 0.12)) {
                     draggingTemplate = nil
                     placeholderIndex = nil
                 }
@@ -840,28 +838,14 @@ struct ActionDropDelegate: DropDelegate {
     }
 
     func dropEntered(info: DropInfo) {
-        if draggingID == nil {
-            if let provider = info.itemProviders(for: [.text]).first {
-                _ = provider.loadObject(ofClass: NSString.self) { (str, error) in
-                    if let s = str as? String, s.hasPrefix("action_template:") {
-                        let typeName = s.replacingOccurrences(of: "action_template:", with: "")
-                        DispatchQueue.main.async {
-                            withAnimation(.spring(response: 0.2, dampingFraction: 0.8)) {
-                                draggingTemplate = typeName
-                                placeholderIndex = index
-                            }
-                        }
-                    }
-                }
-            }
-        } else if let dragID = draggingID {
+        if let dragID = draggingID {
             let selectedIDs = MacroStore.shared.selectedActionIDs
             if selectedIDs.contains(dragID) {
                 let indices = items.enumerated().filter { selectedIDs.contains($1.id) }.map { $0.offset }
                 guard !indices.isEmpty else { return }
                 if !selectedIDs.contains(item.id) {
                     let fromOffsets = IndexSet(indices)
-                    withAnimation(.spring(response: 0.2, dampingFraction: 0.8)) {
+                    withAnimation(.easeInOut(duration: 0.12)) {
                         let to = index > (indices.first ?? 0) ? index + 1 : index
                         items.move(fromOffsets: fromOffsets, toOffset: to)
                     }
@@ -869,8 +853,20 @@ struct ActionDropDelegate: DropDelegate {
             } else {
                 guard let fromIdx = items.firstIndex(where: { $0.id == dragID }),
                       fromIdx != index else { return }
-                withAnimation(.spring(response: 0.2, dampingFraction: 0.8)) {
+                withAnimation(.easeInOut(duration: 0.12)) {
                     items.move(fromOffsets: IndexSet(integer: fromIdx), toOffset: index > fromIdx ? index + 1 : index)
+                }
+            }
+        } else if let provider = info.itemProviders(for: [.text]).first {
+            _ = provider.loadObject(ofClass: NSString.self) { (str, error) in
+                if let s = str as? String, s.hasPrefix("action_template:") {
+                    let typeName = s.replacingOccurrences(of: "action_template:", with: "")
+                    DispatchQueue.main.async {
+                        withAnimation(.easeInOut(duration: 0.12)) {
+                            draggingTemplate = typeName
+                            placeholderIndex = index
+                        }
+                    }
                 }
             }
         }
