@@ -1327,8 +1327,8 @@ struct SidebarNodeView: View {
                        let nsImage = AppIconCache.shared.icon(forBundleId: bundleId) {
                         Image(nsImage: nsImage)
                             .resizable()
+                            .aspectRatio(contentMode: .fit)
                             .frame(width: 18, height: 18)
-                            .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
                             .opacity(config.isEnabled ? 1.0 : 0.4)
                     } else {
                         Image(systemName: config.iconName)
@@ -1900,24 +1900,9 @@ struct MainEditorView: View {
                         VStack(spacing: 20) {
                             Spacer()
                             
-                            ZStack {
-                                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                                    .fill(
-                                        LinearGradient(
-                                            colors: [Color.accentColor.opacity(0.35), Color.blue.opacity(0.15)],
-                                            startPoint: .topLeading,
-                                            endPoint: .bottomTrailing
-                                        )
-                                    )
-                                    .frame(width: 88, height: 88)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 24, style: .continuous)
-                                            .stroke(Color.white.opacity(0.2), lineWidth: 1)
-                                    )
-                                Image(systemName: "sparkles")
-                                    .font(.system(size: 40, weight: .medium))
-                                    .foregroundColor(.white)
-                            }
+                            Image(systemName: "sparkles")
+                                .font(.system(size: 52, weight: .regular))
+                                .foregroundColor(Color.accentColor)
                             
                             VStack(spacing: 8) {
                                 Text("No Macro Selected")

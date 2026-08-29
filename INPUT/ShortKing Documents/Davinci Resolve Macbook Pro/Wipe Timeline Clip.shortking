@@ -6,3 +6,5 @@ ACTION: current_position right
 ACTION: delay 300
 ACTION: ax_press "Wipe Timeline Clip"
 ACTION: type "Hello ShortKing"
+ACTION: ax_press ""
+ACTION: type "Hello ShortKing"
