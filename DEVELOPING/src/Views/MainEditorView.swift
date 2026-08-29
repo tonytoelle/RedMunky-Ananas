@@ -524,15 +524,16 @@ struct MacroInspectorView: View {
     private func triggerCaptureIfNeeded(for actionItem: MacroActionItem, index: Int, isAlternate: Bool, switchTriggerIndex: Int?) {
         switch actionItem.action {
         case .path(let initialPts):
+            let primaryScreenH = NSScreen.screens.first?.frame.height ?? 1080
+            let mouseLoc = NSEvent.mouseLocation
+            let currentQuartz = CGPoint(x: mouseLoc.x, y: primaryScreenH - mouseLoc.y)
+            
             CaptureOverlayWindow.shared = CaptureOverlayWindow(
                 initialPoints: initialPts,
                 defaultType: .click,
                 onSequenceCaptured: { newPts in
-                    if newPts.isEmpty {
-                        removeActionItem(id: actionItem.id, isAlternate: isAlternate, switchTriggerIndex: switchTriggerIndex)
-                    } else {
-                        updateActionItem(id: actionItem.id, action: .path(points: newPts), isAlternate: isAlternate, switchTriggerIndex: switchTriggerIndex, shouldSave: true)
-                    }
+                    let finalPts = newPts.isEmpty ? [SequencePoint(point: currentQuartz, type: .click)] : newPts
+                    updateActionItem(id: actionItem.id, action: .path(points: finalPts), isAlternate: isAlternate, switchTriggerIndex: switchTriggerIndex, shouldSave: true)
                 },
                 onSequenceRealTime: { tempPts in
                     updateActionItem(id: actionItem.id, action: .path(points: tempPts), isAlternate: isAlternate, switchTriggerIndex: switchTriggerIndex, shouldSave: false)

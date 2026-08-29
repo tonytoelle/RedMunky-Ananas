@@ -1251,7 +1251,12 @@ class CaptureOverlayHostingView: NSView {
         }
     }
     
+    private let windowOpenTime = Date()
+    
     func handleCanvasClick(at quartzPt: CGPoint) {
+        // Prevent accidental triggers from the click that spawned this window
+        guard Date().timeIntervalSince(windowOpenTime) > 0.18 else { return }
+        
         // If clicking on the HUD card, do NOT drop a point — let SwiftUI handle HUD buttons (+, -, type, checkmark, etc.)
         if stateModel.isHudVisible {
             let hudPos = stateModel.lastHudCenter
