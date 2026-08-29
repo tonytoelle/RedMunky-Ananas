@@ -1263,85 +1263,83 @@ class CaptureOverlayHostingView: NSView {
             }
         }
         
-        if stateModel.isFollowingCursor {
-            let newPt = SequencePoint(point: stateModel.quartzLocation, type: stateModel.defaultPointType)
+        // Check if user clicked directly on an existing pin to select/drag it
+        var foundPin: Int? = nil
+        for (i, p) in stateModel.points.enumerated() {
+            if dist(stateModel.quartzLocation, p.point) <= 26 {
+                foundPin = i
+                break
+            }
+        }
+        
+        if let pinIdx = foundPin {
+            stateModel.selectedPointIndex = pinIdx
+            stateModel.activeDraggingIndex = pinIdx
+            stateModel.isFollowingCursor = false
+            window?.ignoresMouseEvents = false
+            stateModel.notifyPointsCommitted()
+            return
+        }
+        
+        let newPt = SequencePoint(point: stateModel.quartzLocation, type: stateModel.defaultPointType)
+        
+        switch stateModel.mode {
+        case .click:
+            stateModel.points = [newPt]
+            stateModel.isFollowingCursor = false
+            stateModel.onConfirmAll?()
+            return
             
-            switch stateModel.mode {
-            case .click:
-                stateModel.points = [newPt]
+        case .drag:
+            if stateModel.points.isEmpty {
+                stateModel.points.append(newPt)
+                stateModel.selectedPointIndex = 0
+                stateModel.notifyPointsCommitted()
+            } else {
+                stateModel.points.append(newPt)
                 stateModel.isFollowingCursor = false
                 stateModel.onConfirmAll?()
                 return
-                
-            case .drag:
-                if stateModel.points.isEmpty {
-                    stateModel.points.append(newPt)
-                    stateModel.selectedPointIndex = 0
-                    stateModel.notifyPointsCommitted()
-                } else {
-                    stateModel.points.append(newPt)
-                    stateModel.isFollowingCursor = false
-                    stateModel.onConfirmAll?()
-                    return
-                }
-                
-            case .sequence:
-                let insertIndex: Int
-                if let sel = stateModel.selectedPointIndex, sel < stateModel.points.count {
-                    insertIndex = sel + 1
-                } else {
-                    insertIndex = stateModel.points.count
-                }
-                
-                if insertIndex >= stateModel.points.count {
-                    stateModel.points.append(newPt)
-                    stateModel.selectedPointIndex = stateModel.points.count - 1
-                } else {
-                    stateModel.points.insert(newPt, at: insertIndex)
-                    stateModel.selectedPointIndex = insertIndex
-                }
-                // Set following cursor to false so user has to click HUD "+" button to add another point
-                stateModel.isFollowingCursor = false
-                stateModel.phase = .editing
-                
-                // Keep windows ignores mouse events updated
-                updatePassthrough(quartzPt: stateModel.quartzLocation)
-                stateModel.notifyPointsCommitted()
-                
-            case .windowTransform:
-                if stateModel.points.isEmpty {
-                    stateModel.points.append(newPt)
-                    stateModel.selectedPointIndex = 0
-                    stateModel.notifyPointsCommitted()
-                } else {
-                    stateModel.points.append(newPt)
-                    stateModel.isFollowingCursor = false
-                    stateModel.phase = .editing
-                    stateModel.selectedPointIndex = nil
-                    stateModel.notifyPointsCommitted()
-                    CaptureOverlayHostingView.safeUnhideCursor()
-                    window?.ignoresMouseEvents = false
-                    window?.makeKey()
-                    window?.makeFirstResponder(self)
-                }
-            }
-        } else {
-            // Edit phase: handled when clicking directly on a pin
-            var found: Int? = nil
-            for (i, p) in stateModel.points.enumerated() {
-                if dist(stateModel.quartzLocation, p.point) <= 26 {
-                    found = i
-                    break
-                }
             }
             
-            if let f = found {
-                stateModel.selectedPointIndex = f
-                stateModel.activeDraggingIndex = f
-                window?.ignoresMouseEvents = false  // Must receive drag events
+        case .sequence:
+            let insertIndex: Int
+            if let sel = stateModel.selectedPointIndex, sel < stateModel.points.count {
+                insertIndex = sel + 1
             } else {
+                insertIndex = stateModel.points.count
+            }
+            
+            if insertIndex >= stateModel.points.count {
+                stateModel.points.append(newPt)
+                stateModel.selectedPointIndex = stateModel.points.count - 1
+            } else {
+                stateModel.points.insert(newPt, at: insertIndex)
+                stateModel.selectedPointIndex = insertIndex
+            }
+            
+            // Keep following cursor continuous for rapid sequential point placement (1, 2, 3, ...)
+            stateModel.isFollowingCursor = true
+            stateModel.phase = .recording
+            
+            stateModel.notifyPointsCommitted()
+            stateModel.notifyPointsRealtime()
+            
+        case .windowTransform:
+            if stateModel.points.isEmpty {
+                stateModel.points.append(newPt)
+                stateModel.selectedPointIndex = 0
+                stateModel.notifyPointsCommitted()
+            } else {
+                stateModel.points.append(newPt)
+                stateModel.isFollowingCursor = false
+                stateModel.phase = .editing
                 stateModel.selectedPointIndex = nil
-                stateModel.activeDraggingIndex = nil
+                stateModel.notifyPointsCommitted()
+                CaptureOverlayHostingView.safeUnhideCursor()
+                window?.ignoresMouseEvents = false
+                window?.makeKey()
+                window?.makeFirstResponder(self)
             }
         }
     }
