@@ -1,1 +1,1 @@
-{"customAppIconBundleId":"com.blackmagic-design.DaVinciResolve","iconName":"folder.fill","isEnabled":false,"targetApps":[{"bundleId":"com.blackmagic-design.DaVinciResolve","name":"DaVinci Resolve"}],"colorName":"blue","isRestrictedToApps":true}
+{"targetApps":[{"name":"DaVinci Resolve","bundleId":"com.blackmagic-design.DaVinciResolve"}],"iconName":"folder.fill","customAppIconBundleId":"com.blackmagic-design.DaVinciResolve","colorName":"blue","isRestrictedToApps":true,"isEnabled":false}

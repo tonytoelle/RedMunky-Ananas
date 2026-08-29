@@ -47,6 +47,7 @@ struct SpotlightSearchBar: View {
     let width: CGFloat // Width passed directly from parent container to prevent layout loops
     let onSelect: (SearchableActionDef) -> Void
     
+    @ObservedObject private var store = MacroStore.shared
     @State private var query: String = ""
     @State private var selectedIndex: Int = 0
     @State private var activeCategory: String = "All"
@@ -201,7 +202,11 @@ struct SpotlightSearchBar: View {
                                     .frame(width: 72, height: 76)
                                     .background(
                                         RoundedRectangle(cornerRadius: 12)
-                                            .fill(idx == selectedIndex ? Color.white.opacity(0.12) : Color.clear)
+                                            .fill((store.isGridFocused && idx == store.gridSelectedIndex) || idx == selectedIndex ? Color.white.opacity(0.12) : Color.clear)
+                                    )
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 12)
+                                            .stroke(store.isGridFocused && idx == store.gridSelectedIndex ? Color.accentColor : Color.clear, lineWidth: 1.5)
                                     )
                                     .contentShape(Rectangle())
                                 }

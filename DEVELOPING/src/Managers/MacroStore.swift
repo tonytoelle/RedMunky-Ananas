@@ -48,6 +48,8 @@ class MacroStore: ObservableObject {
     
     @Published var focusedPane: FocusedPane = .left
     @Published var isTriggerFocused: Bool = false
+    @Published var isGridFocused: Bool = false
+    @Published var gridSelectedIndex: Int = 0
     
     // Clipboard for copy-paste operations
     @Published var copiedMacroURL: URL? = nil
@@ -941,6 +943,24 @@ class MacroStore: ObservableObject {
         guard let selected = selectedMacro else { return }
         let items = selected.actionItems
         
+        if isGridFocused {
+            let cols = 4
+            if gridSelectedIndex >= cols {
+                gridSelectedIndex -= cols
+            } else {
+                // Jump up from Action Grid to last Action card
+                isGridFocused = false
+                if let last = items.last {
+                    selectedActionIDs = [last.id]
+                    lastSelectedActionID = last.id
+                    isTriggerFocused = false
+                } else {
+                    isTriggerFocused = true
+                }
+            }
+            return
+        }
+        
         if isTriggerFocused {
             return
         }
@@ -953,10 +973,12 @@ class MacroStore: ObservableObject {
             selectedActionIDs = [prevItem.id]
             lastSelectedActionID = prevItem.id
             isTriggerFocused = false
+            isGridFocused = false
         } else if currentIndex == 0 || items.isEmpty {
             selectedActionIDs.removeAll()
             lastSelectedActionID = nil
             isTriggerFocused = true
+            isGridFocused = false
         } else {
             if let last = items.last {
                 selectedActionIDs = [last.id]
@@ -965,6 +987,7 @@ class MacroStore: ObservableObject {
             } else {
                 isTriggerFocused = true
             }
+            isGridFocused = false
         }
     }
     
@@ -972,17 +995,35 @@ class MacroStore: ObservableObject {
         guard let selected = selectedMacro else { return }
         let items = selected.actionItems
         
+        if isGridFocused {
+            let total = SearchableActionDef.allActions.count
+            let cols = 4
+            if gridSelectedIndex + cols < total {
+                gridSelectedIndex += cols
+            } else if gridSelectedIndex < total - 1 {
+                gridSelectedIndex = total - 1
+            }
+            return
+        }
+        
         if isTriggerFocused {
             if let first = items.first {
                 selectedActionIDs = [first.id]
                 lastSelectedActionID = first.id
                 isTriggerFocused = false
+                isGridFocused = false
+            } else {
+                isTriggerFocused = false
+                isGridFocused = true
+                gridSelectedIndex = 0
             }
             return
         }
         
         guard !items.isEmpty else {
-            isTriggerFocused = true
+            isTriggerFocused = false
+            isGridFocused = true
+            gridSelectedIndex = 0
             return
         }
         
@@ -994,11 +1035,40 @@ class MacroStore: ObservableObject {
             selectedActionIDs = [nextItem.id]
             lastSelectedActionID = nextItem.id
             isTriggerFocused = false
+            isGridFocused = false
+        } else if currentIndex == items.count - 1 {
+            // Jump down from last action to Action Grid!
+            selectedActionIDs.removeAll()
+            lastSelectedActionID = nil
+            isTriggerFocused = false
+            isGridFocused = true
+            gridSelectedIndex = 0
         } else if currentIndex == -1 {
             if let first = items.first {
                 selectedActionIDs = [first.id]
                 lastSelectedActionID = first.id
                 isTriggerFocused = false
+                isGridFocused = false
+            }
+        }
+    }
+    
+    func moveGridSelectionLeft() {
+        if isGridFocused {
+            if gridSelectedIndex > 0 {
+                gridSelectedIndex -= 1
+            } else {
+                focusedPane = .left
+                isGridFocused = false
+            }
+        }
+    }
+    
+    func moveGridSelectionRight() {
+        if isGridFocused {
+            let total = SearchableActionDef.allActions.count
+            if gridSelectedIndex < total - 1 {
+                gridSelectedIndex += 1
             }
         }
     }

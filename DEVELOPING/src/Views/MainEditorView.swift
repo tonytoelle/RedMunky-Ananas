@@ -2040,12 +2040,17 @@ struct MainEditorView: View {
                         if let tv = responder as? NSTextView, tv.isEditable { return event }
                         if let tf = responder as? NSTextField, tf.isEditable { return event }
                     }
+                    if store.isGridFocused {
+                        store.moveGridSelectionLeft()
+                        return nil
+                    }
                     if store.focusedPane == .right {
                         // Switch from editor pane back to sidebar
                         store.focusedPane = .left
                         store.selectedActionIDs.removeAll()
                         store.lastSelectedActionID = nil
                         store.isTriggerFocused = false
+                        store.isGridFocused = false
                         if let current = store.selectedFilePath ?? store.selectedFolderPath {
                             selectedPaths = [current]
                             lastClickedPath = current
@@ -2067,6 +2072,10 @@ struct MainEditorView: View {
                         if let tv = responder as? NSTextView, tv.isEditable { return event }
                         if let tf = responder as? NSTextField, tf.isEditable { return event }
                     }
+                    if store.isGridFocused {
+                        store.moveGridSelectionRight()
+                        return nil
+                    }
                     if store.focusedPane == .left {
                         let targetPath = store.selectedFolderPath ?? selectedPaths.first
                         if let path = targetPath, !path.hasSuffix(".shortking"), !expandedFolders.contains(path) {
@@ -2082,8 +2091,10 @@ struct MainEditorView: View {
                                 store.selectedActionIDs = [firstAction.id]
                                 store.lastSelectedActionID = firstAction.id
                                 store.isTriggerFocused = false
+                                store.isGridFocused = false
                             } else {
                                 store.isTriggerFocused = true
+                                store.isGridFocused = false
                             }
                             return nil // consume
                         }
@@ -2116,6 +2127,21 @@ struct MainEditorView: View {
                             }
                             return nil // consume
                         }
+                    }
+                } else if event.keyCode == 36 { // Enter / Return
+                    if let responder = NSApp.keyWindow?.firstResponder {
+                        if let tv = responder as? NSTextView, tv.isEditable { return event }
+                        if let tf = responder as? NSTextField, tf.isEditable { return event }
+                    }
+                    if store.isGridFocused {
+                        let all = SearchableActionDef.allActions
+                        if store.gridSelectedIndex >= 0 && store.gridSelectedIndex < all.count {
+                            let actionDef = all[store.gridSelectedIndex]
+                            let isAlt = hasKeySwitchTrigger && activeActionTarget == .alternate
+                            let tIdx = isAlt ? (macro.triggers.first(where: { $0.mode == .keySwitch })?.alternateActionItems.count ?? 0) : macro.actionItems.count
+                            insertAction(typeName: actionDef.title, targetIndex: tIdx, isAlternate: isAlt)
+                        }
+                        return nil
                     }
                 } else if event.keyCode == 51 || event.keyCode == 117 { // Delete or Backspace
                     if let responder = NSApp.keyWindow?.firstResponder {
