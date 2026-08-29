@@ -2188,12 +2188,31 @@ struct MainEditorView: View {
                             return nil
                         }
                     }
+                } else if event.modifierFlags.contains(.command) && event.charactersIgnoringModifiers?.lowercased() == "z" {
+                    if let responder = NSApp.keyWindow?.firstResponder {
+                        if let tv = responder as? NSTextView, tv.isEditable { return event }
+                        if let tf = responder as? NSTextField, tf.isEditable { return event }
+                    }
+                    if event.modifierFlags.contains(.shift) {
+                        if store.undoManager.canRedo {
+                            store.undoManager.redo()
+                            return nil // consume
+                        }
+                    } else {
+                        if store.undoManager.canUndo {
+                            store.undoManager.undo()
+                            return nil // consume
+                        }
+                    }
                 } else if event.keyCode == 51 || event.keyCode == 117 { // Delete or Backspace
                     if let responder = NSApp.keyWindow?.firstResponder {
                         if let tv = responder as? NSTextView, tv.isEditable { return event }
                         if let tf = responder as? NSTextField, tf.isEditable { return event }
                     }
-                    if store.focusedPane == .left {
+                    if !store.selectedActionIDs.isEmpty {
+                        store.deleteSelectedActions()
+                        return nil // consume
+                    } else if store.focusedPane == .left {
                         let pathsToDelete: [String] = {
                             if !selectedPaths.isEmpty {
                                 return Array(selectedPaths)
