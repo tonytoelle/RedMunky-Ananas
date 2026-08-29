@@ -181,7 +181,23 @@ struct MacroInspectorView: View {
         .padding(.horizontal, 22)
         .padding(.top, 12)
         .padding(.bottom, 16)
+        .background(
+            Rectangle()
+                .fill(.ultraThinMaterial)
+                .mask(
+                    LinearGradient(
+                        stops: [
+                            .init(color: .black, location: 0.0),
+                            .init(color: .black, location: 0.65),
+                            .init(color: .clear, location: 1.0)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+        )
         .background(WindowDragView())
+        .zIndex(10)
     }
 
     // MARK: - Trigger Section
@@ -1132,7 +1148,23 @@ struct FolderInspectorView: View {
         .padding(.horizontal, 22)
         .padding(.top, 12)
         .padding(.bottom, 16)
+        .background(
+            Rectangle()
+                .fill(.ultraThinMaterial)
+                .mask(
+                    LinearGradient(
+                        stops: [
+                            .init(color: .black, location: 0.0),
+                            .init(color: .black, location: 0.65),
+                            .init(color: .clear, location: 1.0)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+        )
         .background(WindowDragView())
+        .zIndex(10)
     }
     .ignoresSafeArea(.container, edges: .top)
         .onAppear {
@@ -1715,17 +1747,18 @@ struct MainEditorView: View {
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
                 .background(
-                    Capsule()
-                        .fill(Color.white.opacity(0.08))
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(Color.white.opacity(0.10))
                 )
                 .overlay(
-                    Capsule()
-                        .stroke(isSearchFocused ? Color.accentColor : Color.clear, lineWidth: 1.5)
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(isSearchFocused ? Color.accentColor : Color.white.opacity(0.12), lineWidth: 1)
                         .animation(.easeInOut(duration: 0.15), value: isSearchFocused)
                 )
                 .padding(.horizontal, 12)
                 .padding(.top, 12)
                 .padding(.bottom, 10)
+                .zIndex(100)
 
                 // Section Header
                 HStack {
@@ -1927,7 +1960,23 @@ struct MainEditorView: View {
                         .padding(.horizontal, 22)
                         .padding(.top, 12)
                         .padding(.bottom, 16)
+                        .background(
+                            Rectangle()
+                                .fill(.ultraThinMaterial)
+                                .mask(
+                                    LinearGradient(
+                                        stops: [
+                                            .init(color: .black, location: 0.0),
+                                            .init(color: .black, location: 0.65),
+                                            .init(color: .clear, location: 1.0)
+                                        ],
+                                        startPoint: .top,
+                                        endPoint: .bottom
+                                    )
+                                )
+                        )
                         .background(WindowDragView())
+                        .zIndex(10)
                     }
                 }
             }
@@ -1936,29 +1985,6 @@ struct MainEditorView: View {
         }
         .ignoresSafeArea(.container, edges: .top)
         .navigationSplitViewStyle(.balanced)
-        .overlay(
-            // Window-Wide Frosted Glass Top Header Fade (spans 100% full width from sidebar to right pane!)
-            VStack {
-                Rectangle()
-                    .fill(.ultraThinMaterial)
-                    .mask(
-                        LinearGradient(
-                            stops: [
-                                .init(color: .black, location: 0.0),
-                                .init(color: .black, location: 0.65),
-                                .init(color: .clear, location: 1.0)
-                            ],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
-                    .frame(height: 64)
-                    .allowsHitTesting(false)
-                Spacer()
-            }
-            .ignoresSafeArea(.container, edges: .top),
-            alignment: .top
-        )
         .background(
             ZStack {
                 VisualEffectView(material: .fullScreenUI, blendingMode: .behindWindow)
