@@ -1,0 +1,5 @@
+# ShortKing Macro Script
+TRIGGER: f8
+
+# Actions:
+ACTION: click 532 545
