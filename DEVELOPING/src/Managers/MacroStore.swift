@@ -39,6 +39,7 @@ class MacroStore: ObservableObject {
     @Published var macros: [MacroItem] = []
     @Published var selectedFilePath: String?
     @Published var selectedFolderPath: String?
+    @Published var editingFolderPath: String? = nil
     @Published var watchDirectoryURL: URL
     @Published var isSidebarVisible = true
     @Published var selectedActionIDs: Set<UUID> = []
@@ -645,6 +646,25 @@ class MacroStore: ObservableObject {
         }
     }
 
+    @discardableResult
+    func createNewFolder(parentURL: URL? = nil) -> URL {
+        let targetDir = parentURL ?? (selectedFolderPath.map { URL(fileURLWithPath: $0) } ?? watchDirectoryURL)
+        var count = 1
+        var folderName = "New Folder"
+        var folderURL = targetDir.appendingPathComponent(folderName)
+        while FileManager.default.fileExists(atPath: folderURL.path) {
+            count += 1
+            folderName = "New Folder \(count)"
+            folderURL = targetDir.appendingPathComponent(folderName)
+        }
+        try? FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
+        self.selectedFolderPath = folderURL.path
+        self.selectedFilePath = nil
+        self.editingFolderPath = folderURL.path
+        loadMacros()
+        return folderURL
+    }
+
     func createFolder(name: String, parentURL: URL? = nil) {
         let clean = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !clean.isEmpty else { return }
@@ -687,6 +707,9 @@ class MacroStore: ObservableObject {
         let dest = parent.appendingPathComponent(clean)
         guard dest != url else { return }
         try? FileManager.default.moveItem(at: url, to: dest)
+        if selectedFolderPath == url.path {
+            selectedFolderPath = dest.path
+        }
         loadMacros()
     }
 

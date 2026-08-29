@@ -1191,11 +1191,45 @@ struct VisualEffectView: NSViewRepresentable {
 // ==========================================
 // MARK: - Sidebar Tree Node View (macOS Tahoe / Finder Style)
 // ==========================================
-struct FolderPromptState: Identifiable {
-    let id = UUID()
-    let isNewFolder: Bool
-    let targetURL: URL?
-    var initialName: String
+struct InlineFolderRenameField: View {
+    @State private var text: String
+    @FocusState private var isFocused: Bool
+    var onCommit: (String) -> Void
+    var onCancel: () -> Void
+    
+    init(initialName: String, onCommit: @escaping (String) -> Void, onCancel: @escaping () -> Void) {
+        _text = State(initialValue: initialName)
+        self.onCommit = onCommit
+        self.onCancel = onCancel
+    }
+    
+    var body: some View {
+        TextField("", text: $text)
+            .font(.system(size: 13, weight: .medium))
+            .textFieldStyle(.plain)
+            .padding(.horizontal, 4)
+            .padding(.vertical, 2)
+            .background(Color.white.opacity(0.15))
+            .clipShape(RoundedRectangle(cornerRadius: 3))
+            .overlay(RoundedRectangle(cornerRadius: 3).stroke(Color.accentColor, lineWidth: 1.5))
+            .focused($isFocused)
+            .onAppear {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                    isFocused = true
+                }
+            }
+            .onSubmit {
+                let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty {
+                    onCommit(trimmed)
+                } else {
+                    onCancel()
+                }
+            }
+            .onExitCommand {
+                onCancel()
+            }
+    }
 }
 
 struct SidebarNodeView: View {
@@ -1205,7 +1239,6 @@ struct SidebarNodeView: View {
     @Binding var selectedPaths: Set<String>
     @ObservedObject var store = MacroStore.shared
     var onSelect: (String, NSEvent.ModifierFlags) -> Void
-    var onPromptFolder: (Bool, URL?, String) -> Void
 
     @State private var isDropTarget = false
     @State private var isHovered = false
@@ -1234,8 +1267,7 @@ struct SidebarNodeView: View {
                         depth: depth + 1,
                         expandedFolders: $expandedFolders,
                         selectedPaths: $selectedPaths,
-                        onSelect: onSelect,
-                        onPromptFolder: onPromptFolder
+                        onSelect: onSelect
                     )
                 }
             } label: {
@@ -1265,10 +1297,23 @@ struct SidebarNodeView: View {
                             .frame(width: 18, height: 18)
                     }
 
-                    Text(name.toTitleCase())
-                        .font(.system(size: 13, weight: isSelected ? .bold : .medium))
-                        .foregroundColor(isSelected ? Color.accentColor : (config.isEnabled ? Color(white: 0.92) : Color.secondary.opacity(0.7)))
-                        .lineLimit(1)
+                    if store.editingFolderPath == url.path {
+                        InlineFolderRenameField(
+                            initialName: name,
+                            onCommit: { newName in
+                                store.renameFolder(at: url, newName: newName)
+                                store.editingFolderPath = nil
+                            },
+                            onCancel: {
+                                store.editingFolderPath = nil
+                            }
+                        )
+                    } else {
+                        Text(name.toTitleCase())
+                            .font(.system(size: 13, weight: isSelected ? .bold : .medium))
+                            .foregroundColor(isSelected ? Color.accentColor : (config.isEnabled ? Color(white: 0.92) : Color.secondary.opacity(0.7)))
+                            .lineLimit(1)
+                    }
                     
                     Spacer()
                     
@@ -1336,7 +1381,9 @@ struct SidebarNodeView: View {
                     }
 
                     Button {
-                        onPromptFolder(true, url, "")
+                        let newSub = store.createNewFolder(parentURL: url)
+                        _ = expandedFolders.insert(url.path)
+                        _ = expandedFolders.insert(newSub.path)
                     } label: {
                         Label("New Subfolder…", systemImage: "folder.badge.plus")
                     }
@@ -1353,7 +1400,7 @@ struct SidebarNodeView: View {
                     }
 
                     Button {
-                        onPromptFolder(false, url, name)
+                        store.editingFolderPath = url.path
                     } label: {
                         Label("Rename Folder…", systemImage: "pencil")
                     }
@@ -1469,7 +1516,9 @@ struct SidebarNodeView: View {
 
                 Button {
                     let parentFolderURL = macro.fileURL.deletingLastPathComponent()
-                    onPromptFolder(true, parentFolderURL, "")
+                    let newF = store.createNewFolder(parentURL: parentFolderURL)
+                    _ = expandedFolders.insert(parentFolderURL.path)
+                    _ = expandedFolders.insert(newF.path)
                 } label: {
                     Label("New Folder…", systemImage: "folder.badge.plus")
                 }
@@ -1560,11 +1609,6 @@ struct MainEditorView: View {
     @State private var lastClickedPath: String? = nil
     @State private var isRootDropTarget = false
     @State private var columnVisibility = NavigationSplitViewVisibility.all
-    
-    // Folder modal/alert states
-    @State private var folderPrompt: FolderPromptState?
-    @State private var folderInputText = ""
-    @State private var showingFolderAlert = false
     @FocusState private var isSearchFocused: Bool
     @State private var keyMonitor: Any? = nil
     @AppStorage("alwaysOnTop") private var alwaysOnTop: Bool = false
@@ -1730,12 +1774,7 @@ struct MainEditorView: View {
                                 depth: 0,
                                 expandedFolders: $expandedFolders,
                                 selectedPaths: $selectedPaths,
-                                onSelect: handleSelect,
-                                onPromptFolder: { isNew, url, name in
-                                    folderPrompt = FolderPromptState(isNewFolder: isNew, targetURL: url, initialName: name)
-                                    folderInputText = name
-                                    showingFolderAlert = true
-                                }
+                                onSelect: handleSelect
                             )
                         }
                     }
@@ -1750,9 +1789,8 @@ struct MainEditorView: View {
                     }
 
                     Button {
-                        folderPrompt = FolderPromptState(isNewFolder: true, targetURL: nil, initialName: "")
-                        folderInputText = ""
-                        showingFolderAlert = true
+                        let newF = store.createNewFolder()
+                        _ = expandedFolders.insert(newF.path)
                     } label: {
                         Label("New Folder…", systemImage: "folder.badge.plus")
                     }
@@ -1783,9 +1821,8 @@ struct MainEditorView: View {
                         .help("New Macro (⌘N)")
 
                         Button {
-                            folderPrompt = FolderPromptState(isNewFolder: true, targetURL: nil, initialName: "")
-                            folderInputText = ""
-                            showingFolderAlert = true
+                            let newF = store.createNewFolder()
+                            _ = expandedFolders.insert(newF.path)
                         } label: {
                             Image(systemName: "folder.badge.plus")
                                 .font(.system(size: 12))
@@ -1986,22 +2023,6 @@ struct MainEditorView: View {
                     selectedPaths = [path]
                 }
             }
-        }
-        .alert(isPresented: $showingFolderAlert) {
-            let isNew = folderPrompt?.isNewFolder ?? true
-            return Alert(
-                title: Text(isNew ? "New Folder" : "Rename Folder"),
-                message: Text("Enter folder name:"),
-                primaryButton: .default(Text(isNew ? "Create" : "Rename")) {
-                    guard !folderInputText.trimmingCharacters(in: .whitespaces).isEmpty else { return }
-                    if isNew {
-                        store.createFolder(name: folderInputText, parentURL: folderPrompt?.targetURL)
-                    } else if let url = folderPrompt?.targetURL {
-                        store.renameFolder(at: url, newName: folderInputText)
-                    }
-                },
-                secondaryButton: .cancel()
-            )
         }
         .onAppear {
             for node in store.treeNodes {
