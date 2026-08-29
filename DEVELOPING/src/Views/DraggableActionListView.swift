@@ -669,6 +669,10 @@ struct DraggableActionList: View {
                     )
                     .onDrag {
                         draggingID = itemID
+                        if !MacroStore.shared.selectedActionIDs.contains(itemID) {
+                            MacroStore.shared.selectedActionIDs = [itemID]
+                            MacroStore.shared.lastSelectedActionID = itemID
+                        }
                         if let selected = MacroStore.shared.selectedMacro {
                             MacroStore.shared.registerUndoState(for: selected)
                         }
@@ -684,7 +688,8 @@ struct DraggableActionList: View {
                         onSave: onSave,
                         onInsertTemplate: onInsertTemplate
                     ))
-                    .opacity(draggingID == itemID ? 0.3 : 1.0)
+                    .opacity(draggingID == itemID ? 0.92 : 1.0)
+                    .shadow(color: draggingID == itemID ? Color.accentColor.opacity(0.4) : Color.clear, radius: 4, x: 0, y: 2)
                 }
             }
             
