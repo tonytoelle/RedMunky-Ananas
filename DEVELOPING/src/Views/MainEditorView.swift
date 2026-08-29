@@ -1643,6 +1643,14 @@ struct MainEditorView: View {
         return result
     }
 
+    private func expandAncestors(of path: String) {
+        var parent = URL(fileURLWithPath: path).deletingLastPathComponent()
+        while parent.path != store.watchDirectoryURL.path && parent.path.hasPrefix(store.watchDirectoryURL.path) {
+            _ = expandedFolders.insert(parent.path)
+            parent = parent.deletingLastPathComponent()
+        }
+    }
+
     func getVisiblePaths(from nodes: [FileSystemNode]) -> [String] {
         var paths: [String] = []
         for node in nodes {
@@ -2015,6 +2023,7 @@ struct MainEditorView: View {
                 if !selectedPaths.contains(path) {
                     selectedPaths = [path]
                 }
+                expandAncestors(of: path)
             }
         }
         .onChange(of: store.selectedFolderPath) { _, newPath in
@@ -2022,6 +2031,8 @@ struct MainEditorView: View {
                 if !selectedPaths.contains(path) {
                     selectedPaths = [path]
                 }
+                expandAncestors(of: path)
+                _ = expandedFolders.insert(path)
             }
         }
         .onAppear {
@@ -2029,6 +2040,13 @@ struct MainEditorView: View {
                 if case .folder(_, let url, _, _) = node {
                     _ = expandedFolders.insert(url.path)
                 }
+            }
+            if let currentMacro = store.selectedFilePath {
+                expandAncestors(of: currentMacro)
+            }
+            if let currentFolder = store.selectedFolderPath {
+                expandAncestors(of: currentFolder)
+                _ = expandedFolders.insert(currentFolder)
             }
             
             keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in

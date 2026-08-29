@@ -1,6 +1,0 @@
-# ShortKing Macro Script
-TRIGGER: cmd+shift+k
-
-# Actions:
-ACTION: drag 1150 238 to 3426 883
-ACTION: right_click 1112 610
