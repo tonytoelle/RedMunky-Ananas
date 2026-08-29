@@ -52,12 +52,13 @@ struct MacroInspectorView: View {
                 }
                 .padding(.horizontal, 22)
                 .padding(.bottom, 22)
-                .padding(.top, 72)
+                .padding(.top, 64)
             }
             .background(Color(white: 0.1))
             
             headerSection
         }
+        .ignoresSafeArea(.container, edges: .top)
         .onAppear {
             tempName = macro.fileName.replacingOccurrences(of: ".shortking", with: "")
             isEditingName = false
@@ -179,8 +180,8 @@ struct MacroInspectorView: View {
             .help("Always on Top")
         }
         .padding(.horizontal, 22)
-        .padding(.top, 16)
-        .padding(.bottom, 22)
+        .padding(.top, 12)
+        .padding(.bottom, 16)
         .background(
             Rectangle()
                 .fill(.ultraThinMaterial)
@@ -1146,8 +1147,8 @@ struct FolderInspectorView: View {
             .help("Always on Top")
         }
         .padding(.horizontal, 22)
-        .padding(.top, 16)
-        .padding(.bottom, 22)
+        .padding(.top, 12)
+        .padding(.bottom, 16)
         .background(
             Rectangle()
                 .fill(.ultraThinMaterial)
@@ -1165,6 +1166,7 @@ struct FolderInspectorView: View {
         )
         .background(WindowDragView())
     }
+    .ignoresSafeArea(.container, edges: .top)
     .background(Color(white: 0.1))
         .onAppear {
             folderName = folderURL.lastPathComponent
@@ -1957,16 +1959,32 @@ struct MainEditorView: View {
                             .help("Always on Top")
                         }
                         .padding(.horizontal, 22)
-                        .padding(.top, 24)
-                        .frame(height: 68)
-                        .background(Color.clear)
+                        .padding(.top, 12)
+                        .padding(.bottom, 16)
+                        .background(
+                            Rectangle()
+                                .fill(.ultraThinMaterial)
+                                .mask(
+                                    LinearGradient(
+                                        stops: [
+                                            .init(color: .black, location: 0.0),
+                                            .init(color: .black, location: 0.65),
+                                            .init(color: .clear, location: 1.0)
+                                        ],
+                                        startPoint: .top,
+                                        endPoint: .bottom
+                                    )
+                                )
+                        )
                         .background(WindowDragView())
                     }
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color(white: 0.1))
+            .ignoresSafeArea(.container, edges: .top)
         }
+        .ignoresSafeArea(.container, edges: .top)
         .navigationSplitViewStyle(.balanced)
         .onChange(of: columnVisibility) { _, newValue in
             store.isSidebarVisible = (newValue != .detailOnly)
