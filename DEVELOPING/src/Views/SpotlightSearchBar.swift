@@ -7,6 +7,14 @@ import CoreImage
 import CoreImage.CIFilterBuiltins
 import ServiceManagement
 
+// MARK: - Width Preference Key
+struct WidthPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
+}
+
 // MARK: - Searchable Action Item Definition
 // ==========================================
 struct SearchableActionDef: Identifiable {
@@ -52,6 +60,9 @@ struct SpotlightSearchBar: View {
     @State private var showAllResults: Bool = false
     @FocusState private var isFocused: Bool
     
+    @State private var columnsCount: Int = 5
+    @State private var keyMonitor: Any? = nil
+    
     let categories = ["All", "Mouse", "Keyboard", "System", "Utility"]
     let columns = [GridItem(.adaptive(minimum: 64, maximum: 74), spacing: 10)]
     
@@ -70,12 +81,16 @@ struct SpotlightSearchBar: View {
         }.sorted { $0.score < $1.score }
     }
     
+    // Limits the items displayed so the grid row is never incomplete/ompong
     var visibleItems: [(offset: Int, element: (item: SearchableActionDef, score: Int))] {
         let allFiltered = Array(filteredItems.enumerated())
         if showAllResults {
             return allFiltered
         } else {
-            return Array(allFiltered.prefix(10))
+            // Find a target multiple of columnsCount closest to 10
+            let targetRows = max(1, Int(ceil(10.0 / Double(columnsCount))))
+            let limit = targetRows * columnsCount
+            return Array(allFiltered.prefix(limit))
         }
     }
     
@@ -95,11 +110,7 @@ struct SpotlightSearchBar: View {
                         .font(.system(size: 13, weight: .regular))
                         .focused($isFocused)
                         .onSubmit {
-                            if !filteredItems.isEmpty {
-                                let idx = min(selectedIndex, filteredItems.count - 1)
-                                onSelect(filteredItems[idx].item)
-                                query = ""
-                            }
+                            executeSelection()
                         }
                     
                     if !query.isEmpty {
@@ -226,15 +237,25 @@ struct SpotlightSearchBar: View {
                             }
                         }
                         .padding(.top, 4)
+                        .background(
+                            GeometryReader { geo in
+                                Color.clear
+                                    .preference(key: WidthPreferenceKey.self, value: geo.size.width)
+                            }
+                        )
+                        .onPreferenceChange(WidthPreferenceKey.self) { width in
+                            let colWidth: CGFloat = 74
+                            columnsCount = max(1, Int(width / colWidth))
+                        }
                         
                         // "See More" Button
-                        if !showAllResults && filteredItems.count > 10 {
+                        if !showAllResults && filteredItems.count > visibleItems.count {
                             Button {
                                 withAnimation(.easeInOut(duration: 0.2)) {
                                     showAllResults = true
                                 }
                             } label: {
-                                Text("See More (\(filteredItems.count - 10) more)")
+                                Text("See More (\(filteredItems.count - visibleItems.count) more)")
                                     .font(.system(size: 11, weight: .semibold))
                                     .foregroundColor(.white)
                                     .padding(.horizontal, 16)
@@ -273,6 +294,72 @@ struct SpotlightSearchBar: View {
         .clipShape(RoundedRectangle(cornerRadius: 18))
         .onAppear {
             isFocused = true
+            setupKeyMonitor()
+        }
+        .onDisappear {
+            removeKeyMonitor()
+        }
+        .onChange(of: isFocused) { _, focused in
+            if focused {
+                setupKeyMonitor()
+            } else {
+                removeKeyMonitor()
+            }
+        }
+    }
+    
+    private func executeSelection() {
+        let itemsCount = visibleItems.count
+        if itemsCount > 0 {
+            let idx = min(selectedIndex, itemsCount - 1)
+            onSelect(visibleItems[idx].element.item)
+            query = ""
+        }
+    }
+    
+    private func setupKeyMonitor() {
+        removeKeyMonitor()
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            let itemsCount = visibleItems.count
+            guard itemsCount > 0 else { return event }
+            
+            switch event.keyCode {
+            case 123: // Left arrow
+                if selectedIndex > 0 {
+                    selectedIndex -= 1
+                    return nil
+                }
+            case 124: // Right arrow
+                if selectedIndex < itemsCount - 1 {
+                    selectedIndex += 1
+                    return nil
+                }
+            case 125: // Down arrow
+                let newIndex = selectedIndex + columnsCount
+                if newIndex < itemsCount {
+                    selectedIndex = newIndex
+                    return nil
+                }
+            case 126: // Up arrow
+                let newIndex = selectedIndex - columnsCount
+                if newIndex >= 0 {
+                    selectedIndex = newIndex
+                    return nil
+                }
+            case 36: // Enter
+                executeSelection()
+                return nil
+            default:
+                break
+            }
+            return event
+        }
+    }
+    
+    private func removeKeyMonitor() {
+        if let monitor = keyMonitor {
+            NSEvent.removeMonitor(monitor)
+            keyMonitor = nil
         }
     }
 }
