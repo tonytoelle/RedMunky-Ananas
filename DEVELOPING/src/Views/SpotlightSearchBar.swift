@@ -36,6 +36,7 @@ struct SearchableActionDef: Identifiable {
         .init(title: "Brit Down", icon: "sun.min.fill", color: Color.orange, category: "System"),
         .init(title: "Window Transform", icon: "macwindow", color: Color(red: 0.1, green: 0.58, blue: 0.8), category: "Utility"),
         .init(title: "Origin", icon: "scope", color: Color(red: 0.85, green: 0.15, blue: 0.45), category: "Mouse"),
+        .init(title: "AX Press", icon: "hand.tap", color: Color.purple, category: "Utility"),
     ]
 }
 
