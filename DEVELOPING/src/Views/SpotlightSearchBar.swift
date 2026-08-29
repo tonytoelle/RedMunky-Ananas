@@ -14,31 +14,32 @@ struct SearchableActionDef: Identifiable {
     let title: String
     let icon: String
     let color: Color
+    let category: String
     
     static let allActions: [SearchableActionDef] = [
-        .init(title: "Path", icon: "point.topleft.down.to.point.bottomright.curvepath.fill", color: Color(red: 0.65, green: 0.25, blue: 0.85)),
-        .init(title: "Left Click", icon: "cursorarrow.click", color: Color(red: 0.08, green: 0.45, blue: 0.82)),
-        .init(title: "Right Click", icon: "cursorarrow.click", color: Color(red: 0.04, green: 0.52, blue: 0.54)),
-        .init(title: "Drag", icon: "hand.draw", color: Color(red: 0.52, green: 0.22, blue: 0.75)),
-        .init(title: "Move Cursor", icon: "cursorarrow.motionlines", color: Color(red: 0.28, green: 0.52, blue: 0.92)),
-        .init(title: "Delay", icon: "timer", color: Color(red: 0.88, green: 0.42, blue: 0.04)),
-        .init(title: "Text", icon: "text.cursor", color: Color(red: 0.12, green: 0.58, blue: 0.24)),
-        .init(title: "Key", icon: "keyboard", color: Color(red: 0.32, green: 0.28, blue: 0.72)),
-        .init(title: "Do Again", icon: "arrow.counterclockwise", color: Color(red: 0.12, green: 0.58, blue: 0.65)),
-        .init(title: "Group", icon: "folder", color: Color.orange),
-        .init(title: "Custom", icon: "terminal", color: Color.pink),
-        .init(title: "Open File", icon: "arrow.up.forward.app", color: Color(red: 0.1, green: 0.65, blue: 0.6)),
-        .init(title: "Vol Up", icon: "speaker.wave.3.fill", color: Color.blue),
-        .init(title: "Vol Down", icon: "speaker.wave.1.fill", color: Color.blue),
-        .init(title: "Brit Up", icon: "sun.max.fill", color: Color.orange),
-        .init(title: "Brit Down", icon: "sun.min.fill", color: Color.orange),
-        .init(title: "Window Transform", icon: "macwindow", color: Color(red: 0.1, green: 0.58, blue: 0.8)),
-        .init(title: "Origin", icon: "scope", color: Color(red: 0.85, green: 0.15, blue: 0.45)),
+        .init(title: "Path", icon: "point.topleft.down.to.point.bottomright.curvepath.fill", color: Color(red: 0.65, green: 0.25, blue: 0.85), category: "Utility"),
+        .init(title: "Left Click", icon: "cursorarrow.click", color: Color(red: 0.08, green: 0.45, blue: 0.82), category: "Mouse"),
+        .init(title: "Right Click", icon: "cursorarrow.click", color: Color(red: 0.04, green: 0.52, blue: 0.54), category: "Mouse"),
+        .init(title: "Drag", icon: "hand.draw", color: Color(red: 0.52, green: 0.22, blue: 0.75), category: "Mouse"),
+        .init(title: "Move Cursor", icon: "cursorarrow.motionlines", color: Color(red: 0.28, green: 0.52, blue: 0.92), category: "Mouse"),
+        .init(title: "Delay", icon: "timer", color: Color(red: 0.88, green: 0.42, blue: 0.04), category: "Utility"),
+        .init(title: "Text", icon: "text.cursor", color: Color(red: 0.12, green: 0.58, blue: 0.24), category: "Keyboard"),
+        .init(title: "Key", icon: "keyboard", color: Color(red: 0.32, green: 0.28, blue: 0.72), category: "Keyboard"),
+        .init(title: "Do Again", icon: "arrow.counterclockwise", color: Color(red: 0.12, green: 0.58, blue: 0.65), category: "Utility"),
+        .init(title: "Group", icon: "folder", color: Color.orange, category: "Utility"),
+        .init(title: "Custom", icon: "terminal", color: Color.pink, category: "Utility"),
+        .init(title: "Open File", icon: "arrow.up.forward.app", color: Color(red: 0.1, green: 0.65, blue: 0.6), category: "Utility"),
+        .init(title: "Vol Up", icon: "speaker.wave.3.fill", color: Color.blue, category: "System"),
+        .init(title: "Vol Down", icon: "speaker.wave.1.fill", color: Color.blue, category: "System"),
+        .init(title: "Brit Up", icon: "sun.max.fill", color: Color.orange, category: "System"),
+        .init(title: "Brit Down", icon: "sun.min.fill", color: Color.orange, category: "System"),
+        .init(title: "Window Transform", icon: "macwindow", color: Color(red: 0.1, green: 0.58, blue: 0.8), category: "Utility"),
+        .init(title: "Origin", icon: "scope", color: Color(red: 0.85, green: 0.15, blue: 0.45), category: "Mouse"),
     ]
 }
 
 // ==========================================
-// MARK: - Spotlight-Style Search Bar
+// MARK: - Raycast/Spotlight Search View
 // ==========================================
 struct SpotlightSearchBar: View {
     let placeholder: String
@@ -46,101 +47,189 @@ struct SpotlightSearchBar: View {
     let onSelect: (SearchableActionDef) -> Void
     
     @State private var query: String = ""
-    @State private var isShowingDropdown: Bool = false
     @State private var selectedIndex: Int = 0
+    @State private var activeCategory: String = "All"
     @FocusState private var isFocused: Bool
     
+    let categories = ["All", "Mouse", "Keyboard", "System", "Utility"]
+    
     var filteredItems: [(item: SearchableActionDef, score: Int)] {
-        guard !query.trimmingCharacters(in: .whitespaces).isEmpty else {
-            return items.map { ($0, 0) }
+        let matchingCategoryItems = items.filter { item in
+            activeCategory == "All" || item.category == activeCategory
         }
-        return items.compactMap { item in
+        
+        guard !query.trimmingCharacters(in: .whitespaces).isEmpty else {
+            return matchingCategoryItems.map { ($0, 0) }
+        }
+        
+        return matchingCategoryItems.compactMap { item in
             let result = fuzzyMatch(query, in: item.title)
             return result.matches ? (item, result.score) : nil
         }.sorted { $0.score < $1.score }
     }
     
     var body: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 6) {
-                Image(systemName: "magnifyingglass")
-                    .foregroundColor(.secondary)
-                    .font(.system(size: 11))
-                TextField(placeholder, text: $query)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 12))
-                    .focused($isFocused)
-                    .onSubmit {
-                        if !filteredItems.isEmpty {
-                            let idx = min(selectedIndex, filteredItems.count - 1)
-                            onSelect(filteredItems[idx].item)
-                            query = ""
-                            isShowingDropdown = false
-                            isFocused = false
-                        }
-                    }
-                    .onChange(of: query) { _, newQuery in
-                        isShowingDropdown = !newQuery.isEmpty
-                        selectedIndex = 0
-                    }
-                if !query.isEmpty {
-                    Button { query = ""; isShowingDropdown = false } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundColor(.secondary)
-                            .font(.system(size: 10))
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 5)
-            .background(Color(white: 0.22))
-            .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
-            
-            if isShowingDropdown && !filteredItems.isEmpty {
-                VStack(spacing: 0) {
-                    ForEach(Array(filteredItems.prefix(8).enumerated()), id: \.element.item.id) { idx, entry in
-                        Button {
-                            onSelect(entry.item)
-                            query = ""
-                            isShowingDropdown = false
-                            isFocused = false
-                        } label: {
-                            HStack(spacing: 8) {
-                                ZStack {
-                                    RoundedRectangle(cornerRadius: 5, style: .continuous)
-                                        .fill(entry.item.color)
-                                        .frame(width: 22, height: 22)
-                                    Image(systemName: entry.item.icon)
-                                        .foregroundColor(.white)
-                                        .font(.system(size: 11, weight: .semibold))
-                                }
-                                Text(entry.item.title)
-                                    .font(.system(size: 12, weight: .medium))
-                                    .foregroundColor(.white)
-                                Spacer()
+        VStack(spacing: 12) {
+            // Top Search Area: Pill Bar & Circular Action Buttons
+            HStack(spacing: 8) {
+                // The Capsule Search Pill Bar
+                HStack(spacing: 8) {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundColor(.secondary)
+                        .font(.system(size: 13, weight: .medium))
+                        .padding(.leading, 12)
+                    
+                    TextField(placeholder, text: $query)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 13, weight: .regular))
+                        .focused($isFocused)
+                        .onSubmit {
+                            if !filteredItems.isEmpty {
+                                let idx = min(selectedIndex, filteredItems.count - 1)
+                                onSelect(filteredItems[idx].item)
+                                query = ""
                             }
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(idx == selectedIndex ? Color.white.opacity(0.1) : Color.clear)
-                            .contentShape(Rectangle())
+                        }
+                    
+                    if !query.isEmpty {
+                        Button {
+                            query = ""
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundColor(.secondary)
+                                .font(.system(size: 12))
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.trailing, 8)
+                    }
+                }
+                .frame(height: 36)
+                .background(
+                    Color(nsColor: .windowBackgroundColor).opacity(0.85)
+                )
+                .background(.ultraThinMaterial)
+                .clipShape(Capsule())
+                .overlay(
+                    Capsule()
+                        .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                )
+                
+                // Circular Action Button (Clear / Filter Reset)
+                Button {
+                    query = ""
+                    activeCategory = "All"
+                    selectedIndex = 0
+                } label: {
+                    Image(systemName: "arrow.counterclockwise")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(.white)
+                        .frame(width: 32, height: 32)
+                        .background(.ultraThinMaterial)
+                        .clipShape(Circle())
+                        .overlay(Circle().stroke(Color.white.opacity(0.12), lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+                .help("Reset Search Filters")
+            }
+            .padding(.horizontal, 4)
+            
+            // Category Chips Scroll Bar
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) {
+                    ForEach(categories, id: \.self) { cat in
+                        Button {
+                            activeCategory = cat
+                            selectedIndex = 0
+                        } label: {
+                            Text(cat)
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundColor(activeCategory == cat ? .white : .secondary)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 5)
+                                .background(activeCategory == cat ? Color.white.opacity(0.15) : Color.white.opacity(0.04))
+                                .clipShape(Capsule())
+                                .overlay(
+                                    Capsule()
+                                        .stroke(activeCategory == cat ? Color.white.opacity(0.2) : Color.clear, lineWidth: 1)
+                                )
                         }
                         .buttonStyle(.plain)
                     }
                 }
-                .padding(.vertical, 4)
-                .background(Color(white: 0.20))
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                )
-                .padding(.top, 4)
+                .padding(.horizontal, 4)
             }
+            
+            // Results List
+            ScrollView(showsIndicators: true) {
+                VStack(spacing: 4) {
+                    if filteredItems.isEmpty {
+                        Text("No matching actions found")
+                            .font(.system(size: 12))
+                            .foregroundColor(.secondary)
+                            .padding(.vertical, 12)
+                    } else {
+                        ForEach(Array(filteredItems.enumerated()), id: \.element.item.id) { idx, entry in
+                            Button {
+                                onSelect(entry.item)
+                                query = ""
+                            } label: {
+                                HStack(spacing: 10) {
+                                    // Circular Action Icon
+                                    ZStack {
+                                        Circle()
+                                            .fill(entry.item.color)
+                                            .frame(width: 24, height: 24)
+                                        Image(systemName: entry.item.icon)
+                                            .foregroundColor(.white)
+                                            .font(.system(size: 11, weight: .semibold))
+                                    }
+                                    
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(entry.item.title)
+                                            .font(.system(size: 12, weight: .medium))
+                                            .foregroundColor(.white)
+                                        Text(entry.item.category)
+                                            .font(.system(size: 9))
+                                            .foregroundColor(.secondary)
+                                    }
+                                    
+                                    Spacer()
+                                    
+                                    // Tag badge
+                                    Text("Add")
+                                        .font(.system(size: 10, weight: .medium))
+                                        .foregroundColor(.white.opacity(0.7))
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 3)
+                                        .background(Color.white.opacity(0.08))
+                                        .clipShape(Capsule())
+                                }
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 10)
+                                        .fill(idx == selectedIndex ? Color.white.opacity(0.12) : Color.clear)
+                                )
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .onHover { isHovered in
+                                if isHovered {
+                                    selectedIndex = idx
+                                }
+                            }
+                        }
+                    }
+                }
+                .padding(.horizontal, 4)
+            }
+            .frame(maxHeight: 180)
+        }
+        .padding(12)
+        .background(Color(nsColor: .windowBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 18))
+        .onAppear {
+            isFocused = true
         }
     }
 }
-
-// ==========================================
-// MARK: - Macro Inspector (Right Column - System Settings Canvas)
-// ==========================================
