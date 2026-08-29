@@ -1072,6 +1072,41 @@ class MacroStore: ObservableObject {
             }
         }
     }
+    
+    func insertDefaultAction(typeName: String) {
+        guard let macro = selectedMacro else { return }
+        registerUndoState(for: macro)
+        
+        let newAction: MacroAction
+        switch typeName {
+        case "Path": newAction = .path(points: [])
+        case "Left Click": newAction = .click(point: .zero, button: .left)
+        case "Right Click": newAction = .click(point: .zero, button: .right)
+        case "Drag": newAction = .drag(start: .zero, end: .zero)
+        case "Move Cursor": newAction = .moveCursor(point: .zero)
+        case "Delay": newAction = .delay(ms: 300)
+        case "Text": newAction = .typeText(text: "Hello ShortKing")
+        case "Key": newAction = .pressKey(keyCode: 36)
+        case "Do Again": newAction = .doAgain(target: .origin)
+        case "Group": newAction = .group(name: "New Group", actions: [])
+        case "Custom": newAction = .customAction(script: "osascript -e 'set volume output volume (output volume of (get volume settings) + 6)'")
+        case "Open File": newAction = .openFile(path: "")
+        case "Vol Up": newAction = .volumeUp
+        case "Vol Down": newAction = .volumeDown
+        case "Brit Up": newAction = .brightnessUp
+        case "Brit Down": newAction = .brightnessDown
+        case "Window Transform": newAction = .windowTransform(p1: .zero, p2: .zero, p3: .zero, p4: .zero)
+        case "Origin": newAction = .originAction(type: .cursor)
+        default: newAction = .delay(ms: 300)
+        }
+        
+        let newActionItem = MacroActionItem(action: newAction)
+        macro.actionItems.append(newActionItem)
+        selectedActionIDs = [newActionItem.id]
+        lastSelectedActionID = newActionItem.id
+        isGridFocused = false
+        saveMacro(macro)
+    }
 }
 
 // ==========================================

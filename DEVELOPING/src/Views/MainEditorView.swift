@@ -2137,9 +2137,7 @@ struct MainEditorView: View {
                         let all = SearchableActionDef.allActions
                         if store.gridSelectedIndex >= 0 && store.gridSelectedIndex < all.count {
                             let actionDef = all[store.gridSelectedIndex]
-                            let isAlt = hasKeySwitchTrigger && activeActionTarget == .alternate
-                            let tIdx = isAlt ? (macro.triggers.first(where: { $0.mode == .keySwitch })?.alternateActionItems.count ?? 0) : macro.actionItems.count
-                            insertAction(typeName: actionDef.title, targetIndex: tIdx, isAlternate: isAlt)
+                            store.insertDefaultAction(typeName: actionDef.title)
                         }
                         return nil
                     }
