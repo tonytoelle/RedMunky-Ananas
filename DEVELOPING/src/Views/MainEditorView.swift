@@ -29,6 +29,14 @@ struct MacroInspectorView: View {
     
     @AppStorage("alwaysOnTop") private var alwaysOnTop: Bool = false
     
+    @State private var scrollOffset: CGFloat = 0
+    
+    var scrollProgress: CGFloat {
+        let threshold: CGFloat = 40.0
+        let offset = -scrollOffset
+        return min(1.0, max(0.0, offset / threshold))
+    }
+    
     // Detect if any trigger is key switch
     var hasKeySwitchTrigger: Bool {
         macro.triggers.contains { $0.mode == .keySwitch }
@@ -39,12 +47,60 @@ struct MacroInspectorView: View {
             // Main Detail ScrollView — 2 areas: Trigger + Actions
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 14) {
+                    // Dynamic Large Title
+                    HStack(spacing: 8) {
+                        if isEditingName {
+                            TextField("Macro Name", text: $tempName)
+                                .font(.system(size: 28, weight: .bold))
+                                .textFieldStyle(.plain)
+                                .foregroundColor(.white)
+                                .lineLimit(1)
+                                .frame(minWidth: 80, maxWidth: 320)
+                                .focused($isNameFocused)
+                                .onSubmit {
+                                    store.renameMacro(macro, newBaseName: tempName)
+                                    isNameFocused = false
+                                    isEditingName = false
+                                }
+                                .onChange(of: isNameFocused) { _, focused in
+                                    if !focused {
+                                        store.renameMacro(macro, newBaseName: tempName)
+                                        isEditingName = false
+                                    }
+                                }
+                                .onAppear {
+                                    isNameFocused = true
+                                }
+                        } else {
+                            Text(tempName.isEmpty ? "Untitled Macro" : tempName.capitalized)
+                                .font(.system(size: 28, weight: .bold))
+                                .foregroundColor(.white)
+                                .lineLimit(1)
+                                .onTapGesture(count: 2) {
+                                    isEditingName = true
+                                }
+                        }
+                    }
+                    .opacity(1.0 - scrollProgress)
+                    .offset(y: scrollOffset > 0 ? 0 : scrollOffset * 0.3)
+                    .padding(.bottom, 10)
+
                     triggerSection
                     actionsSection
                 }
                 .padding(.horizontal, 22)
                 .padding(.bottom, 22)
                 .padding(.top, 76)
+                .background(
+                    GeometryReader { geo in
+                        Color.clear
+                            .preference(key: ScrollOffsetPreferenceKey.self, value: geo.frame(in: .named("scroll_macro")).minY)
+                    }
+                )
+            }
+            .coordinateSpace(name: "scroll_macro")
+            .onPreferenceChange(ScrollOffsetPreferenceKey.self) { value in
+                scrollOffset = value - 76
             }
             .background(Color(white: 0.1))
             
@@ -68,66 +124,56 @@ struct MacroInspectorView: View {
     // MARK: - Header Section
     @ViewBuilder
     private var headerSection: some View {
-        HStack(spacing: 12) {
-            HStack(spacing: 4) {
-                if isEditingName {
-                    TextField("Macro Name", text: $tempName)
-                        .font(.system(size: 28, weight: .bold))
-                        .textFieldStyle(.plain)
-                        .foregroundColor(.white)
-                        .lineLimit(1)
-                        .frame(minWidth: 80, maxWidth: 320)
-                        .focused($isNameFocused)
-                        .onSubmit {
-                            store.renameMacro(macro, newBaseName: tempName)
-                            isNameFocused = false
-                            isEditingName = false
-                        }
-                        .onChange(of: isNameFocused) { _, focused in
-                            if !focused {
-                                store.renameMacro(macro, newBaseName: tempName)
-                                isEditingName = false
-                            }
-                        }
-                        .onAppear {
-                            isNameFocused = true
-                        }
-                } else {
-                    Text(tempName.isEmpty ? "Untitled Macro" : tempName.capitalized)
-                        .font(.system(size: 28, weight: .bold))
-                        .foregroundColor(.white)
-                        .lineLimit(1)
-                        .onTapGesture(count: 2) {
-                            isEditingName = true
-                        }
+        ZStack {
+            // Center inline title (fades in)
+            Text(tempName.isEmpty ? "Untitled Macro" : tempName.capitalized)
+                .font(.system(size: 13, weight: .bold))
+                .foregroundColor(.white)
+                .lineLimit(1)
+                .opacity(scrollProgress)
+                .frame(maxWidth: .infinity, alignment: .center)
+                .padding(.top, 24)
+
+            HStack(spacing: 12) {
+                Spacer()
+
+                if !permissions.isAccessibilityGranted {
+                    Button {
+                        permissions.openAccessibilitySettings()
+                    } label: {
+                        Image(systemName: "exclamationmark.shield.fill")
+                            .foregroundColor(.yellow)
+                            .font(.system(size: 13, weight: .bold))
+                            .frame(width: 30, height: 30)
+                            .background(.ultraThinMaterial)
+                            .clipShape(Circle())
+                            .overlay(Circle().stroke(Color.white.opacity(0.15), lineWidth: 0.5))
+                    }
+                    .buttonStyle(.plain)
+                    .help("Accessibility permission required to simulate keystrokes and mouse clicks")
                 }
-            }
-            .fixedSize(horizontal: true, vertical: false)
 
-            Spacer()
-
-            if !permissions.isAccessibilityGranted {
-                Button {
-                    permissions.openAccessibilitySettings()
-                } label: {
-                    Image(systemName: "exclamationmark.shield.fill")
-                        .foregroundColor(.yellow)
-                        .font(.system(size: 13, weight: .bold))
-                        .frame(width: 30, height: 30)
-                        .background(.ultraThinMaterial)
-                        .clipShape(Circle())
-                        .overlay(Circle().stroke(Color.white.opacity(0.15), lineWidth: 0.5))
+                if isDirty {
+                    Button {
+                        store.saveMacro(macro)
+                        isDirty = false
+                    } label: {
+                        Text("Save")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 6)
+                            .background(.ultraThinMaterial)
+                            .clipShape(Capsule())
+                            .overlay(Capsule().stroke(Color.white.opacity(0.15), lineWidth: 0.5))
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
-                .help("Accessibility permission required to simulate keystrokes and mouse clicks")
-            }
 
-            if isDirty {
                 Button {
-                    store.saveMacro(macro)
-                    isDirty = false
+                    store.runMacro(macro)
                 } label: {
-                    Text("Save")
+                    Label("Test Run", systemImage: "play.fill")
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(.white)
                         .padding(.horizontal, 14)
@@ -137,42 +183,32 @@ struct MacroInspectorView: View {
                         .overlay(Capsule().stroke(Color.white.opacity(0.15), lineWidth: 0.5))
                 }
                 .buttonStyle(.plain)
-            }
 
-            Button {
-                store.runMacro(macro)
-            } label: {
-                Label("Test Run", systemImage: "play.fill")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 6)
-                    .background(.ultraThinMaterial)
-                    .clipShape(Capsule())
-                    .overlay(Capsule().stroke(Color.white.opacity(0.15), lineWidth: 0.5))
-            }
-            .buttonStyle(.plain)
-
-            Button {
-                alwaysOnTop.toggle()
-                if let appDelegate = NSApp.delegate as? AppDelegate {
-                    appDelegate.updateAlwaysOnTop()
+                Button {
+                    alwaysOnTop.toggle()
+                    if let appDelegate = NSApp.delegate as? AppDelegate {
+                        appDelegate.updateAlwaysOnTop()
+                    }
+                } label: {
+                    Image(systemName: alwaysOnTop ? "pin.fill" : "pin")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(alwaysOnTop ? .accentColor : .secondary)
+                        .frame(width: 30, height: 30)
+                        .background(.ultraThinMaterial)
+                        .clipShape(Circle())
+                        .overlay(Circle().stroke(Color.white.opacity(0.15), lineWidth: 0.5))
                 }
-            } label: {
-                Image(systemName: alwaysOnTop ? "pin.fill" : "pin")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(alwaysOnTop ? .accentColor : .secondary)
-                    .frame(width: 30, height: 30)
-                    .background(.ultraThinMaterial)
-                    .clipShape(Circle())
-                    .overlay(Circle().stroke(Color.white.opacity(0.15), lineWidth: 0.5))
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
+            .padding(.horizontal, 22)
+            .padding(.top, 24)
         }
-        .padding(.horizontal, 22)
-        .padding(.top, 24)
         .frame(height: 68)
-        .background(Color.clear)
+        .background(
+            Rectangle()
+                .fill(.ultraThinMaterial)
+                .opacity(scrollProgress)
+        )
         .background(WindowDragView())
     }
 
@@ -2069,6 +2105,13 @@ struct MainEditorView: View {
             }
         }
         .frame(minWidth: 500, minHeight: 400)
+    }
+}
+
+struct ScrollOffsetPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
     }
 }
 

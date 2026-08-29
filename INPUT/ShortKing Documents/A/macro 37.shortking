@@ -5,3 +5,5 @@ TRIGGER: cmd+shift+k
 ACTION: drag 1150 238 to 3426 883
 ACTION: click 1016 729
 ACTION: delay 300
+ACTION: press return
+ACTION: press return
