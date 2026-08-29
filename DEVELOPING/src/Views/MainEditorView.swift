@@ -484,6 +484,14 @@ struct MacroInspectorView: View {
         
         let newActionItem = MacroActionItem(action: newAction)
         
+        let requiresCapture: Bool
+        switch newAction {
+        case .click, .drag, .moveCursor, .path, .windowTransform:
+            requiresCapture = true
+        default:
+            requiresCapture = false
+        }
+        
         if isAlternate {
             if let idx = macro.triggers.firstIndex(where: { $0.mode == .keySwitch }) {
                 var altItems = macro.triggers[idx].alternateActionItems
@@ -493,9 +501,11 @@ struct MacroInspectorView: View {
                     altItems.insert(newActionItem, at: targetIndex)
                 }
                 macro.triggers[idx].alternateActionItems = altItems
-                store.saveMacro(macro)
-                
-                triggerCaptureIfNeeded(for: newActionItem, index: targetIndex, isAlternate: true, switchTriggerIndex: idx)
+                if !requiresCapture {
+                    store.saveMacro(macro)
+                } else {
+                    triggerCaptureIfNeeded(for: newActionItem, index: targetIndex, isAlternate: true, switchTriggerIndex: idx)
+                }
             }
         } else {
             if targetIndex >= macro.actionItems.count {
@@ -503,9 +513,11 @@ struct MacroInspectorView: View {
             } else {
                 macro.actionItems.insert(newActionItem, at: targetIndex)
             }
-            store.saveMacro(macro)
-            
-            triggerCaptureIfNeeded(for: newActionItem, index: targetIndex, isAlternate: false, switchTriggerIndex: nil)
+            if !requiresCapture {
+                store.saveMacro(macro)
+            } else {
+                triggerCaptureIfNeeded(for: newActionItem, index: targetIndex, isAlternate: false, switchTriggerIndex: nil)
+            }
         }
     }
 
@@ -585,10 +597,20 @@ struct MacroInspectorView: View {
                 if shouldSave {
                     store.saveMacro(macro)
                 }
+            } else if let lastIdx = macro.triggers[idx].alternateActionItems.indices.last {
+                macro.triggers[idx].alternateActionItems[lastIdx].action = action
+                if shouldSave {
+                    store.saveMacro(macro)
+                }
             }
         } else {
             if let aIdx = macro.actionItems.firstIndex(where: { $0.id == id }) {
                 macro.actionItems[aIdx].action = action
+                if shouldSave {
+                    store.saveMacro(macro)
+                }
+            } else if let lastIdx = macro.actionItems.indices.last {
+                macro.actionItems[lastIdx].action = action
                 if shouldSave {
                     store.saveMacro(macro)
                 }
