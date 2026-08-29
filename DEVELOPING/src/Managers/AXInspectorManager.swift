@@ -226,7 +226,10 @@ class AXInspectorManager: ObservableObject {
         }
     }
     
-    // MARK: - Global & Local F10 Key Monitors (System Override)
+    // MARK: - Low-Level Global CGEventTap & Monitors for F10 (System-Wide Kernel Override)
+    private var inspectorEventTap: CFMachPort?
+    private var runLoopSource: CFRunLoopSource?
+
     private func installKeyMonitors() {
         removeKeyMonitors()
         
@@ -238,28 +241,77 @@ class AXInspectorManager: ObservableObject {
         // 2. Local monitor when ShortKing / Inspector is focused
         localKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self = self, self.isInspecting else { return event }
-            if event.keyCode == 109 || event.keyCode == 49 { // F10 or Spacebar
-                if let responder = NSApp.keyWindow?.firstResponder {
-                    if let tv = responder as? NSTextView, tv.isEditable { return event }
-                    if let tf = responder as? NSTextField, tf.isEditable { return event }
-                }
+            if event.keyCode == 109 { // F10
                 self.toggleLock()
                 return nil // consume event so it doesn't trigger UI controls
             }
             return event
         }
         
-        // 3. Global monitor when user is hovering over another app (DaVinci Resolve, Finder, etc.)
-        globalKeyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            guard let self = self, self.isInspecting else { return }
-            if event.keyCode == 109 || event.keyCode == 49 { // F10 or Spacebar
-                self.toggleLock()
+        // 3. Low-Level CGEventTap to intercept F10 at kernel/driver level across any application
+        let mask = (1 << CGEventType.keyDown.rawValue) | (1 << 14) // keyDown + NX_SYSDEFINED
+        inspectorEventTap = CGEvent.tapCreate(
+            tap: .cghidEventTap,
+            place: .headInsertEventTap,
+            options: .defaultTap,
+            eventsOfInterest: CGEventMask(mask),
+            callback: { (proxy, type, event, refcon) -> Unmanaged<CGEvent>? in
+                if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+                    if let tap = AXInspectorManager.shared.inspectorEventTap {
+                        CGEvent.tapEnable(tap: tap, enable: true)
+                    }
+                    return Unmanaged.passUnretained(event)
+                }
+                
+                if type == .keyDown {
+                    let keycode = event.getIntegerValueField(.keyboardEventKeycode)
+                    if keycode == 109 { // F10
+                        DispatchQueue.main.async {
+                            AXInspectorManager.shared.toggleLock()
+                        }
+                        return nil // Swallow F10 globally so no other app receives it!
+                    }
+                } else if type.rawValue == 14 { // NX_SYSDEFINED (Media / hardware key)
+                    if let nsEvent = NSEvent(cgEvent: event), nsEvent.subtype.rawValue == 8 {
+                        let data1 = nsEvent.data1
+                        let keyType = (data1 & 0xFFFF0000) >> 16
+                        let keyState = (data1 & 0xFF00) >> 8
+                        let isKeyDown = (keyState == 0xa)
+                        if isKeyDown && keyType == 7 { // NX_KEYTYPE_MUTE (F10 on Mac Keyboard)
+                            DispatchQueue.main.async {
+                                AXInspectorManager.shared.toggleLock()
+                            }
+                            return nil // Swallow
+                        }
+                    }
+                }
+                return Unmanaged.passUnretained(event)
+            },
+            userInfo: nil
+        )
+        
+        if let tap = inspectorEventTap {
+            runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
+            if let source = runLoopSource {
+                CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
             }
+            CGEvent.tapEnable(tap: tap, enable: true)
         }
     }
     
     private func removeKeyMonitors() {
         CarbonHotKeyManager.shared.unregisterInspectorF10()
+        
+        if let source = runLoopSource {
+            CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes)
+            runLoopSource = nil
+        }
+        if let tap = inspectorEventTap {
+            CGEvent.tapEnable(tap: tap, enable: false)
+            CFMachPortInvalidate(tap)
+            inspectorEventTap = nil
+        }
+        
         if let m = localKeyMonitor {
             NSEvent.removeMonitor(m)
             localKeyMonitor = nil
