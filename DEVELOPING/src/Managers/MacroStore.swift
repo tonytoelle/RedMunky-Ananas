@@ -37,15 +37,67 @@ class MacroStore: ObservableObject {
 
     @Published var treeNodes: [FileSystemNode] = []
     @Published var macros: [MacroItem] = []
-    @Published var selectedFilePath: String?
-    @Published var selectedFolderPath: String?
+    @Published var selectedFilePath: String? {
+        didSet {
+            if oldValue != selectedFilePath {
+                cleanAllOrphanedActions()
+                CaptureOverlayWindow.closeAllActiveWindows()
+            }
+        }
+    }
+    @Published var selectedFolderPath: String? {
+        didSet {
+            if oldValue != selectedFolderPath {
+                cleanAllOrphanedActions()
+                CaptureOverlayWindow.closeAllActiveWindows()
+            }
+        }
+    }
     @Published var editingFolderPath: String? = nil
     @Published var watchDirectoryURL: URL
     @Published var isSidebarVisible = true
-    @Published var selectedActionIDs: Set<UUID> = []
+    @Published var selectedActionIDs: Set<UUID> = [] {
+        didSet {
+            if oldValue != selectedActionIDs {
+                cleanAllOrphanedActions()
+                CaptureOverlayWindow.closeAllActiveWindows()
+            }
+        }
+    }
     @Published var lastSelectedActionID: UUID? = nil
     // Key switch toggle state: maps trigger ID -> current state (false = primary, true = alternate)
     var keySwitchStates: [UUID: Bool] = [:]
+    
+    func cleanAllOrphanedActions() {
+        for macro in macros {
+            var modified = false
+            let origCount = macro.actionItems.count
+            macro.actionItems.removeAll { item in
+                if case .path(let pts) = item.action, pts.isEmpty {
+                    return true
+                }
+                return false
+            }
+            if macro.actionItems.count != origCount {
+                modified = true
+            }
+            for tIdx in 0..<macro.triggers.count {
+                let origAltCount = macro.triggers[tIdx].alternateActionItems.count
+                macro.triggers[tIdx].alternateActionItems.removeAll { item in
+                    if case .path(let pts) = item.action, pts.isEmpty {
+                        return true
+                    }
+                    return false
+                }
+                if macro.triggers[tIdx].alternateActionItems.count != origAltCount {
+                    modified = true
+                }
+            }
+            if modified {
+                saveMacro(macro)
+            }
+        }
+    }
     
     @Published var focusedPane: FocusedPane = .left
     @Published var isTriggerFocused: Bool = false
