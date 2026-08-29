@@ -727,6 +727,14 @@ struct FolderInspectorView: View {
     ]
 
     @AppStorage("alwaysOnTop") private var alwaysOnTop: Bool = false
+    
+    @State private var scrollOffset: CGFloat = 0
+    
+    var scrollProgress: CGFloat {
+        let threshold: CGFloat = 36.0
+        let offset = -scrollOffset
+        return min(1.0, max(0.0, offset / threshold))
+    }
 
     var runningApps: [NSRunningApplication] {
         return NSWorkspace.shared.runningApplications.filter {
@@ -1132,9 +1140,39 @@ struct FolderInspectorView: View {
             }
             .padding(.horizontal, 24)
             .padding(.bottom, 24)
-            .padding(.top, 76)
-            
-            // Header bar (Window draggable area) - unified transparent bar matching AppleMusicUI
+            .padding(.top, 56)
+            .background(
+                GeometryReader { geo in
+                    Color.clear
+                        .preference(key: ScrollOffsetPreferenceKey.self, value: geo.frame(in: .named("scroll_folder")).minY)
+                }
+            )
+        }
+        .coordinateSpace(name: "scroll_folder")
+        .onPreferenceChange(ScrollOffsetPreferenceKey.self) { value in
+            scrollOffset = value - 56
+        }
+        
+        // Header bar (Window draggable area) - dynamic frosted glass matching Mac App Store
+        ZStack {
+            Rectangle()
+                .fill(.ultraThinMaterial)
+                .opacity(scrollProgress)
+                .overlay(
+                    Divider()
+                        .background(Color.white.opacity(0.08))
+                        .opacity(scrollProgress),
+                    alignment: .bottom
+                )
+
+            // Center inline title (fades in)
+            Text(folderName)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(.white)
+                .lineLimit(1)
+                .opacity(scrollProgress)
+                .frame(maxWidth: .infinity, alignment: .center)
+
             HStack(spacing: 12) {
                 Spacer()
 
@@ -1147,7 +1185,7 @@ struct FolderInspectorView: View {
                     Image(systemName: alwaysOnTop ? "pin.fill" : "pin")
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundColor(alwaysOnTop ? .accentColor : .secondary)
-                        .frame(width: 30, height: 30)
+                        .frame(width: 28, height: 28)
                         .background(.ultraThinMaterial)
                         .clipShape(Circle())
                         .overlay(Circle().stroke(Color.white.opacity(0.15), lineWidth: 0.5))
@@ -1155,13 +1193,12 @@ struct FolderInspectorView: View {
                 .buttonStyle(.plain)
                 .help("Always on Top")
             }
-            .padding(.horizontal, 22)
-            .padding(.top, 24)
-            .frame(height: 68)
-            .background(Color.clear)
-            .background(WindowDragView())
+            .padding(.horizontal, 20)
         }
-        .background(Color(white: 0.1))
+        .frame(height: 52)
+        .background(WindowDragView())
+    }
+    .background(Color(white: 0.1))
         .onAppear {
             folderName = folderURL.lastPathComponent
             tempFolderName = folderName
@@ -1171,7 +1208,6 @@ struct FolderInspectorView: View {
             folderName = newURL.lastPathComponent
             tempFolderName = folderName
             config = store.loadFolderConfig(at: newURL)
-        }
         }
     }
 
