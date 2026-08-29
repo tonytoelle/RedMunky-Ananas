@@ -60,11 +60,14 @@ struct SpotlightSearchBar: View {
     @State private var showAllResults: Bool = false
     @FocusState private var isFocused: Bool
     
-    @State private var columnsCount: Int = 5
+    @State private var columnsCount: Int = 4
     @State private var keyMonitor: Any? = nil
     
     let categories = ["All", "Mouse", "Keyboard", "System", "Utility"]
-    let columns = [GridItem(.adaptive(minimum: 64, maximum: 74), spacing: 10)]
+    
+    var columns: [GridItem] {
+        Array(repeating: GridItem(.flexible(), spacing: 10), count: columnsCount)
+    }
     
     var filteredItems: [(item: SearchableActionDef, score: Int)] {
         let matchingCategoryItems = items.filter { item in
@@ -237,16 +240,6 @@ struct SpotlightSearchBar: View {
                             }
                         }
                         .padding(.top, 4)
-                        .background(
-                            GeometryReader { geo in
-                                Color.clear
-                                    .preference(key: WidthPreferenceKey.self, value: geo.size.width)
-                            }
-                        )
-                        .onPreferenceChange(WidthPreferenceKey.self) { width in
-                            let colWidth: CGFloat = 74
-                            columnsCount = max(1, Int(width / colWidth))
-                        }
                         
                         // "See More" Button
                         if !showAllResults && filteredItems.count > visibleItems.count {
@@ -292,6 +285,18 @@ struct SpotlightSearchBar: View {
         .padding(12)
         .background(Color(nsColor: .windowBackgroundColor))
         .clipShape(RoundedRectangle(cornerRadius: 18))
+        .background(
+            GeometryReader { geo in
+                Color.clear
+                    .preference(key: WidthPreferenceKey.self, value: geo.size.width)
+            }
+        )
+        .onPreferenceChange(WidthPreferenceKey.self) { width in
+            // Subtract padding (12 * 2 + 8) to get available width for grid
+            let availableWidth = max(100, width - 32)
+            let colWidth: CGFloat = 82 // grid spacing (10) + item width (72)
+            columnsCount = max(1, Int(availableWidth / colWidth))
+        }
         .onAppear {
             isFocused = true
             setupKeyMonitor()
