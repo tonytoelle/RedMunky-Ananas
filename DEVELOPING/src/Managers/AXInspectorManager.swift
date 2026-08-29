@@ -134,6 +134,8 @@ class AXInspectorManager: ObservableObject {
     
     private var trackingTimer: Timer?
     private var overlayWindow: AXHighlightOverlayWindow?
+    private var globalKeyMonitor: Any?
+    private var localKeyMonitor: Any?
     
     private init() {
         setupOverlay()
@@ -187,6 +189,7 @@ class AXInspectorManager: ObservableObject {
         isInspecting = true
         isLocked = false
         refreshRunningApps()
+        installKeyMonitors()
         statusMessage = "Tracking mouse cursor… (Press Spacebar to freeze inspection)"
         
         trackingTimer = Timer.scheduledTimer(withTimeInterval: 0.08, repeats: true) { [weak self] _ in
@@ -201,6 +204,7 @@ class AXInspectorManager: ObservableObject {
         isInspecting = false
         trackingTimer?.invalidate()
         trackingTimer = nil
+        removeKeyMonitors()
         overlayWindow?.orderOut(nil)
         statusMessage = "Inspection paused"
     }
@@ -219,6 +223,44 @@ class AXInspectorManager: ObservableObject {
             statusMessage = "🔒 Frozen on element. You can now explore attributes or click actions."
         } else {
             statusMessage = "Tracking mouse cursor over all applications…"
+        }
+    }
+    
+    // MARK: - Global & Local Spacebar Key Monitors
+    private func installKeyMonitors() {
+        removeKeyMonitors()
+        
+        // 1. Local monitor when ShortKing / Inspector is focused
+        localKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let self = self, self.isInspecting else { return event }
+            if event.keyCode == 49 { // Spacebar
+                if let responder = NSApp.keyWindow?.firstResponder {
+                    if let tv = responder as? NSTextView, tv.isEditable { return event }
+                    if let tf = responder as? NSTextField, tf.isEditable { return event }
+                }
+                self.toggleLock()
+                return nil // consume event so it doesn't trigger UI controls
+            }
+            return event
+        }
+        
+        // 2. Global monitor when user is hovering over another app (DaVinci Resolve, Finder, etc.)
+        globalKeyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let self = self, self.isInspecting else { return }
+            if event.keyCode == 49 { // Spacebar
+                self.toggleLock()
+            }
+        }
+    }
+    
+    private func removeKeyMonitors() {
+        if let m = localKeyMonitor {
+            NSEvent.removeMonitor(m)
+            localKeyMonitor = nil
+        }
+        if let m = globalKeyMonitor {
+            NSEvent.removeMonitor(m)
+            globalKeyMonitor = nil
         }
     }
     
@@ -531,7 +573,57 @@ class AXInspectorManager: ObservableObject {
         return CGRect(origin: origin, size: size)
     }
     
-    // MARK: - Code & Snippet Generators
+    // MARK: - Code & Natural Language Snippet Generators
+    func generateNaturalLanguagePrompt() -> String {
+        guard let node = currentElement else {
+            return "No UI element selected. Hover cursor over any element and press Spacebar to freeze."
+        }
+        
+        let appName = targetApp?.name ?? "Target Application"
+        let bundleID = targetApp?.bundleIdentifier ?? "N/A"
+        let pid = targetApp?.pid ?? 0
+        
+        var hierarchyPath: [String] = []
+        for item in hierarchy {
+            if let t = item.title, !t.isEmpty {
+                hierarchyPath.append("\(item.roleShort) \"\(t)\"")
+            } else if let sub = item.subrole, !sub.isEmpty {
+                hierarchyPath.append("\(item.roleShort) (\(sub.replacingOccurrences(of: "AX", with: "")))")
+            } else {
+                hierarchyPath.append(item.roleShort)
+            }
+        }
+        let pathString = hierarchyPath.isEmpty ? node.displayName : hierarchyPath.joined(separator: " > ")
+        
+        var coordCenter = "X: \(Int(currentMousePosition.x)), Y: \(Int(currentMousePosition.y))"
+        var boundsText = "Unavailable"
+        
+        if let f = node.frame {
+            coordCenter = "X: \(Int(f.midX)), Y: \(Int(f.midY))"
+            boundsText = "x: \(Int(f.origin.x)), y: \(Int(f.origin.y)), w: \(Int(f.width)), h: \(Int(f.height))"
+        }
+        
+        let actionsList = actions.isEmpty ? "Click" : actions.joined(separator: ", ")
+        let titleStr = (node.title != nil && !node.title!.isEmpty) ? "\"\(node.title!)\"" : "None"
+        let descStr = (node.description != nil && !node.description!.isEmpty) ? "\"\(node.description!)\"" : "None"
+        let idStr = (node.identifier != nil && !node.identifier!.isEmpty) ? "\"\(node.identifier!)\"" : "None"
+        
+        return """
+        Target UI Element for Automation / Keyboard Shortcut:
+        - Application: \(appName) (Bundle: \(bundleID), PID: \(pid))
+        - UI Element: \(node.role) \(node.displayName)
+        - Title / Label: \(titleStr)
+        - Description: \(descStr)
+        - Accessibility Identifier: \(idStr)
+        - Full Hierarchy: \(pathString)
+        - Exact Screen Coordinates: Center (\(coordCenter)) | Bounds [\(boundsText)]
+        - Available Actions: \(actionsList)
+
+        Instructions:
+        To automate or create a shortcut directing to this element, target application '\(appName)', follow the hierarchy path '\(pathString)', and trigger action '\(actions.first ?? "AXPress")' or click at screen coordinates (\(coordCenter)).
+        """
+    }
+    
     func generateAppleScriptSnippet() -> String {
         guard let app = targetApp else { return "-- No application selected" }
         let appName = app.name

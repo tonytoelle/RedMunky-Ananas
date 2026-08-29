@@ -9,7 +9,7 @@ struct UIInspectorView: View {
     @ObservedObject var store = MacroStore.shared
     
     @State private var attributeSearchText: String = ""
-    @State private var selectedTab: Int = 0 // 0: Attributes, 1: Scripts & Actions
+    @State private var selectedTab: Int = 0 // 0: Attributes, 1: AI Prompt & Scripts
     @State private var copyFeedbackText: String? = nil
     
     var filteredAttributes: [(key: String, value: String)] {
@@ -54,11 +54,11 @@ struct UIInspectorView: View {
                 .background(Color.white.opacity(0.12))
             
             // ═══════════════════════════════════════════════════
-            // BOTTOM STATUS FOOTER
+            // BOTTOM STATUS FOOTER WITH BIG COPY BUTTON
             // ═══════════════════════════════════════════════════
             bottomFooter
         }
-        .frame(minWidth: 840, minHeight: 580)
+        .frame(minWidth: 860, minHeight: 600)
         .background(
             ZStack {
                 Color(red: 0.11, green: 0.11, blue: 0.14)
@@ -236,7 +236,7 @@ struct UIInspectorView: View {
                         Image(systemName: inspector.isLocked ? "lock.fill" : "lock.open")
                             .font(.system(size: 12))
                         Text(inspector.isLocked ? "Locked (Space)" : "Lock (Space)")
-                            .font(.system(size: 11, weight: .semibold))
+                            .font(.system(size: 11, weight: .bold))
                     }
                     .padding(.horizontal, 10)
                     .padding(.vertical, 5)
@@ -249,7 +249,7 @@ struct UIInspectorView: View {
                     )
                 }
                 .buttonStyle(PlainButtonStyle())
-                .help("Freeze current element inspection (Press Spacebar)")
+                .help("Freeze current element inspection anywhere on screen (Press Spacebar)")
             }
             
             // Sub-bar: App Quick Picker
@@ -284,9 +284,14 @@ struct UIInspectorView: View {
                 
                 Spacer()
                 
-                Text("Hover cursor over any UI element on screen")
-                    .font(.system(size: 10))
-                    .foregroundColor(.white.opacity(0.4))
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(Color.orange)
+                        .frame(width: 6, height: 6)
+                    Text("Press Spacebar anywhere to Freeze / Unfreeze")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(.white.opacity(0.5))
+                }
             }
             .padding(.horizontal, 2)
         }
@@ -616,7 +621,7 @@ struct UIInspectorView: View {
             HStack(spacing: 12) {
                 Picker("", selection: $selectedTab) {
                     Text("Attributes (\(inspector.attributes.count))").tag(0)
-                    Text("Shortcuts & Scripts").tag(1)
+                    Text("AI Prompt & Scripts").tag(1)
                 }
                 .pickerStyle(SegmentedPickerStyle())
                 .frame(width: 260)
@@ -660,7 +665,7 @@ struct UIInspectorView: View {
                 // TAB 0: Attributes Table
                 attributesTableView
             } else {
-                // TAB 1: Scripts & Macro Integration
+                // TAB 1: AI Prompts, Scripts & Macro Integration
                 scriptsAndIntegrationView
             }
         }
@@ -716,11 +721,53 @@ struct UIInspectorView: View {
         }
     }
     
-    // MARK: - Scripts & Integration View
+    // MARK: - Scripts & AI Integration View
     private var scriptsAndIntegrationView: some View {
         ScrollView(.vertical, showsIndicators: true) {
             VStack(alignment: .leading, spacing: 18) {
-                // 1. ShortKing Macro Click Coordinate
+                // 1. Natural Language / AI Direction Prompt Box
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Image(systemName: "sparkles")
+                            .foregroundColor(.cyan)
+                        Text("AI AUTOMATION & SHORTCUT PROMPT")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundColor(.white.opacity(0.85))
+                        Spacer()
+                        
+                        Button(action: {
+                            let prompt = inspector.generateNaturalLanguagePrompt()
+                            copyToClipboard(text: prompt, message: "Copied Full AI Prompt & Location!")
+                        }) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "doc.on.doc.fill")
+                                Text("Copy Prompt")
+                            }
+                            .font(.system(size: 10, weight: .bold))
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color.cyan.opacity(0.2))
+                            .foregroundColor(.cyan)
+                            .cornerRadius(5)
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                    }
+                    
+                    let aiPrompt = inspector.generateNaturalLanguagePrompt()
+                    Text(aiPrompt)
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundColor(.white.opacity(0.9))
+                        .padding(10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.black.opacity(0.35))
+                        .cornerRadius(8)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(Color.cyan.opacity(0.3), lineWidth: 1)
+                        )
+                }
+                
+                // 2. ShortKing Macro Click Coordinate
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
                         Image(systemName: "crown.fill")
@@ -797,7 +844,7 @@ struct UIInspectorView: View {
                     }
                 }
                 
-                // 2. AppleScript / Context Menu Automation Snippet
+                // 3. AppleScript / Context Menu Automation Snippet
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
                         Image(systemName: "applescript.fill")
@@ -831,7 +878,7 @@ struct UIInspectorView: View {
                         .cornerRadius(8)
                 }
                 
-                // 3. Swift AX Snippet
+                // 4. Swift AX Snippet
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
                         Image(systemName: "swift")
@@ -871,25 +918,61 @@ struct UIInspectorView: View {
     
     // MARK: - Bottom Footer
     private var bottomFooter: some View {
-        HStack(spacing: 8) {
-            Circle()
-                .fill(inspector.isLocked ? Color.orange : (inspector.isInspecting ? Color.green : Color.gray))
-                .frame(width: 8, height: 8)
-            
-            Text(copyFeedbackText ?? inspector.statusMessage)
-                .font(.system(size: 11))
-                .foregroundColor(copyFeedbackText != nil ? .green : .white.opacity(0.6))
-                .lineLimit(1)
+        HStack(spacing: 12) {
+            // Status Dot & Message
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(inspector.isLocked ? Color.orange : (inspector.isInspecting ? Color.green : Color.gray))
+                    .frame(width: 9, height: 9)
+                
+                Text(copyFeedbackText ?? inspector.statusMessage)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(copyFeedbackText != nil ? .green : .white.opacity(0.7))
+                    .lineLimit(1)
+            }
             
             Spacer()
             
-            Text("Press Spacebar to freeze inspection")
-                .font(.system(size: 10))
-                .foregroundColor(.white.opacity(0.35))
+            // ═══════════════════════════════════════════════════
+            // PROMINENT BIG COPY AI PROMPT / LOCATION BUTTON (KANAN BAWAH)
+            // ═══════════════════════════════════════════════════
+            Button(action: {
+                let prompt = inspector.generateNaturalLanguagePrompt()
+                copyToClipboard(text: prompt, message: "📋 Copied Natural Language / AI Direction Prompt!")
+            }) {
+                HStack(spacing: 8) {
+                    Image(systemName: "sparkles.rectangle.stack.fill")
+                        .font(.system(size: 14))
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("Copy AI Prompt / Location")
+                            .font(.system(size: 12, weight: .bold))
+                        Text("Natural language description to direct AI / shortcuts")
+                            .font(.system(size: 9))
+                            .foregroundColor(.white.opacity(0.8))
+                    }
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 7)
+                .background(
+                    LinearGradient(
+                        colors: [
+                            Color(red: 0.15, green: 0.55, blue: 0.95),
+                            Color(red: 0.35, green: 0.25, blue: 0.85)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .foregroundColor(.white)
+                .cornerRadius(8)
+                .shadow(color: Color.blue.opacity(0.4), radius: 4, x: 0, y: 2)
+            }
+            .buttonStyle(PlainButtonStyle())
+            .help("Copy ready-to-use natural language location & directions for AI or keyboard shortcut creation")
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, 6)
-        .background(Color.black.opacity(0.3))
+        .padding(.vertical, 8)
+        .background(Color.black.opacity(0.35))
     }
     
     // MARK: - Helpers
