@@ -1724,8 +1724,8 @@ struct MainEditorView: View {
                         .animation(.easeInOut(duration: 0.15), value: isSearchFocused)
                 )
                 .padding(.horizontal, 12)
+                .padding(.top, 12)
                 .padding(.bottom, 10)
-                .padding(.top, 0) // Forced to 0 for maximum top seamless fit
 
                 // Section Header
                 HStack {
