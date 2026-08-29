@@ -748,13 +748,14 @@ struct GroupActionDropDelegate: DropDelegate {
             _ = provider.loadObject(ofClass: NSString.self) { (str, error) in
                 if let s = str as? String, let dragID = UUID(uuidString: s) {
                     if case .group(let groupName, var subActions) = groupItem.action {
+                        guard let targetIdx = subActions.firstIndex(where: { $0.id == item.id }) else { return }
                         guard let fromIdx = subActions.firstIndex(where: { $0.id == dragID }),
-                              fromIdx != index else { return }
+                              fromIdx != targetIdx else { return }
                         DispatchQueue.main.async {
                             onPreSave()
                             withAnimation(.easeInOut(duration: 0.12)) {
                                 let movingItem = subActions.remove(at: fromIdx)
-                                subActions.insert(movingItem, at: index)
+                                subActions.insert(movingItem, at: targetIdx)
                                 groupItem.action = .group(name: groupName, actions: subActions)
                             }
                         }
@@ -791,7 +792,7 @@ struct ActionDropDelegate: DropDelegate {
                 if let s = str as? String, s.hasPrefix("action_template:") {
                     let typeName = s.replacingOccurrences(of: "action_template:", with: "")
                     DispatchQueue.main.async {
-                        let targetIndex = placeholderIndex ?? index
+                        let targetIndex = placeholderIndex ?? (items.firstIndex(where: { $0.id == item.id }) ?? index)
                         onInsertTemplate(typeName, targetIndex)
                         draggingTemplate = nil
                         placeholderIndex = nil
@@ -813,9 +814,10 @@ struct ActionDropDelegate: DropDelegate {
                     if let s = str as? String, s.hasPrefix("action_template:") {
                         let typeName = s.replacingOccurrences(of: "action_template:", with: "")
                         DispatchQueue.main.async {
+                            let currIdx = items.firstIndex(where: { $0.id == item.id }) ?? index
                             withAnimation(.easeInOut(duration: 0.12)) {
                                 draggingTemplate = typeName
-                                placeholderIndex = index
+                                placeholderIndex = currIdx
                             }
                         }
                     }
@@ -825,6 +827,7 @@ struct ActionDropDelegate: DropDelegate {
         }
 
         guard item.id != dragID else { return }
+        guard let targetIdx = items.firstIndex(where: { $0.id == item.id }) else { return }
 
         let selectedIDs = MacroStore.shared.selectedActionIDs
         if selectedIDs.contains(dragID) {
@@ -832,15 +835,15 @@ struct ActionDropDelegate: DropDelegate {
             let indices = items.enumerated().filter { selectedIDs.contains($1.id) }.map { $0.offset }
             guard !indices.isEmpty else { return }
             let fromOffsets = IndexSet(indices)
-            withAnimation(.easeInOut(duration: 0.15)) {
-                let to = index > (indices.first ?? 0) ? index + 1 : index
+            withAnimation(.easeInOut(duration: 0.12)) {
+                let to = targetIdx > (indices.first ?? 0) ? targetIdx + 1 : targetIdx
                 items.move(fromOffsets: fromOffsets, toOffset: to)
             }
         } else {
             guard let fromIdx = items.firstIndex(where: { $0.id == dragID }),
-                  fromIdx != index else { return }
-            withAnimation(.easeInOut(duration: 0.15)) {
-                items.move(fromOffsets: IndexSet(integer: fromIdx), toOffset: index > fromIdx ? index + 1 : index)
+                  fromIdx != targetIdx else { return }
+            withAnimation(.easeInOut(duration: 0.12)) {
+                items.move(fromOffsets: IndexSet(integer: fromIdx), toOffset: targetIdx > fromIdx ? targetIdx + 1 : targetIdx)
             }
         }
     }
