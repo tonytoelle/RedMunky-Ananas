@@ -97,50 +97,40 @@ struct SpotlightSearchBar: View {
             return Array(allFiltered.prefix(limit))
         }
     }
-    
     var body: some View {
-        VStack(spacing: 12) {
-            // Top Search Area: Pill Bar & Circular Action Buttons
-            HStack(spacing: 8) {
-                // The Capsule Search Pill Bar
-                HStack(spacing: 8) {
-                    Image(systemName: "magnifyingglass")
-                        .foregroundColor(.secondary)
-                        .font(.system(size: 13, weight: .medium))
-                        .padding(.leading, 12)
-                    
-                    TextField(placeholder, text: $query)
-                        .textFieldStyle(.plain)
-                        .font(.system(size: 13, weight: .regular))
-                        .focused($isFocused)
-                        .onSubmit {
-                            executeSelection()
-                        }
-                    
-                    if !query.isEmpty {
-                        Button {
-                            query = ""
-                        } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .foregroundColor(.secondary)
-                                .font(.system(size: 12))
-                        }
-                        .buttonStyle(.plain)
-                        .padding(.trailing, 8)
+        VStack(spacing: 0) {
+            // Top Search Area: Borderless and integrated directly with container
+            HStack(spacing: 10) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundColor(.secondary)
+                    .font(.system(size: 15, weight: .medium))
+                
+                TextField(placeholder, text: $query)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 14, weight: .regular))
+                    .focused($isFocused)
+                    .onSubmit {
+                        executeSelection()
                     }
+                
+                if !query.isEmpty {
+                    Button {
+                        query = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(.secondary)
+                            .font(.system(size: 12))
+                    }
+                    .buttonStyle(.plain)
                 }
-                .frame(height: 36)
-                .background(
-                    Color(nsColor: .windowBackgroundColor).opacity(0.85)
-                )
-                .background(.ultraThinMaterial)
-                .clipShape(Capsule())
-                .overlay(
-                    Capsule()
-                        .stroke(Color.white.opacity(0.12), lineWidth: 1)
-                )
             }
-            .padding(.horizontal, 4)
+            .padding(.horizontal, 14)
+            .padding(.top, 14)
+            .padding(.bottom, 12)
+            
+            Divider()
+                .background(Color.white.opacity(0.08))
+                .padding(.bottom, 12)
             
             // Category Chips Scroll Bar
             ScrollView(.horizontal, showsIndicators: false) {
@@ -265,7 +255,8 @@ struct SpotlightSearchBar: View {
                 .padding(.horizontal, 4)
             }
         }
-        .padding(12)
+        .padding(.horizontal, 12)
+        .padding(.bottom, 12)
         .background(Color(nsColor: .windowBackgroundColor))
         .clipShape(RoundedRectangle(cornerRadius: 18))
         .onAppear {
