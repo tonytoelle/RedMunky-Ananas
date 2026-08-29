@@ -607,6 +607,28 @@ class MacroStore: ObservableObject {
             }
         }
     }
+
+    func moveSelectedActionsUp() {
+        guard let macro = selectedMacro else { return }
+        let selected = selectedActionIDs
+        let indices = macro.actionItems.enumerated().filter { selected.contains($1.id) }.map { $0.offset }
+        guard let first = indices.first, first > 0 else { return }
+        for idx in indices {
+            macro.actionItems.swapAt(idx, idx - 1)
+        }
+        saveMacro(macro)
+    }
+
+    func moveSelectedActionsDown() {
+        guard let macro = selectedMacro else { return }
+        let selected = selectedActionIDs
+        let indices = macro.actionItems.enumerated().filter { selected.contains($1.id) }.map { $0.offset }
+        guard let last = indices.last, last < macro.actionItems.count - 1 else { return }
+        for idx in indices.reversed() {
+            macro.actionItems.swapAt(idx, idx + 1)
+        }
+        saveMacro(macro)
+    }
     
     func toggleMacroEnabled(_ macro: MacroItem) {
         macro.isEnabled.toggle()

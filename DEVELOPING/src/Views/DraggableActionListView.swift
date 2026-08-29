@@ -445,6 +445,26 @@ struct ActionCardView: View {
                     }
                 }
             }
+
+            Divider()
+
+            Button {
+                if let selected = MacroStore.shared.selectedMacro {
+                    MacroStore.shared.registerUndoState(for: selected)
+                }
+                MacroStore.shared.moveSelectedActionsUp()
+            } label: {
+                Label("Move Up (⌥↑)", systemImage: "arrow.up")
+            }
+
+            Button {
+                if let selected = MacroStore.shared.selectedMacro {
+                    MacroStore.shared.registerUndoState(for: selected)
+                }
+                MacroStore.shared.moveSelectedActionsDown()
+            } label: {
+                Label("Move Down (⌥↓)", systemImage: "arrow.down")
+            }
             
             Divider()
             

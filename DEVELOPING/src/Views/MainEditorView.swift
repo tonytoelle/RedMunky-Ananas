@@ -2135,6 +2135,17 @@ struct MainEditorView: View {
                         if let tv = responder as? NSTextView, tv.isEditable { return event }
                         if let tf = responder as? NSTextField, tf.isEditable { return event }
                     }
+                    if event.modifierFlags.contains(.option) && !store.selectedActionIDs.isEmpty {
+                        if let selected = store.selectedMacro {
+                            store.registerUndoState(for: selected)
+                        }
+                        if event.keyCode == 126 { // Option + Up
+                            store.moveSelectedActionsUp()
+                        } else { // Option + Down
+                            store.moveSelectedActionsDown()
+                        }
+                        return nil // consume
+                    }
                     if store.focusedPane == .right {
                         if event.keyCode == 125 {
                             store.moveActionSelectionDown()
