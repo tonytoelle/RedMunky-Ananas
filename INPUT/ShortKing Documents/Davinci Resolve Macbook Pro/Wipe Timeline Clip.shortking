@@ -2,4 +2,4 @@
 TRIGGER: f8
 
 # Actions:
-ACTION: click 532 545
+ACTION: custom_action "osascript -e 'tell application \"System Events\" to tell process \"DaVinci Resolve\" to click menu item \"Wipe Timeline Clip\" of menu 1'"
