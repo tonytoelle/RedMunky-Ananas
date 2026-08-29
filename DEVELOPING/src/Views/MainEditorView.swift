@@ -130,13 +130,24 @@ struct MacroInspectorView: View {
     @ViewBuilder
     private var headerSection: some View {
         ZStack {
-            // Background frosted glass with smooth fade & bottom border
+            // Background frosted glass with smooth blur fade mask
             Rectangle()
                 .fill(.ultraThinMaterial)
+                .mask(
+                    LinearGradient(
+                        stops: [
+                            .init(color: .black, location: 0.0),
+                            .init(color: .black, location: 0.7),
+                            .init(color: .clear, location: 1.0)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
                 .opacity(scrollProgress)
                 .overlay(
                     Divider()
-                        .background(Color.white.opacity(0.08))
+                        .background(Color.white.opacity(0.10))
                         .opacity(scrollProgress),
                     alignment: .bottom
                 )
@@ -176,8 +187,8 @@ struct MacroInspectorView: View {
                         Text("Save")
                             .font(.system(size: 12, weight: .semibold))
                             .foregroundColor(.white)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 5)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 6)
                             .background(.ultraThinMaterial)
                             .clipShape(Capsule())
                             .overlay(Capsule().stroke(Color.white.opacity(0.15), lineWidth: 0.5))
@@ -191,8 +202,8 @@ struct MacroInspectorView: View {
                     Label("Test Run", systemImage: "play.fill")
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(.white)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 5)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 6)
                         .background(.ultraThinMaterial)
                         .clipShape(Capsule())
                         .overlay(Capsule().stroke(Color.white.opacity(0.15), lineWidth: 0.5))
@@ -214,6 +225,7 @@ struct MacroInspectorView: View {
                         .overlay(Circle().stroke(Color.white.opacity(0.15), lineWidth: 0.5))
                 }
                 .buttonStyle(.plain)
+                .help("Always on Top")
             }
             .padding(.horizontal, 20)
         }
@@ -1162,10 +1174,21 @@ struct FolderInspectorView: View {
         ZStack {
             Rectangle()
                 .fill(.ultraThinMaterial)
+                .mask(
+                    LinearGradient(
+                        stops: [
+                            .init(color: .black, location: 0.0),
+                            .init(color: .black, location: 0.7),
+                            .init(color: .clear, location: 1.0)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
                 .opacity(scrollProgress)
                 .overlay(
                     Divider()
-                        .background(Color.white.opacity(0.08))
+                        .background(Color.white.opacity(0.10))
                         .opacity(scrollProgress),
                     alignment: .bottom
                 )
