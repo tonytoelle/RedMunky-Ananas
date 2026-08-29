@@ -54,7 +54,7 @@ struct MacroInspectorView: View {
                 .padding(.bottom, 22)
                 .padding(.top, 64)
             }
-            .background(Color(white: 0.1))
+            .background(Color.black.opacity(0.15))
             
             headerSection
         }
@@ -1123,7 +1123,7 @@ struct FolderInspectorView: View {
             .padding(.bottom, 24)
             .padding(.top, 72)
         }
-        .background(Color(white: 0.1))
+        .background(Color.black.opacity(0.15))
 
         // Header bar (Window draggable area) - AppleMusicUI blur fade header
         HStack(spacing: 12) {
@@ -1167,7 +1167,7 @@ struct FolderInspectorView: View {
         .background(WindowDragView())
     }
     .ignoresSafeArea(.container, edges: .top)
-    .background(Color(white: 0.1))
+    .background(Color.black.opacity(0.15))
         .onAppear {
             folderName = folderURL.lastPathComponent
             tempFolderName = folderName
@@ -1933,7 +1933,7 @@ struct MainEditorView: View {
                             Spacer()
                         }
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .background(Color(white: 0.1).onTapGesture {
+                        .background(Color.black.opacity(0.15).onTapGesture {
                             NSApp.keyWindow?.makeFirstResponder(nil)
                         })
                         
@@ -1981,7 +1981,8 @@ struct MainEditorView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color(white: 0.1))
+            .background(Color.black.opacity(0.15))
+            .background(.ultraThinMaterial)
             .ignoresSafeArea(.container, edges: .top)
         }
         .ignoresSafeArea(.container, edges: .top)
