@@ -32,7 +32,7 @@ struct MacroInspectorView: View {
     @State private var scrollOffset: CGFloat = 0
     
     var scrollProgress: CGFloat {
-        let threshold: CGFloat = 40.0
+        let threshold: CGFloat = 36.0
         let offset = -scrollOffset
         return min(1.0, max(0.0, offset / threshold))
     }
@@ -80,17 +80,19 @@ struct MacroInspectorView: View {
                                     isEditingName = true
                                 }
                         }
+                        Spacer()
                     }
-                    .opacity(1.0 - scrollProgress)
-                    .offset(y: scrollOffset > 0 ? 0 : scrollOffset * 0.3)
-                    .padding(.bottom, 10)
+                    .padding(.top, 6)
+                    .padding(.bottom, 6)
+                    .opacity(max(0.0, 1.0 - scrollProgress * 1.5))
+                    .offset(y: scrollOffset > 0 ? 0 : scrollOffset * 0.4)
 
                     triggerSection
                     actionsSection
                 }
                 .padding(.horizontal, 22)
                 .padding(.bottom, 22)
-                .padding(.top, 76)
+                .padding(.top, 56)
                 .background(
                     GeometryReader { geo in
                         Color.clear
@@ -100,7 +102,7 @@ struct MacroInspectorView: View {
             }
             .coordinateSpace(name: "scroll_macro")
             .onPreferenceChange(ScrollOffsetPreferenceKey.self) { value in
-                scrollOffset = value - 76
+                scrollOffset = value - 56
             }
             .background(Color(white: 0.1))
             
@@ -125,16 +127,26 @@ struct MacroInspectorView: View {
     @ViewBuilder
     private var headerSection: some View {
         ZStack {
+            // Background frosted glass with smooth fade & bottom border
+            Rectangle()
+                .fill(.ultraThinMaterial)
+                .opacity(scrollProgress)
+                .overlay(
+                    Divider()
+                        .background(Color.white.opacity(0.08))
+                        .opacity(scrollProgress),
+                    alignment: .bottom
+                )
+
             // Center inline title (fades in)
             Text(tempName.isEmpty ? "Untitled Macro" : tempName.capitalized)
-                .font(.system(size: 13, weight: .bold))
+                .font(.system(size: 13, weight: .semibold))
                 .foregroundColor(.white)
                 .lineLimit(1)
                 .opacity(scrollProgress)
                 .frame(maxWidth: .infinity, alignment: .center)
-                .padding(.top, 24)
 
-            HStack(spacing: 12) {
+            HStack(spacing: 10) {
                 Spacer()
 
                 if !permissions.isAccessibilityGranted {
@@ -144,7 +156,7 @@ struct MacroInspectorView: View {
                         Image(systemName: "exclamationmark.shield.fill")
                             .foregroundColor(.yellow)
                             .font(.system(size: 13, weight: .bold))
-                            .frame(width: 30, height: 30)
+                            .frame(width: 28, height: 28)
                             .background(.ultraThinMaterial)
                             .clipShape(Circle())
                             .overlay(Circle().stroke(Color.white.opacity(0.15), lineWidth: 0.5))
@@ -161,8 +173,8 @@ struct MacroInspectorView: View {
                         Text("Save")
                             .font(.system(size: 12, weight: .semibold))
                             .foregroundColor(.white)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 6)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 5)
                             .background(.ultraThinMaterial)
                             .clipShape(Capsule())
                             .overlay(Capsule().stroke(Color.white.opacity(0.15), lineWidth: 0.5))
@@ -176,8 +188,8 @@ struct MacroInspectorView: View {
                     Label("Test Run", systemImage: "play.fill")
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(.white)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 6)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 5)
                         .background(.ultraThinMaterial)
                         .clipShape(Capsule())
                         .overlay(Capsule().stroke(Color.white.opacity(0.15), lineWidth: 0.5))
@@ -193,22 +205,16 @@ struct MacroInspectorView: View {
                     Image(systemName: alwaysOnTop ? "pin.fill" : "pin")
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundColor(alwaysOnTop ? .accentColor : .secondary)
-                        .frame(width: 30, height: 30)
+                        .frame(width: 28, height: 28)
                         .background(.ultraThinMaterial)
                         .clipShape(Circle())
                         .overlay(Circle().stroke(Color.white.opacity(0.15), lineWidth: 0.5))
                 }
                 .buttonStyle(.plain)
             }
-            .padding(.horizontal, 22)
-            .padding(.top, 24)
+            .padding(.horizontal, 20)
         }
-        .frame(height: 68)
-        .background(
-            Rectangle()
-                .fill(.ultraThinMaterial)
-                .opacity(scrollProgress)
-        )
+        .frame(height: 52)
         .background(WindowDragView())
     }
 
