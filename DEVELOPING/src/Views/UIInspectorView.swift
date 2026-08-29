@@ -25,7 +25,7 @@ struct UIInspectorView: View {
     var body: some View {
         VStack(spacing: 0) {
             // ═══════════════════════════════════════════════════
-            // TOP TOOLBAR & STATUS BAR
+            // TOP TOOLBAR & APP SELECTOR
             // ═══════════════════════════════════════════════════
             topToolbar
             
@@ -53,7 +53,7 @@ struct UIInspectorView: View {
             // ═══════════════════════════════════════════════════
             bottomFooter
         }
-        .frame(minWidth: 800, minHeight: 560)
+        .frame(minWidth: 840, minHeight: 580)
         .background(
             ZStack {
                 Color(red: 0.11, green: 0.11, blue: 0.14)
@@ -78,114 +78,177 @@ struct UIInspectorView: View {
     
     // MARK: - Top Toolbar
     private var topToolbar: some View {
-        HStack(spacing: 12) {
-            // Target App Badge
-            if let app = inspector.targetApp {
-                HStack(spacing: 8) {
-                    if let icon = app.icon {
-                        Image(nsImage: icon)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: 24, height: 24)
-                    } else {
-                        Image(systemName: "app.dashed")
-                            .font(.system(size: 18))
-                            .foregroundColor(.blue)
-                    }
-                    
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(app.name)
-                            .font(.system(size: 13, weight: .bold))
-                            .foregroundColor(.white)
+        VStack(spacing: 8) {
+            HStack(spacing: 12) {
+                // Target App Badge / Icon
+                if let app = inspector.targetApp {
+                    HStack(spacing: 8) {
+                        if let icon = app.icon {
+                            Image(nsImage: icon)
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(width: 24, height: 24)
+                        } else {
+                            Image(systemName: "app.dashed")
+                                .font(.system(size: 18))
+                                .foregroundColor(.blue)
+                        }
                         
-                        HStack(spacing: 6) {
-                            Text("PID: \(app.pid)")
-                                .font(.system(size: 10, weight: .medium, design: .monospaced))
-                                .foregroundColor(.white.opacity(0.6))
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(app.name)
+                                .font(.system(size: 13, weight: .bold))
+                                .foregroundColor(.white)
                             
-                            if let bundle = app.bundleIdentifier {
-                                Text("• \(bundle)")
-                                    .font(.system(size: 10))
-                                    .foregroundColor(.white.opacity(0.4))
-                                    .lineLimit(1)
-                                    .truncationMode(.middle)
+                            HStack(spacing: 6) {
+                                Text("PID: \(app.pid)")
+                                    .font(.system(size: 10, weight: .medium, design: .monospaced))
+                                    .foregroundColor(.white.opacity(0.6))
+                                
+                                if let bundle = app.bundleIdentifier {
+                                    Text("• \(bundle)")
+                                        .font(.system(size: 10))
+                                        .foregroundColor(.white.opacity(0.4))
+                                        .lineLimit(1)
+                                        .truncationMode(.middle)
+                                }
                             }
                         }
                     }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(Color.white.opacity(0.06))
+                    .cornerRadius(8)
+                } else {
+                    HStack(spacing: 8) {
+                        ProgressView()
+                            .scaleEffect(0.7)
+                        Text("Hover over any app window or context menu…")
+                            .font(.system(size: 12))
+                            .foregroundColor(.white.opacity(0.6))
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
                 }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(Color.white.opacity(0.06))
-                .cornerRadius(8)
-            } else {
-                HStack(spacing: 8) {
-                    ProgressView()
-                        .scaleEffect(0.7)
-                    Text("Hover cursor over any app element…")
-                        .font(.system(size: 12))
-                        .foregroundColor(.white.opacity(0.6))
+                
+                Spacer()
+                
+                // Inspect Frontmost App Button
+                Button(action: {
+                    inspector.inspectFrontmostApp()
+                }) {
+                    HStack(spacing: 5) {
+                        Image(systemName: "macwindow.on.rectangle")
+                            .font(.system(size: 11))
+                        Text("Inspect Active App")
+                            .font(.system(size: 11, weight: .medium))
+                    }
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 5)
+                    .background(Color.purple.opacity(0.25))
+                    .foregroundColor(.purple)
+                    .cornerRadius(6)
                 }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-            }
-            
-            Spacer()
-            
-            // Cursor Location Pill
-            HStack(spacing: 5) {
-                Image(systemName: "cursorarrow.rays")
-                    .font(.system(size: 11))
-                    .foregroundColor(.white.opacity(0.5))
-                Text("X: \(Int(inspector.currentMousePosition.x)), Y: \(Int(inspector.currentMousePosition.y))")
-                    .font(.system(size: 11, weight: .medium, design: .monospaced))
-                    .foregroundColor(.white.opacity(0.8))
-            }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 5)
-            .background(Color.black.opacity(0.3))
-            .cornerRadius(6)
-            
-            // Highlight Bounds Toggle
-            Button(action: {
-                inspector.highlightOnScreen.toggle()
-            }) {
+                .buttonStyle(PlainButtonStyle())
+                .help("Inspect the frontmost active window and UI element")
+                
+                // Cursor Location Pill
                 HStack(spacing: 5) {
-                    Image(systemName: inspector.highlightOnScreen ? "eye.fill" : "eye.slash")
-                        .font(.system(size: 12))
-                    Text("Highlight Frame")
+                    Image(systemName: "cursorarrow.rays")
+                        .font(.system(size: 11))
+                        .foregroundColor(.white.opacity(0.5))
+                    Text("X: \(Int(inspector.currentMousePosition.x)), Y: \(Int(inspector.currentMousePosition.y))")
+                        .font(.system(size: 11, weight: .medium, design: .monospaced))
+                        .foregroundColor(.white.opacity(0.8))
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 5)
+                .background(Color.black.opacity(0.3))
+                .cornerRadius(6)
+                
+                // Highlight Bounds Toggle
+                Button(action: {
+                    inspector.highlightOnScreen.toggle()
+                }) {
+                    HStack(spacing: 5) {
+                        Image(systemName: inspector.highlightOnScreen ? "eye.fill" : "eye.slash")
+                            .font(.system(size: 12))
+                        Text("Highlight")
+                            .font(.system(size: 11, weight: .medium))
+                    }
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 5)
+                    .background(inspector.highlightOnScreen ? Color.green.opacity(0.2) : Color.white.opacity(0.06))
+                    .foregroundColor(inspector.highlightOnScreen ? .green : .white.opacity(0.7))
+                    .cornerRadius(6)
+                }
+                .buttonStyle(PlainButtonStyle())
+                .help("Draw a visual boundary around the inspected element on your screen")
+                
+                // Lock / Freeze Toggle Button
+                Button(action: {
+                    inspector.toggleLock()
+                }) {
+                    HStack(spacing: 5) {
+                        Image(systemName: inspector.isLocked ? "lock.fill" : "lock.open")
+                            .font(.system(size: 12))
+                        Text(inspector.isLocked ? "Locked (Space)" : "Lock (Space)")
+                            .font(.system(size: 11, weight: .semibold))
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(inspector.isLocked ? Color.orange.opacity(0.3) : Color.blue.opacity(0.25))
+                    .foregroundColor(inspector.isLocked ? .orange : Color(red: 0.35, green: 0.75, blue: 1.0))
+                    .cornerRadius(6)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6)
+                            .stroke(inspector.isLocked ? Color.orange.opacity(0.6) : Color.blue.opacity(0.5), lineWidth: 1)
+                    )
+                }
+                .buttonStyle(PlainButtonStyle())
+                .help("Freeze current element inspection (Press Spacebar)")
+            }
+            
+            // Sub-bar: App Quick Picker & Ignore ShortKing Toggle
+            HStack(spacing: 12) {
+                HStack(spacing: 6) {
+                    Image(systemName: "app.badge.checkmark")
+                        .font(.system(size: 11))
+                        .foregroundColor(.white.opacity(0.5))
+                    Text("Target App:")
                         .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(.white.opacity(0.6))
+                    
+                    Menu {
+                        Button("Any App (Follow Cursor)") {
+                            inspector.selectedAppPID = nil
+                            inspector.startInspecting()
+                        }
+                        Divider()
+                        ForEach(inspector.runningApps) { app in
+                            Button(app.name) {
+                                inspector.selectedAppPID = app.pid
+                                inspector.inspectApp(pid: app.pid)
+                            }
+                        }
+                    } label: {
+                        Text(inspector.selectedAppPID != nil ? (inspector.runningApps.first(where: { $0.pid == inspector.selectedAppPID })?.name ?? "Selected App") : "Any App (Live Cursor)")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(.cyan)
+                    }
+                    .menuStyle(BorderlessButtonMenuStyle())
                 }
-                .padding(.horizontal, 9)
-                .padding(.vertical, 5)
-                .background(inspector.highlightOnScreen ? Color.green.opacity(0.2) : Color.white.opacity(0.06))
-                .foregroundColor(inspector.highlightOnScreen ? .green : .white.opacity(0.7))
-                .cornerRadius(6)
-            }
-            .buttonStyle(PlainButtonStyle())
-            .help("Draw a visual boundary around the inspected element on your screen")
-            
-            // Lock / Freeze Toggle Button
-            Button(action: {
-                inspector.toggleLock()
-            }) {
-                HStack(spacing: 5) {
-                    Image(systemName: inspector.isLocked ? "lock.fill" : "lock.open")
-                        .font(.system(size: 12))
-                    Text(inspector.isLocked ? "Locked (Space)" : "Lock Element (Space)")
-                        .font(.system(size: 11, weight: .semibold))
+                
+                Spacer()
+                
+                Toggle(isOn: $inspector.ignoreShortKingApp) {
+                    Text("Ignore ShortKing Window")
+                        .font(.system(size: 11))
+                        .foregroundColor(.white.opacity(0.7))
                 }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 5)
-                .background(inspector.isLocked ? Color.orange.opacity(0.3) : Color.blue.opacity(0.25))
-                .foregroundColor(inspector.isLocked ? .orange : Color(red: 0.35, green: 0.75, blue: 1.0))
-                .cornerRadius(6)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 6)
-                        .stroke(inspector.isLocked ? Color.orange.opacity(0.6) : Color.blue.opacity(0.5), lineWidth: 1)
-                )
+                .toggleStyle(CheckboxToggleStyle())
+                .help("When enabled, hovering inside ShortKing's own window will not replace the inspected external app element")
             }
-            .buttonStyle(PlainButtonStyle())
-            .help("Freeze current element inspection (Press Spacebar)")
+            .padding(.horizontal, 2)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
@@ -209,7 +272,7 @@ struct UIInspectorView: View {
                     }
                     
                     if inspector.hierarchy.isEmpty {
-                        Text("No hierarchy detected")
+                        Text("Hover over any external app window to view AX hierarchy")
                             .font(.system(size: 11))
                             .foregroundColor(.white.opacity(0.4))
                             .padding(.vertical, 6)
@@ -455,7 +518,7 @@ struct UIInspectorView: View {
                         HStack {
                             Image(systemName: "folder.badge.gearshape")
                                 .font(.system(size: 11))
-                                .foregroundColor(.purple)
+                            .foregroundColor(.purple)
                             Text("CHILDREN (\(inspector.children.count))")
                                 .font(.system(size: 10, weight: .bold))
                                 .foregroundColor(.white.opacity(0.6))
@@ -572,7 +635,7 @@ struct UIInspectorView: View {
                         Image(systemName: "doc.text.magnifyingglass")
                             .font(.system(size: 28))
                             .foregroundColor(.white.opacity(0.2))
-                        Text(attributeSearchText.isEmpty ? "Hover over an element to view its accessibility attributes" : "No attributes matching \"\(attributeSearchText)\"")
+                        Text(attributeSearchText.isEmpty ? "Hover over any app element to view its accessibility attributes" : "No attributes matching \"\(attributeSearchText)\"")
                             .font(.system(size: 12))
                             .foregroundColor(.white.opacity(0.4))
                     }

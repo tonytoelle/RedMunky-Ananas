@@ -39,12 +39,30 @@ struct AXElementNode: Identifiable {
 }
 
 // MARK: - App Info Model
-struct TargetAppInfo {
+struct TargetAppInfo: Identifiable, Hashable {
+    let id: pid_t
     let pid: pid_t
     let name: String
     let bundleIdentifier: String?
     let icon: NSImage?
     let executableURL: URL?
+    
+    init(pid: pid_t, name: String, bundleIdentifier: String?, icon: NSImage?, executableURL: URL?) {
+        self.id = pid
+        self.pid = pid
+        self.name = name
+        self.bundleIdentifier = bundleIdentifier
+        self.icon = icon
+        self.executableURL = executableURL
+    }
+    
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(pid)
+    }
+    
+    static func == (lhs: TargetAppInfo, rhs: TargetAppInfo) -> Bool {
+        return lhs.pid == rhs.pid
+    }
 }
 
 // MARK: - Highlighting Overlay Window
@@ -98,9 +116,13 @@ class AXInspectorManager: ObservableObject {
     @Published var isInspecting: Bool = false
     @Published var isLocked: Bool = false
     @Published var highlightOnScreen: Bool = true
+    @Published var ignoreShortKingApp: Bool = true
     
     @Published var currentMousePosition: CGPoint = .zero
     @Published var targetApp: TargetAppInfo?
+    @Published var runningApps: [TargetAppInfo] = []
+    @Published var selectedAppPID: pid_t? = nil
+    
     @Published var currentElement: AXElementNode?
     @Published var hierarchy: [AXElementNode] = []
     @Published var children: [AXElementNode] = []
@@ -112,22 +134,45 @@ class AXInspectorManager: ObservableObject {
     
     private var trackingTimer: Timer?
     private var overlayWindow: AXHighlightOverlayWindow?
+    private var globalKeyMonitor: Any?
     
     private init() {
         setupOverlay()
+        refreshRunningApps()
     }
     
     private func setupOverlay() {
         overlayWindow = AXHighlightOverlayWindow()
     }
     
+    func refreshRunningApps() {
+        let currentPID = NSRunningApplication.current.processIdentifier
+        let apps = NSWorkspace.shared.runningApplications
+            .filter { $0.activationPolicy == .regular && $0.processIdentifier != currentPID }
+            .map { app in
+                TargetAppInfo(
+                    pid: app.processIdentifier,
+                    name: app.localizedName ?? "PID \(app.processIdentifier)",
+                    bundleIdentifier: app.bundleIdentifier,
+                    icon: app.icon,
+                    executableURL: app.executableURL
+                )
+            }
+            .sorted { $0.name.lowercased() < $1.name.lowercased() }
+        
+        DispatchQueue.main.async {
+            self.runningApps = apps
+        }
+    }
+    
     func startInspecting() {
         guard !isInspecting else { return }
         isInspecting = true
         isLocked = false
-        statusMessage = "Tracking mouse cursor… (Press Space or click Lock to freeze)"
+        refreshRunningApps()
+        statusMessage = "Tracking mouse cursor over all applications… (Press Space to freeze)"
         
-        trackingTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+        trackingTimer = Timer.scheduledTimer(withTimeInterval: 0.08, repeats: true) { [weak self] _ in
             guard let self = self else { return }
             if !self.isLocked {
                 self.inspectAtCurrentCursor()
@@ -140,7 +185,7 @@ class AXInspectorManager: ObservableObject {
         trackingTimer?.invalidate()
         trackingTimer = nil
         overlayWindow?.orderOut(nil)
-        statusMessage = "Inspection stopped"
+        statusMessage = "Inspection paused"
     }
     
     func toggleInspection() {
@@ -156,16 +201,50 @@ class AXInspectorManager: ObservableObject {
         if isLocked {
             statusMessage = "🔒 Frozen on element. You can now explore attributes or click actions."
         } else {
-            statusMessage = "Tracking mouse cursor…"
+            statusMessage = "Tracking mouse cursor over all applications…"
         }
     }
     
     func inspectAtCurrentCursor() {
-        let cursorLoc = CGEvent(source: nil)?.location ?? .zero
+        let mouseLoc = NSEvent.mouseLocation
+        let primaryScreenH = NSScreen.screens.first?.frame.height ?? 1080
+        let quartzPoint = CGPoint(x: mouseLoc.x, y: primaryScreenH - mouseLoc.y)
+        
         DispatchQueue.main.async {
-            self.currentMousePosition = cursorLoc
+            self.currentMousePosition = quartzPoint
         }
-        inspectElement(at: cursorLoc)
+        
+        inspectElement(at: quartzPoint)
+    }
+    
+    func inspectFrontmostApp() {
+        let currentPID = NSRunningApplication.current.processIdentifier
+        guard let frontApp = NSWorkspace.shared.runningApplications.first(where: {
+            $0.isActive && $0.processIdentifier != currentPID
+        }) ?? NSWorkspace.shared.frontmostApplication else {
+            return
+        }
+        
+        inspectApp(pid: frontApp.processIdentifier)
+    }
+    
+    func inspectApp(pid: pid_t) {
+        let appElement = AXUIElementCreateApplication(pid)
+        var focusedWindowRef: CFTypeRef?
+        var targetElement: AXUIElement = appElement
+        
+        if AXUIElementCopyAttributeValue(appElement, kAXFocusedWindowAttribute as CFString, &focusedWindowRef) == .success,
+           let win = focusedWindowRef {
+            targetElement = (win as! AXUIElement)
+            
+            var focusedElemRef: CFTypeRef?
+            if AXUIElementCopyAttributeValue(targetElement, kAXFocusedUIElementAttribute as CFString, &focusedElemRef) == .success,
+               let elem = focusedElemRef {
+                targetElement = (elem as! AXUIElement)
+            }
+        }
+        
+        parseElement(targetElement)
     }
     
     func inspectElement(at quartzPoint: CGPoint) {
@@ -179,6 +258,14 @@ class AXInspectorManager: ObservableObject {
                     self.overlayWindow?.orderOut(nil)
                 }
             }
+            return
+        }
+        
+        var pid: pid_t = 0
+        AXUIElementGetPid(element, &pid)
+        
+        // If ignoreShortKingApp is true and cursor is hovering over ShortKing itself, skip updating unless locked
+        if ignoreShortKingApp && pid == NSRunningApplication.current.processIdentifier {
             return
         }
         
