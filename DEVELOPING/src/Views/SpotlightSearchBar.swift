@@ -139,24 +139,6 @@ struct SpotlightSearchBar: View {
                     Capsule()
                         .stroke(Color.white.opacity(0.12), lineWidth: 1)
                 )
-                
-                // Circular Action Button (Clear / Filter Reset)
-                Button {
-                    query = ""
-                    activeCategory = "All"
-                    selectedIndex = 0
-                    showAllResults = false
-                } label: {
-                    Image(systemName: "arrow.counterclockwise")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundColor(.white)
-                        .frame(width: 32, height: 32)
-                        .background(.ultraThinMaterial)
-                        .clipShape(Circle())
-                        .overlay(Circle().stroke(Color.white.opacity(0.12), lineWidth: 1))
-                }
-                .buttonStyle(.plain)
-                .help("Reset Search Filters")
             }
             .padding(.horizontal, 4)
             
