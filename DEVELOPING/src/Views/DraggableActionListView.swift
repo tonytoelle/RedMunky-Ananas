@@ -27,385 +27,8 @@ struct ActionCardView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: detailWidth < 520 ? 8 : 12) {
-                // Drag handle
-                if detailWidth >= 340 {
-                    Image(systemName: "line.3.horizontal")
-                        .foregroundColor(isDragging ? Color.accentColor : Color.secondary.opacity(0.6))
-                        .font(.system(size: 13, weight: isDragging ? .bold : .regular))
-                        .frame(width: 20, height: 26)
-                        .contentShape(Rectangle())
-                        .gesture(
-                            DragGesture(minimumDistance: 1, coordinateSpace: .global)
-                                .onChanged { val in onDragChanged?(val) }
-                                .onEnded { val in onDragEnded?(val) }
-                        )
-                }
-
-                // Squircle Icon with step ID inside
-                ZStack(alignment: .center) {
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(getActionColor(for: item.action))
-                        .frame(width: 32, height: 32)
-                    
-                    Image(systemName: getActionIcon(for: item.action))
-                        .foregroundColor(.white)
-                        .font(.system(size: 13, weight: .semibold))
-                        .offset(x: item.repeatCount > 1 ? -2 : 0, y: item.repeatCount > 1 ? 2 : 0)
-                    
-                    Text("\(index + 1)")
-                        .font(.system(size: 8, weight: .bold))
-                        .foregroundColor(.white.opacity(0.85))
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-                        .padding(.top, 2)
-                        .padding(.trailing, 4)
-                    
-                    if item.repeatCount > 1 {
-                        Text("\(item.repeatCount)x")
-                            .font(.system(size: 7, weight: .bold))
-                            .foregroundColor(.white.opacity(0.95))
-                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
-                            .padding(.bottom, 2)
-                            .padding(.leading, 4)
-                    }
-                }
-                .frame(width: 32, height: 32)
-
-                // Title & Parameters
-                HStack(spacing: 8) {
-                    if detailWidth >= 400 {
-                        HStack(spacing: 4) {
-                            if case .group(let name, let subActions) = item.action {
-                                if isEditingGroupName {
-                                    TextField("Group Name", text: $localGroupName)
-                                    .textFieldStyle(.plain)
-                                    .font(.system(size: detailWidth < 520 ? 11 : 13, weight: .bold))
-                                    .foregroundColor(.white)
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 4)
-                                    .background(Color(white: 0.12))
-                                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                            .stroke(Color.white.opacity(0.1), lineWidth: 1)
-                                    )
-                                    .frame(width: 140)
-                                    .focused($isGroupFocused)
-                                    .onSubmit {
-                                        commitGroupName(subActions: subActions)
-                                        isGroupFocused = false
-                                        isEditingGroupName = false
-                                    }
-                                    .onChange(of: isGroupFocused) { _, focused in
-                                        if !focused {
-                                            commitGroupName(subActions: subActions)
-                                            isEditingGroupName = false
-                                        }
-                                    }
-                                    .onAppear {
-                                        isGroupFocused = true
-                                    }
-                                } else {
-                                    Text(name.isEmpty ? "Group Action" : name)
-                                        .font(.system(size: detailWidth < 520 ? 11 : 13, weight: .bold))
-                                        .foregroundColor(.white)
-                                        .lineLimit(1)
-                                        .onTapGesture(count: 2) {
-                                            isEditingGroupName = true
-                                        }
-                                }
-                            } else {
-                                Text(item.action.title)
-                                    .font(.system(size: detailWidth < 520 ? 11 : 13, weight: .semibold))
-                                    .foregroundColor(.white)
-                                    .lineLimit(1)
-                                    .fixedSize(horizontal: true, vertical: false)
-                            }
-                            
-                            if item.repeatCount > 1 {
-                                Text("\(item.repeatCount)x")
-                                    .font(.system(size: 9, weight: .bold))
-                                    .foregroundColor(.white)
-                                    .padding(.horizontal, 4)
-                                    .padding(.vertical, 1)
-                                    .background(Color.white.opacity(0.15))
-                                    .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
-                            }
-                        }
-                    }
-                    
-                    Spacer()
-                    
-                    // Render appropriate parameter editor/display
-                    let isItemEditing = store.selectedActionIDs.contains(item.id)
-                    switch item.action {
-                    case .click(let point, let button):
-                        if isItemEditing {
-                            InlineClickEditView(action: $item.action, onPreSave: onPreSave, onSave: onSave, detailWidth: detailWidth)
-                        } else {
-                            Text(item.action.parameterString)
-                                .font(.system(size: 12, weight: .medium, design: .monospaced))
-                                .foregroundColor(.secondary)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(Color.clear)
-                                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                        .stroke(Color.clear, lineWidth: 1)
-                                )
-                                .onTapGesture {
-                                    CaptureOverlayWindow.shared = CaptureOverlayWindow(
-                                        mode: .click(button: button, initialPoint: point.x == -9999 ? nil : point),
-                                        onClickCaptured: { newPoint in
-                                            onPreSave()
-                                            item.action = .click(point: newPoint, button: button)
-                                            onSave()
-                                        },
-                                        onClickRealTime: { tempPoint in
-                                            item.action = .click(point: tempPoint, button: button)
-                                        }
-                                    )
-                                }
-                        }
-                    case .drag(let start, let end):
-                        Text(item.action.parameterString)
-                            .font(.system(size: 12, weight: .medium, design: .monospaced))
-                            .foregroundColor(.secondary)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(isItemEditing ? Color(white: 0.12) : Color.clear)
-                            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                    .stroke(isItemEditing ? Color.white.opacity(0.1) : Color.clear, lineWidth: 1)
-                            )
-                            .onTapGesture {
-                                CaptureOverlayWindow.shared = CaptureOverlayWindow(
-                                    mode: .drag(initialStart: start, initialEnd: end),
-                                    onDragCaptured: { newStart, newEnd in
-                                        onPreSave()
-                                        item.action = .drag(start: newStart, end: newEnd)
-                                        onSave()
-                                    },
-                                    onDragRealTime: { tempStart, tempEnd in
-                                        item.action = .drag(start: tempStart, end: tempEnd)
-                                    }
-                                )
-                            }
-                    case .path(let points):
-                        HStack(spacing: 8) {
-                            Text(item.action.parameterString)
-                                .font(.system(size: 12, weight: .medium, design: .monospaced))
-                                .foregroundColor(.secondary)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(isItemEditing ? Color(white: 0.12) : Color.clear)
-                                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                        .stroke(isItemEditing ? Color.white.opacity(0.1) : Color.clear, lineWidth: 1)
-                                )
-                            
-                            Button {
-                                CaptureOverlayWindow.shared = CaptureOverlayWindow(
-                                    initialPoints: points,
-                                    defaultType: .click,
-                                    onSequenceCaptured: { newPts in
-                                        guard !newPts.isEmpty else { return }
-                                        onPreSave()
-                                        item.action = .path(points: newPts)
-                                        onSave()
-                                    },
-                                    onSequenceRealTime: { tempPts in
-                                        item.action = .path(points: tempPts)
-                                    }
-                                )
-                            } label: {
-                                HStack(spacing: 4) {
-                                    Image(systemName: "pencil")
-                                        .font(.system(size: 10, weight: .bold))
-                                    Text("Edit")
-                                        .font(.system(size: 11, weight: .semibold))
-                                }
-                                .foregroundColor(Color.purple)
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 4)
-                                .background(Color.purple.opacity(0.15))
-                                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                        .stroke(Color.purple.opacity(0.3), lineWidth: 1)
-                                )
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    case .moveCursor(let point):
-                        Text(item.action.parameterString)
-                            .font(.system(size: 12, weight: .medium, design: .monospaced))
-                            .foregroundColor(.secondary)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(isItemEditing ? Color(white: 0.12) : Color.clear)
-                            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                    .stroke(isItemEditing ? Color.white.opacity(0.1) : Color.clear, lineWidth: 1)
-                            )
-                            .onTapGesture {
-                                CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .click(button: .left, initialPoint: point)) { newPoint in
-                                    onPreSave()
-                                    item.action = .moveCursor(point: newPoint)
-                                    onSave()
-                                }
-                            }
-                    case .windowTransform(let p1, _, let p3, _):
-                        Button(action: {
-                            let initialPoints: [SequencePoint] = (p1 == .zero && p3 == .zero) ? [] : [
-                                SequencePoint(point: p1, type: .click),
-                                SequencePoint(point: p3, type: .click)
-                            ]
-                            CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .windowTransform(initialPoints: initialPoints)) { np1, np2, np3, np4 in
-                                onPreSave()
-                                item.action = .windowTransform(p1: np1, p2: np2, p3: np3, p4: np4)
-                                onSave()
-                            }
-                        }) {
-                            HStack(spacing: 4) {
-                                Image(systemName: "pencil")
-                                Text("Edit Area")
-                            }
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(Color.white.opacity(0.12))
-                            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                        }
-                        .buttonStyle(.plain)
-                    case .typeText, .pasteText:
-                        InlineTextEditView(action: $item.action, onPreSave: onPreSave, onSave: onSave, detailWidth: detailWidth)
-                    case .openFile:
-                        InlineOpenFileEditView(action: $item.action, onPreSave: onPreSave, onSave: onSave, detailWidth: detailWidth)
-                    case .customAction:
-                        InlineCustomActionEditView(action: $item.action, onPreSave: onPreSave, onSave: onSave, detailWidth: detailWidth)
-                    case .delay:
-                        InlineDelayEditView(action: $item.action, onPreSave: onPreSave, onSave: onSave, detailWidth: detailWidth)
-                    case .pressKey, .pressShortcut:
-                        InlineKeyRecorder(action: $item.action, onPreSave: onPreSave, onSave: onSave, detailWidth: detailWidth)
-                    case .originAction:
-                        InlineOriginPicker(action: $item.action, onPreSave: onPreSave, onSave: onSave, detailWidth: detailWidth)
-                    case .doAgain:
-                        if let selected = MacroStore.shared.selectedMacro {
-                            InlineDoAgainPicker(action: $item.action, actionItems: selected.actionItems, currentIndex: index, onPreSave: onPreSave, onSave: onSave, detailWidth: detailWidth)
-                        } else {
-                            Text(item.action.parameterString)
-                                .font(.system(size: 12, weight: .medium, design: .monospaced))
-                                .foregroundColor(.secondary)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(isItemEditing ? Color(white: 0.12) : Color.clear)
-                                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                        .stroke(isItemEditing ? Color.white.opacity(0.1) : Color.clear, lineWidth: 1)
-                                )
-                        }
-                    case .group(_, let subActions):
-                        Text("\(subActions.count) actions")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(.secondary)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(isItemEditing ? Color(white: 0.12) : Color.clear)
-                            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                    .stroke(isItemEditing ? Color.white.opacity(0.1) : Color.clear, lineWidth: 1)
-                            )
-                    default:
-                        Text(item.action.parameterString)
-                            .font(.system(size: 12, weight: .medium, design: .monospaced))
-                            .foregroundColor(.secondary)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(isItemEditing ? Color(white: 0.12) : Color.clear)
-                            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                    .stroke(isItemEditing ? Color.white.opacity(0.1) : Color.clear, lineWidth: 1)
-                            )
-                    }
-                }
-                
-                if case .group = item.action {
-                    Button(action: {
-                        withAnimation(.easeInOut(duration: 0.15)) {
-                            isCollapsed.toggle()
-                        }
-                    }) {
-                        Image(systemName: isCollapsed ? "chevron.right" : "chevron.down")
-                            .foregroundColor(.secondary)
-                            .font(.system(size: 10, weight: .bold))
-                            .frame(width: 32, height: 32)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            
-            // Nested Group Preview
-            if case .group(let name, let subActions) = item.action, !isCollapsed {
-                VStack(alignment: .leading, spacing: 8) {
-                    ForEach(Array(subActions.enumerated()), id: \.element.id) { subIndex, subItem in
-                        let subItemBinding = Binding<MacroActionItem>(
-                            get: {
-                                if subIndex < subActions.count {
-                                    return subActions[subIndex]
-                                } else {
-                                    return subItem
-                                }
-                            },
-                            set: { newValue in
-                                onPreSave()
-                                var newSubActions = subActions
-                                if subIndex < newSubActions.count {
-                                    newSubActions[subIndex] = newValue
-                                    item.action = .group(name: name, actions: newSubActions)
-                                    onSave()
-                                }
-                            }
-                        )
-                        
-                        ActionCardView(
-                            index: subIndex,
-                            item: subItemBinding,
-                            onDelete: {
-                                onPreSave()
-                                var newSubActions = subActions
-                                newSubActions.remove(at: subIndex)
-                                item.action = .group(name: name, actions: newSubActions)
-                                onSave()
-                            },
-                            onPreSave: onPreSave,
-                            onSave: onSave,
-                            detailWidth: detailWidth
-                        )
-                        .onDrag {
-                            return NSItemProvider(object: subItem.id.uuidString as NSString)
-                        }
-                        .onDrop(of: [.text], delegate: GroupActionDropDelegate(
-                            item: subItem,
-                            index: subIndex,
-                            groupItem: $item,
-                            onSave: onSave,
-                            onPreSave: onPreSave
-                        ))
-                    }
-                }
-                .padding(.top, 4)
-                .padding(.leading, 0)
-            }
+            cardHeaderRow
+            nestedGroupPreview
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 11)
@@ -430,6 +53,131 @@ struct ActionCardView: View {
             }
         }
         .contextMenu {
+            contextMenuItems
+        }
+        .onAppear {
+            if case .group(let name, _) = item.action {
+                localGroupName = name
+            }
+        }
+        .onChange(of: item) { _, newItem in
+            if case .group(let name, _) = newItem.action {
+                localGroupName = name
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var cardHeaderRow: some View {
+        HStack(spacing: detailWidth < 520 ? 8 : 12) {
+            dragHandleView
+            stepBadgeIcon
+
+            HStack(spacing: 8) {
+                if detailWidth >= 400 {
+                    HStack(spacing: 4) {
+                        cardTitleView
+                        shortcutKeycapsView
+                    }
+                }
+                
+                Spacer()
+                
+                parameterEditorView
+            }
+            
+            groupToggleButton
+        }
+    }
+
+    @ViewBuilder
+    private var shortcutKeycapsView: some View {
+        if case .pressShortcut(let t) = item.action {
+            HStack(spacing: 4) {
+                if t.requireCmd { KeyCap(text: "⌘") }
+                if t.requireShift { KeyCap(text: "⇧") }
+                if t.requireOption { KeyCap(text: "⌥") }
+                if t.requireControl { KeyCap(text: "⌃") }
+                KeyCap(text: KeyMap.name(for: t.keyCode))
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var groupToggleButton: some View {
+        if case .group = item.action {
+            Button(action: {
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    isCollapsed.toggle()
+                }
+            }) {
+                Image(systemName: isCollapsed ? "chevron.right" : "chevron.down")
+                    .foregroundColor(.secondary)
+                    .font(.system(size: 10, weight: .bold))
+                    .frame(width: 32, height: 32)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    @ViewBuilder
+    private var nestedGroupPreview: some View {
+        if case .group(let name, let subActions) = item.action, !isCollapsed {
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(Array(subActions.enumerated()), id: \.element.id) { subIndex, subItem in
+                    let subItemBinding = Binding<MacroActionItem>(
+                        get: {
+                            if subIndex < subActions.count {
+                                return subActions[subIndex]
+                            } else {
+                                return subItem
+                            }
+                        },
+                        set: { newValue in
+                            onPreSave()
+                            var newSubActions = subActions
+                            if subIndex < newSubActions.count {
+                                newSubActions[subIndex] = newValue
+                                item.action = .group(name: name, actions: newSubActions)
+                                onSave()
+                            }
+                        }
+                    )
+                    
+                    ActionCardView(
+                        index: subIndex,
+                        item: subItemBinding,
+                        onDelete: {
+                            onPreSave()
+                            var newSubActions = subActions
+                            newSubActions.remove(at: subIndex)
+                            item.action = .group(name: name, actions: newSubActions)
+                            onSave()
+                        },
+                        onPreSave: onPreSave,
+                        onSave: onSave,
+                        detailWidth: detailWidth
+                    )
+                    .onDrag {
+                        return NSItemProvider(object: subItem.id.uuidString as NSString)
+                    }
+                    .onDrop(of: [.text], delegate: GroupActionDropDelegate(
+                        item: subItem,
+                        index: subIndex,
+                        groupItem: $item,
+                        onSave: onSave,
+                        onPreSave: onPreSave
+                    ))
+                }
+            }
+            .padding(.top, 4)
+            .padding(.leading, 0)
+        }
+    }
+
+    @ViewBuilder
+    private var contextMenuItems: some View {
             if !store.selectedActionIDs.isEmpty {
                 Button("Group Selected Actions") {
                     if let selected = MacroStore.shared.selectedMacro {
@@ -558,15 +306,218 @@ struct ActionCardView: View {
                 }
             }
         }
-        .onAppear {
-            if case .group(let name, _) = item.action {
-                localGroupName = name
+
+    @ViewBuilder
+    private var stepBadgeIcon: some View {
+        ZStack(alignment: .center) {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(getActionColor(for: item.action))
+                .frame(width: 32, height: 32)
+            
+            Image(systemName: getActionIcon(for: item.action))
+                .foregroundColor(.white)
+                .font(.system(size: 13, weight: .semibold))
+                .offset(x: item.repeatCount > 1 ? -2 : 0, y: item.repeatCount > 1 ? 2 : 0)
+            
+            Text("\(index + 1)")
+                .font(.system(size: 8, weight: .bold))
+                .foregroundColor(.white.opacity(0.85))
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                .padding(.top, 2)
+                .padding(.trailing, 4)
+            
+            if item.repeatCount > 1 {
+                Text("\(item.repeatCount)x")
+                    .font(.system(size: 7, weight: .bold))
+                    .foregroundColor(.white.opacity(0.95))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+                    .padding(.bottom, 2)
+                    .padding(.leading, 4)
             }
         }
-        .onChange(of: item) { _, newItem in
-            if case .group(let name, _) = newItem.action {
-                localGroupName = name
+        .frame(width: 32, height: 32)
+    }
+
+    @ViewBuilder
+    private var dragHandleView: some View {
+        if detailWidth >= 340 {
+            Image(systemName: "line.3.horizontal")
+                .foregroundColor(isDragging ? Color.accentColor : Color.secondary.opacity(0.6))
+                .font(.system(size: 13, weight: isDragging ? .bold : .regular))
+                .frame(width: 20, height: 26)
+                .contentShape(Rectangle())
+                .gesture(
+                    DragGesture(minimumDistance: 1, coordinateSpace: .global)
+                        .onChanged { val in onDragChanged?(val) }
+                        .onEnded { val in onDragEnded?(val) }
+                )
+        }
+    }
+
+    @ViewBuilder
+    private var parameterEditorView: some View {
+        let isItemEditing = store.selectedActionIDs.contains(item.id)
+        switch item.action {
+        case .click:
+            InlineClickEditView(action: $item.action, onPreSave: onPreSave, onSave: onSave, detailWidth: detailWidth)
+        case .drag(let start, let end):
+            ActionCardEditButton {
+                CaptureOverlayWindow.shared = CaptureOverlayWindow(
+                    mode: .drag(initialStart: start == .zero ? nil : start, initialEnd: end == .zero ? nil : end),
+                    onDragCaptured: { newStart, newEnd in
+                        onPreSave()
+                        item.action = .drag(start: newStart, end: newEnd)
+                        onSave()
+                    },
+                    onDragRealTime: { tempStart, tempEnd in
+                        item.action = .drag(start: tempStart, end: tempEnd)
+                    }
+                )
             }
+        case .path(let points):
+            HStack(spacing: 8) {
+                Text("\(points.count) pts")
+                    .font(.system(size: 12, weight: .medium, design: .monospaced))
+                    .foregroundColor(.secondary)
+                
+                ActionCardEditButton {
+                    CaptureOverlayWindow.shared = CaptureOverlayWindow(
+                        initialPoints: points,
+                        defaultType: .click,
+                        onSequenceCaptured: { newPts in
+                            guard !newPts.isEmpty else { return }
+                            onPreSave()
+                            item.action = .path(points: newPts)
+                            onSave()
+                        },
+                        onSequenceRealTime: { tempPts in
+                            item.action = .path(points: tempPts)
+                        }
+                    )
+                }
+            }
+        case .moveCursor(let point):
+            ActionCardEditButton {
+                CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .click(button: .left, initialPoint: point == .zero ? nil : point)) { newPoint in
+                    onPreSave()
+                    item.action = .moveCursor(point: newPoint)
+                    onSave()
+                }
+            }
+        case .windowTransform(let p1, _, let p3, _):
+            ActionCardEditButton(action: {
+                let initialPoints: [SequencePoint] = (p1 == .zero && p3 == .zero) ? [] : [
+                    SequencePoint(point: p1, type: .click),
+                    SequencePoint(point: p3, type: .click)
+                ]
+                CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .windowTransform(initialPoints: initialPoints)) { np1, np2, np3, np4 in
+                    onPreSave()
+                    item.action = .windowTransform(p1: np1, p2: np2, p3: np3, p4: np4)
+                    onSave()
+                }
+            }, title: "Edit Area")
+        case .typeText, .pasteText:
+            InlineTextEditView(action: $item.action, onPreSave: onPreSave, onSave: onSave, detailWidth: detailWidth)
+        case .openFile:
+            InlineOpenFileEditView(action: $item.action, onPreSave: onPreSave, onSave: onSave, detailWidth: detailWidth)
+        case .customAction:
+            InlineCustomActionEditView(action: $item.action, onPreSave: onPreSave, onSave: onSave, detailWidth: detailWidth)
+        case .delay:
+            InlineDelayEditView(action: $item.action, onPreSave: onPreSave, onSave: onSave, detailWidth: detailWidth)
+        case .pressKey, .pressShortcut:
+            InlineKeyRecorder(action: $item.action, onPreSave: onPreSave, onSave: onSave, detailWidth: detailWidth)
+        case .originAction:
+            InlineOriginPicker(action: $item.action, onPreSave: onPreSave, onSave: onSave, detailWidth: detailWidth)
+        case .doAgain:
+            if let selected = MacroStore.shared.selectedMacro {
+                InlineDoAgainPicker(action: $item.action, actionItems: selected.actionItems, currentIndex: index, onPreSave: onPreSave, onSave: onSave, detailWidth: detailWidth)
+            } else {
+                Text(item.action.parameterString)
+                    .font(.system(size: 12, weight: .medium, design: .monospaced))
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(isItemEditing ? Color(white: 0.12) : Color.clear)
+                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .stroke(isItemEditing ? Color.white.opacity(0.1) : Color.clear, lineWidth: 1)
+                    )
+            }
+        case .group(_, let subActions):
+            Text("\(subActions.count) actions")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundColor(.secondary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(isItemEditing ? Color(white: 0.12) : Color.clear)
+                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .stroke(isItemEditing ? Color.white.opacity(0.1) : Color.clear, lineWidth: 1)
+                )
+        default:
+            Text(item.action.parameterString)
+                .font(.system(size: 12, weight: .medium, design: .monospaced))
+                .foregroundColor(.secondary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(isItemEditing ? Color(white: 0.12) : Color.clear)
+                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .stroke(isItemEditing ? Color.white.opacity(0.1) : Color.clear, lineWidth: 1)
+                )
+        }
+    }
+
+    @ViewBuilder
+    private var cardTitleView: some View {
+        if case .group(let name, let subActions) = item.action {
+            if isEditingGroupName {
+                TextField("Group Name", text: $localGroupName)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: detailWidth < 520 ? 11 : 13, weight: .bold))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color(white: 0.12))
+                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                    )
+                    .frame(width: 140)
+                    .focused($isGroupFocused)
+                    .onSubmit {
+                        commitGroupName(subActions: subActions)
+                        isGroupFocused = false
+                        isEditingGroupName = false
+                    }
+                    .onChange(of: isGroupFocused) { _, focused in
+                        if !focused {
+                            commitGroupName(subActions: subActions)
+                            isEditingGroupName = false
+                        }
+                    }
+                    .onAppear {
+                        isGroupFocused = true
+                    }
+            } else {
+                Text(name.isEmpty ? "Group Action" : name)
+                    .font(.system(size: detailWidth < 520 ? 11 : 13, weight: .bold))
+                    .foregroundColor(.white)
+                    .lineLimit(1)
+                    .onTapGesture(count: 2) {
+                        isEditingGroupName = true
+                    }
+            }
+        } else {
+            Text(item.action.title)
+                .font(.system(size: detailWidth < 520 ? 11 : 13, weight: .semibold))
+                .foregroundColor(.white)
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
         }
     }
 

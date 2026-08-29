@@ -7,6 +7,45 @@ import CoreImage
 import CoreImage.CIFilterBuiltins
 import ServiceManagement
 
+struct ActionCardEditButton: View {
+    let action: () -> Void
+    var title: String = "Edit"
+    
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 4) {
+                Image(systemName: "pencil")
+                    .font(.system(size: 10, weight: .semibold))
+                Text(title)
+                    .font(.system(size: 11, weight: .medium))
+            }
+            .foregroundColor(.white.opacity(0.85))
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(Color.white.opacity(0.1))
+            .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    .stroke(Color.white.opacity(0.12), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+struct KeyCap: View {
+    let text: String
+    var body: some View {
+        Text(text)
+            .font(.system(size: 11, weight: .bold))
+            .foregroundColor(.white.opacity(0.9))
+            .padding(.horizontal, 5)
+            .padding(.vertical, 2)
+            .background(Color.white.opacity(0.12))
+            .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+    }
+}
+
 struct InlineTextEditView: View {
     @Binding var action: MacroAction
     var onPreSave: () -> Void
@@ -523,13 +562,7 @@ struct InlineClickEditView: View {
             }
             
             if !clickAtCurrent {
-                if point.x != -9999 && (point != .zero) {
-                    Text("\(Int(point.x)), \(Int(point.y))")
-                        .font(.system(size: 12, weight: .medium, design: .monospaced))
-                        .foregroundColor(.secondary)
-                }
-                
-                Button {
+                ActionCardEditButton {
                     let curPt = (point.x == -9999 || point == .zero) ? nil : point
                     CaptureOverlayWindow.shared = CaptureOverlayWindow(mode: .click(button: buttonType, initialPoint: curPt)) { newPoint in
                         onPreSave()
@@ -537,20 +570,7 @@ struct InlineClickEditView: View {
                         action = .click(point: newPoint, button: buttonType)
                         onSave()
                     }
-                } label: {
-                    HStack(spacing: 3) {
-                        Image(systemName: "pencil")
-                            .font(.system(size: 10))
-                        Text("Edit")
-                            .font(.system(size: 11, weight: .medium))
-                    }
-                    .foregroundColor(.white.opacity(0.85))
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
-                    .background(Color.white.opacity(0.12))
-                    .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
                 }
-                .buttonStyle(.plain)
             }
         }
         .onAppear {
