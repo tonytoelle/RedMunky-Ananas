@@ -158,6 +158,7 @@ struct SpotlightSearchBar: View {
                 }
                 .padding(.horizontal, 4)
             }
+            .padding(.bottom, 12)
             
             // Results Grid Area
             ScrollView(showsIndicators: true) {
