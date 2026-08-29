@@ -514,7 +514,7 @@ struct MacroInspectorView: View {
         case .path:
             CaptureOverlayWindow.shared = CaptureOverlayWindow(
                 initialPoints: [],
-                defaultType: .move,
+                defaultType: .click,
                 onSequenceCaptured: { pts in
                     if pts.isEmpty {
                         removeActionItem(id: actionItem.id, isAlternate: isAlternate, switchTriggerIndex: switchTriggerIndex)

@@ -51,7 +51,7 @@ class CaptureOverlayState: ObservableObject {
     @Published var activeDraggingIndex: Int? = nil
     @Published var hoveredIndex: Int? = nil
     @Published var selectedPointIndex: Int? = nil
-    @Published var defaultPointType: SequencePointType = .move
+    @Published var defaultPointType: SequencePointType = .click
     @Published var isHoveringHud: Bool = false
     @Published var lastHudCenter: CGPoint = .zero
     @Published var hudDragOffset: CGSize = CGSize(width: 100, height: 100) // Default relative distance offset
@@ -842,7 +842,7 @@ class CaptureOverlayHostingView: NSView {
     
     init(mode: CaptureOverlayWindow.Mode,
          initialPoints: [SequencePoint] = [],
-         defaultType: SequencePointType = .move,
+         defaultType: SequencePointType = .click,
          onFinishSequence: @escaping ([SequencePoint]) -> Void,
          onCancel: @escaping () -> Void,
          onPointsCommitted: @escaping ([SequencePoint]) -> Void,
@@ -896,6 +896,11 @@ class CaptureOverlayHostingView: NSView {
         
         stateModel.onConfirmAll = { [weak self] in
             guard let self = self else { return }
+            if self.stateModel.isFollowingCursor {
+                let newPt = SequencePoint(point: self.stateModel.quartzLocation, type: self.stateModel.defaultPointType)
+                self.stateModel.points.append(newPt)
+                self.stateModel.isFollowingCursor = false
+            }
             self.cleanupMonitors()
             self.onFinishSequence(self.stateModel.points)
         }
@@ -1569,7 +1574,7 @@ class CaptureOverlayWindow: NSPanel {
     }
     
     init(initialPoints: [SequencePoint] = [], 
-         defaultType: SequencePointType = .move, 
+         defaultType: SequencePointType = .click, 
          onSequenceCaptured: @escaping ([SequencePoint]) -> Void,
          onSequenceRealTime: (([SequencePoint]) -> Void)? = nil) {
         self.mode = .sequence(initialPoints: initialPoints)

@@ -210,7 +210,7 @@ struct ActionCardView: View {
                             Button {
                                 CaptureOverlayWindow.shared = CaptureOverlayWindow(
                                     initialPoints: points,
-                                    defaultType: .move,
+                                    defaultType: .click,
                                     onSequenceCaptured: { newPts in
                                         guard !newPts.isEmpty else { return }
                                         onPreSave()
