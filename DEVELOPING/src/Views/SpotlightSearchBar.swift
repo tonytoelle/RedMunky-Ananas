@@ -261,8 +261,7 @@ struct SpotlightSearchBar: View {
         .background(Color(nsColor: .windowBackgroundColor))
         .clipShape(RoundedRectangle(cornerRadius: 18))
         .onAppear {
-            isFocused = true
-            setupKeyMonitor()
+            // Do NOT auto-focus on appear to prevent hijacking arrow keys
         }
         .onDisappear {
             removeKeyMonitor()
