@@ -61,7 +61,12 @@ struct MacroInspectorView: View {
         .onChange(of: macro.id) { _, _ in
             tempName = macro.fileName.replacingOccurrences(of: ".shortking", with: "")
             isEditingName = false
-            store.selectedActionID = nil
+            store.selectedActionIDs.removeAll()
+            store.lastSelectedActionID = nil
+        }
+        .onChange(of: macro.fileURL) { _, _ in
+            tempName = macro.fileName.replacingOccurrences(of: ".shortking", with: "")
+            isEditingName = false
         }
         .onChange(of: macro.fileName) { _, newFileName in
             tempName = newFileName.replacingOccurrences(of: ".shortking", with: "")
@@ -1849,7 +1854,6 @@ struct MainEditorView: View {
             GeometryReader { detailGeo in
                 if let macro = store.selectedMacro {
                     MacroInspectorView(macro: macro, detailWidth: detailGeo.size.width)
-                        .id(macro.id)
                 } else if let folderPath = store.selectedFolderPath,
                           let folderInfo = findFolderInfo(path: folderPath, in: store.treeNodes) {
                     FolderInspectorView(
@@ -1954,15 +1958,21 @@ struct MainEditorView: View {
         .onChange(of: selectedPaths) { _, newPaths in
             if let path = newPaths.first {
                 if path.hasSuffix(".shortking") {
-                    store.selectedFilePath = path
-                    store.selectedFolderPath = nil
+                    if store.selectedFilePath != path {
+                        store.selectedFilePath = path
+                        store.selectedFolderPath = nil
+                    }
                 } else {
-                    store.selectedFolderPath = path
-                    store.selectedFilePath = nil
+                    if store.selectedFolderPath != path {
+                        store.selectedFolderPath = path
+                        store.selectedFilePath = nil
+                    }
                 }
             } else {
-                store.selectedFilePath = nil
-                store.selectedFolderPath = nil
+                if store.selectedFilePath != nil || store.selectedFolderPath != nil {
+                    store.selectedFilePath = nil
+                    store.selectedFolderPath = nil
+                }
             }
         }
         .onChange(of: store.selectedFilePath) { _, newPath in
