@@ -2,6 +2,5 @@
 TRIGGER: f7
 
 # Actions:
-ACTION: path 
 ACTION: path 854,481:move 973,576:move 1075,517:move
 ACTION: path 805,682:move
