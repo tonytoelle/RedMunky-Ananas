@@ -3,5 +3,6 @@ TRIGGER: f8
 
 # Actions:
 ACTION: current_position right
-ACTION: delay 100
+ACTION: delay 300
 ACTION: ax_press "Wipe Timeline Clip"
+ACTION: type "Hello ShortKing"
