@@ -4,3 +4,12 @@ TRIGGER: f3
 # Actions:
 ACTION: path 1424,962:click 1363,963:click
 ACTION: click current
+ACTION: right_click 802 501
+ACTION: click 951 255
+ACTION: drag 924 595 to 1221 496
+ACTION: path 715,736:click 836,486:click 970,568:click 1013,480:click 1153,452:click
+ACTION: path 823,452:click 885,547:click 959,436:click
+ACTION: click 636 906
+ACTION: path 795,709:click 917,619:click
+ACTION: path 777,693:click 893,553:click 1123,608:click 1259,535:click
+ACTION: path 834,654:click 955,586:click 950,722:click 1091,631:click 1186,802:click

@@ -1318,10 +1318,11 @@ class CaptureOverlayHostingView: NSView {
                 stateModel.selectedPointIndex = insertIndex
             }
             
-            // Keep following cursor continuous for rapid sequential point placement (1, 2, 3, ...)
-            stateModel.isFollowingCursor = true
-            stateModel.phase = .recording
+            // After placing this point, wait until user clicks "+" button to add the next point
+            stateModel.isFollowingCursor = false
+            stateModel.phase = .editing
             
+            updatePassthrough(quartzPt: stateModel.quartzLocation)
             stateModel.notifyPointsCommitted()
             stateModel.notifyPointsRealtime()
             
