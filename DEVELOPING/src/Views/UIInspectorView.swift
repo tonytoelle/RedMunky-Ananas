@@ -235,7 +235,7 @@ struct UIInspectorView: View {
                     HStack(spacing: 5) {
                         Image(systemName: inspector.isLocked ? "lock.fill" : "lock.open")
                             .font(.system(size: 12))
-                        Text(inspector.isLocked ? "Locked (Space)" : "Lock (Space)")
+                        Text(inspector.isLocked ? "Locked (F10)" : "Lock (F10)")
                             .font(.system(size: 11, weight: .bold))
                     }
                     .padding(.horizontal, 10)
@@ -249,7 +249,7 @@ struct UIInspectorView: View {
                     )
                 }
                 .buttonStyle(PlainButtonStyle())
-                .help("Freeze current element inspection anywhere on screen (Press Spacebar)")
+                .help("Freeze current element inspection anywhere on screen (Press F10)")
             }
             
             // Sub-bar: App Quick Picker
@@ -288,9 +288,9 @@ struct UIInspectorView: View {
                     Circle()
                         .fill(Color.orange)
                         .frame(width: 6, height: 6)
-                    Text("Press Spacebar anywhere to Freeze / Unfreeze")
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundColor(.white.opacity(0.5))
+                    Text("Press F10 anywhere to Freeze / Unfreeze")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundColor(.orange)
                 }
             }
             .padding(.horizontal, 2)

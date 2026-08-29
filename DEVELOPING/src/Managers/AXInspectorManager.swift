@@ -190,7 +190,7 @@ class AXInspectorManager: ObservableObject {
         isLocked = false
         refreshRunningApps()
         installKeyMonitors()
-        statusMessage = "Tracking mouse cursor… (Press Spacebar to freeze inspection)"
+        statusMessage = "Tracking mouse cursor… (Press F10 to freeze inspection)"
         
         trackingTimer = Timer.scheduledTimer(withTimeInterval: 0.08, repeats: true) { [weak self] _ in
             guard let self = self else { return }
@@ -220,20 +220,25 @@ class AXInspectorManager: ObservableObject {
     func toggleLock() {
         isLocked.toggle()
         if isLocked {
-            statusMessage = "🔒 Frozen on element. You can now explore attributes or click actions."
+            statusMessage = "🔒 Frozen on element. (Press F10 to unfreeze)"
         } else {
-            statusMessage = "Tracking mouse cursor over all applications…"
+            statusMessage = "Tracking mouse cursor… (Press F10 to freeze)"
         }
     }
     
-    // MARK: - Global & Local Spacebar Key Monitors
+    // MARK: - Global & Local F10 Key Monitors (System Override)
     private func installKeyMonitors() {
         removeKeyMonitors()
         
-        // 1. Local monitor when ShortKing / Inspector is focused
+        // 1. Carbon OS-Level Global HotKey Override for F10 (Keycode 109)
+        CarbonHotKeyManager.shared.registerInspectorF10 { [weak self] in
+            self?.toggleLock()
+        }
+        
+        // 2. Local monitor when ShortKing / Inspector is focused
         localKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self = self, self.isInspecting else { return event }
-            if event.keyCode == 49 { // Spacebar
+            if event.keyCode == 109 || event.keyCode == 49 { // F10 or Spacebar
                 if let responder = NSApp.keyWindow?.firstResponder {
                     if let tv = responder as? NSTextView, tv.isEditable { return event }
                     if let tf = responder as? NSTextField, tf.isEditable { return event }
@@ -244,16 +249,17 @@ class AXInspectorManager: ObservableObject {
             return event
         }
         
-        // 2. Global monitor when user is hovering over another app (DaVinci Resolve, Finder, etc.)
+        // 3. Global monitor when user is hovering over another app (DaVinci Resolve, Finder, etc.)
         globalKeyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self = self, self.isInspecting else { return }
-            if event.keyCode == 49 { // Spacebar
+            if event.keyCode == 109 || event.keyCode == 49 { // F10 or Spacebar
                 self.toggleLock()
             }
         }
     }
     
     private func removeKeyMonitors() {
+        CarbonHotKeyManager.shared.unregisterInspectorF10()
         if let m = localKeyMonitor {
             NSEvent.removeMonitor(m)
             localKeyMonitor = nil

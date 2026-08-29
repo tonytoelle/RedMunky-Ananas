@@ -78,12 +78,46 @@ class CarbonHotKeyManager {
         }
     }
 
+    private var inspectorF10Ref: EventHotKeyRef?
+
+    func registerInspectorF10(action: @escaping () -> Void) {
+        unregisterInspectorF10()
+        installHandlerIfNeeded()
+        let hkID = EventHotKeyID(signature: OSType(0x494E5350), id: 8888)
+        let status = RegisterEventHotKey(109, 0, hkID, GetApplicationEventTarget(), 0, &inspectorF10Ref)
+        if status == noErr {
+            lock.lock()
+            actionClosures[8888] = action
+            lock.unlock()
+            print("🔍 Inspector F10 HotKey registered")
+        }
+    }
+
+    func unregisterInspectorF10() {
+        if let ref = inspectorF10Ref {
+            UnregisterEventHotKey(ref)
+            inspectorF10Ref = nil
+            lock.lock()
+            actionClosures.removeValue(forKey: 8888)
+            lock.unlock()
+        }
+    }
+
     func dispatch(hotKeyID: UInt32) {
         if hotKeyID == 9999 {
             print("🚨 EMERGENCY KILL")
             InputSimulator.isEmergencyStopped = true
             NSSound.beep()
             DispatchQueue.main.async { NSApp.terminate(nil) }
+            return
+        }
+        if hotKeyID == 8888 {
+            lock.lock()
+            let closure = actionClosures[8888]
+            lock.unlock()
+            if let closure = closure {
+                DispatchQueue.main.async { closure() }
+            }
             return
         }
         lock.lock()
