@@ -1862,35 +1862,60 @@ struct MainEditorView: View {
                     .id(folderPath)
                 } else {
                     ZStack(alignment: .top) {
-                        VStack(spacing: 16) {
+                        VStack(spacing: 20) {
                             Spacer()
+                            
                             ZStack {
-                                Circle()
-                                    .fill(Color(white: 0.18))
-                                    .frame(width: 72, height: 72)
-                                Image(systemName: "bolt.circle.fill")
-                                    .font(.system(size: 40))
-                                    .foregroundColor(.accentColor)
+                                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                                    .fill(
+                                        LinearGradient(
+                                            colors: [Color.accentColor.opacity(0.35), Color.blue.opacity(0.15)],
+                                            startPoint: .topLeading,
+                                            endPoint: .bottomTrailing
+                                        )
+                                    )
+                                    .frame(width: 88, height: 88)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 24, style: .continuous)
+                                            .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                                    )
+                                Image(systemName: "sparkles")
+                                    .font(.system(size: 40, weight: .medium))
+                                    .foregroundColor(.white)
                             }
-                            Text("No Selection")
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundColor(.white)
-                            Text("Choose a macro or folder from the sidebar.")
-                                .font(.system(size: 12))
-                                .foregroundColor(.secondary)
+                            
+                            VStack(spacing: 8) {
+                                Text("No Macro Selected")
+                                    .font(.system(size: 20, weight: .bold))
+                                    .foregroundColor(.white)
+                                
+                                Text("Choose a macro from the sidebar, or create a new macro to get started.")
+                                    .font(.system(size: 13))
+                                    .foregroundColor(.secondary)
+                                    .multilineTextAlignment(.center)
+                                    .frame(maxWidth: 320)
+                            }
+                            
                             Button {
                                 store.createNewMacro()
+                                let newMacrosPath = store.watchDirectoryURL.appendingPathComponent("New Macros").path
+                                _ = expandedFolders.insert(newMacrosPath)
                             } label: {
-                                Text("Create New Macro")
-                                    .font(.system(size: 12, weight: .semibold))
-                                    .foregroundColor(.white)
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 8)
-                                    .background(.ultraThinMaterial)
-                                    .clipShape(Capsule())
-                                    .overlay(Capsule().stroke(Color.white.opacity(0.15), lineWidth: 0.5))
+                                HStack(spacing: 8) {
+                                    Image(systemName: "plus.circle.fill")
+                                        .font(.system(size: 14, weight: .semibold))
+                                    Text("Create New Macro")
+                                        .font(.system(size: 13, weight: .semibold))
+                                }
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 20)
+                                .padding(.vertical, 10)
+                                .background(Color.accentColor)
+                                .clipShape(Capsule())
+                                .shadow(color: Color.accentColor.opacity(0.4), radius: 8, x: 0, y: 4)
                             }
                             .buttonStyle(.plain)
+                            
                             Spacer()
                         }
                         .frame(maxWidth: .infinity, maxHeight: .infinity)

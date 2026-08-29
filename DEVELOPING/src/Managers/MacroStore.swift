@@ -391,11 +391,9 @@ class MacroStore: ObservableObject {
                 // Keep current selection
             } else if let currentFolder = self.selectedFolderPath, FileManager.default.fileExists(atPath: currentFolder) {
                 // Keep folder selection
-            } else if let firstMacro = loaded.first {
-                self.selectedFilePath = firstMacro.fileURL.path
-                self.selectedFolderPath = nil
             } else {
                 self.selectedFilePath = nil
+                self.selectedFolderPath = nil
             }
             self.registerAllCarbonHotKeys()
         }
@@ -693,10 +691,12 @@ class MacroStore: ObservableObject {
     }
 
     func createNewMacro(inFolder parentURL: URL? = nil) {
-        var targetDir = watchDirectoryURL
+        var targetDir: URL
         
         if let parent = parentURL {
             targetDir = parent
+        } else if let selectedFolder = selectedFolderPath {
+            targetDir = URL(fileURLWithPath: selectedFolder)
         } else if let selectedPath = selectedFilePath {
             var isDir: ObjCBool = false
             if FileManager.default.fileExists(atPath: selectedPath, isDirectory: &isDir) {
@@ -705,13 +705,31 @@ class MacroStore: ObservableObject {
                 } else {
                     targetDir = URL(fileURLWithPath: selectedPath).deletingLastPathComponent()
                 }
+            } else {
+                targetDir = watchDirectoryURL
             }
+        } else {
+            // Default when no selection: put in "New Macros" folder!
+            let newMacrosFolderURL = watchDirectoryURL.appendingPathComponent("New Macros")
+            var isDir: ObjCBool = false
+            if !FileManager.default.fileExists(atPath: newMacrosFolderURL.path, isDirectory: &isDir) || !isDir.boolValue {
+                try? FileManager.default.createDirectory(at: newMacrosFolderURL, withIntermediateDirectories: true, attributes: nil)
+            }
+            targetDir = newMacrosFolderURL
         }
         
-        let count = macros.count + 1
-        let fileName = "macro \(count).shortking"
-        let url = targetDir.appendingPathComponent(fileName)
+        var count = 1
+        var fileName = "Macro \(count).shortking"
+        var url = targetDir.appendingPathComponent(fileName)
+        while FileManager.default.fileExists(atPath: url.path) {
+            count += 1
+            fileName = "Macro \(count).shortking"
+            url = targetDir.appendingPathComponent(fileName)
+        }
+        
         self.selectedFilePath = url.path
+        self.selectedFolderPath = nil
+        self.focusedPane = .right
         let t = Trigger(keyCode: 40, requireCmd: true, requireShift: true, requireOption: false, requireControl: false)
         let a: [MacroAction] = []
         try? ShortKingParser.generateScript(triggers: [t], actions: a).write(to: url, atomically: true, encoding: .utf8)
