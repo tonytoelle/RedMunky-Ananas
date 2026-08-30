@@ -772,20 +772,13 @@ struct FolderInspectorView: View {
                            let nsImage = NSWorkspace.shared.icon(forFile: appURL.path) as NSImage? {
                             Image(nsImage: nsImage)
                                 .resizable()
-                                .frame(width: 112, height: 112)
+                                .aspectRatio(contentMode: .fit)
+                                .frame(width: 88, height: 88)
                         } else {
-                            ZStack {
-                                RoundedRectangle(cornerRadius: 28, style: .continuous)
-                                    .fill(config.color.opacity(0.18))
-                                    .frame(width: 112, height: 112)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 28, style: .continuous)
-                                            .stroke(config.color.opacity(0.35), lineWidth: 1.5)
-                                    )
-                                Image(systemName: config.iconName)
-                                    .font(.system(size: 52, weight: .medium))
-                                    .foregroundColor(config.color)
-                            }
+                            Image(systemName: config.iconName)
+                                .font(.system(size: 72, weight: .regular))
+                                .foregroundColor(config.color)
+                                .frame(width: 88, height: 88)
                         }
                     }
                     .buttonStyle(.plain)
