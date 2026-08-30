@@ -246,16 +246,27 @@ class MacroStore: ObservableObject {
         loadMacros()
     }
 
-    private func updateTreeNodeConfig(nodes: [FileSystemNode], folderURL: URL, newConfig: FolderConfig) -> [FileSystemNode] {
+    private func updateTreeNodeConfig(nodes: [FileSystemNode], folderURL: URL, newConfig: FolderConfig, inheritedParentConfig: FolderConfig? = nil) -> [FileSystemNode] {
         return nodes.map { node in
             switch node {
             case .folder(let name, let url, let config, let children):
                 let isMatch = url.standardizedFileURL.path == folderURL.standardizedFileURL.path
-                let updatedChildren = updateTreeNodeConfig(nodes: children, folderURL: folderURL, newConfig: newConfig)
-                return .folder(name: name, url: url, config: isMatch ? newConfig : config, children: updatedChildren)
+                let currentConfig = isMatch ? newConfig : config
+                var effectiveForChildren = currentConfig
+                if let parent = inheritedParentConfig, !parent.isEnabled {
+                    effectiveForChildren.isEnabled = false
+                }
+                let updatedChildren = updateTreeNodeConfig(nodes: children, folderURL: folderURL, newConfig: newConfig, inheritedParentConfig: effectiveForChildren)
+                return .folder(name: name, url: url, config: currentConfig, children: updatedChildren)
             case .macro(let item):
                 if item.fileURL.deletingLastPathComponent().standardizedFileURL.path == folderURL.standardizedFileURL.path {
-                    item.parentFolderConfig = newConfig
+                    var effectiveConfig = newConfig
+                    if let parent = inheritedParentConfig, !parent.isEnabled {
+                        effectiveConfig.isEnabled = false
+                    }
+                    item.parentFolderConfig = effectiveConfig
+                } else if let parent = inheritedParentConfig {
+                    item.parentFolderConfig = parent
                 }
                 return .macro(item: item)
             }
@@ -420,7 +431,11 @@ class MacroStore: ObservableObject {
             let isDir = (try? item.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false
             if isDir {
                 let config = loadFolderConfig(at: item)
-                let children = scanDirectory(at: item, loadedMacros: &loadedMacros, existingMacrosMap: existingMacrosMap, parentConfig: config)
+                var effectiveFolderConfig = config
+                if let parent = parentConfig, !parent.isEnabled {
+                    effectiveFolderConfig.isEnabled = false
+                }
+                let children = scanDirectory(at: item, loadedMacros: &loadedMacros, existingMacrosMap: existingMacrosMap, parentConfig: effectiveFolderConfig)
                 nodes.append(.folder(name: item.lastPathComponent, url: item, config: config, children: children))
             } else if item.pathExtension.lowercased() == "shortking" {
                 if let parsed = ShortKingParser.parseFile(at: item) {

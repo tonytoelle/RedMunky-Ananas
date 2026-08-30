@@ -1271,6 +1271,7 @@ struct InlineRenameField: View {
 struct SidebarNodeView: View {
     let node: FileSystemNode
     let depth: Int
+    var isParentEnabled: Bool = true
     @Binding var expandedFolders: Set<String>
     @Binding var selectedPaths: Set<String>
     var store = MacroStore.shared
@@ -1282,6 +1283,7 @@ struct SidebarNodeView: View {
     var body: some View {
         switch node {
         case .folder(let name, let url, let config, let children):
+            let isFolderEffectivelyEnabled = isParentEnabled && config.isEnabled
             let isSelected = selectedPaths.contains(url.path) || store.selectedFolderPath == url.path
             let isExpanded = Binding<Bool>(
                 get: { expandedFolders.contains(url.path) },
@@ -1299,6 +1301,7 @@ struct SidebarNodeView: View {
                     SidebarNodeView(
                         node: child,
                         depth: depth + 1,
+                        isParentEnabled: isFolderEffectivelyEnabled,
                         expandedFolders: $expandedFolders,
                         selectedPaths: $selectedPaths,
                         onSelect: onSelect
@@ -1322,10 +1325,10 @@ struct SidebarNodeView: View {
                             .resizable()
                             .aspectRatio(contentMode: .fit)
                             .frame(width: 18, height: 18)
-                            .opacity(config.isEnabled ? 1.0 : 0.4)
+                            .opacity(isFolderEffectivelyEnabled ? 1.0 : 0.35)
                     } else {
                         Image(systemName: config.iconName)
-                            .foregroundColor(isSelected ? Color.accentColor : (config.isEnabled ? config.color : Color.gray.opacity(0.5)))
+                            .foregroundColor(isSelected ? Color.accentColor : (isFolderEffectivelyEnabled ? config.color : Color.gray.opacity(0.45)))
                             .font(.system(size: 14))
                             .frame(width: 18, height: 18)
                     }
@@ -1344,20 +1347,31 @@ struct SidebarNodeView: View {
                     } else {
                         Text(name.toTitleCase())
                             .font(.system(size: 13, weight: isSelected ? .bold : .medium))
-                            .foregroundColor(isSelected ? Color.accentColor : (config.isEnabled ? Color(white: 0.92) : Color.secondary.opacity(0.7)))
+                            .foregroundColor(isSelected ? Color.accentColor : (isFolderEffectivelyEnabled ? Color(white: 0.92) : Color.secondary.opacity(0.65)))
                             .lineLimit(1)
                     }
                     
                     Spacer()
                     
+                    if !isFolderEffectivelyEnabled {
+                        Text("Off")
+                            .font(.system(size: 8.5, weight: .bold))
+                            .foregroundColor(.secondary)
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 1)
+                            .background(Color.white.opacity(0.08))
+                            .clipShape(RoundedRectangle(cornerRadius: 3))
+                    }
+                    
                     Text("\(children.count)")
                         .font(.system(size: 10, weight: .semibold, design: .monospaced))
-                        .foregroundColor(isSelected ? Color.accentColor : Color(white: 0.55))
+                        .foregroundColor(isSelected ? Color.accentColor : (isFolderEffectivelyEnabled ? Color(white: 0.55) : Color(white: 0.35)))
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
                         .background(isSelected ? Color.accentColor.opacity(0.12) : Color.white.opacity(0.06))
                         .clipShape(Capsule())
                 }
+                .opacity(isFolderEffectivelyEnabled ? 1.0 : 0.55)
                 .contentShape(Rectangle())
                 .onTapGesture {
                     let flags = NSEvent.modifierFlags
@@ -1456,6 +1470,7 @@ struct SidebarNodeView: View {
             }
 
         case .macro(let macro):
+            let isMacroEffectivelyEnabled = isParentEnabled && macro.isEffectivelyEnabled
             let isSelected = selectedPaths.contains(macro.fileURL.path) || (store.selectedFilePath == macro.fileURL.path && selectedPaths.isEmpty)
 
             HStack(spacing: 8) {
@@ -1465,10 +1480,10 @@ struct SidebarNodeView: View {
                 
                 ZStack {
                     RoundedRectangle(cornerRadius: 4, style: .continuous)
-                        .fill(macro.isEnabled ? iconColor : Color.gray.opacity(0.5))
+                        .fill(isMacroEffectivelyEnabled ? iconColor : Color.gray.opacity(0.35))
                         .frame(width: 18, height: 18)
                     Image(systemName: iconName)
-                        .foregroundColor(.white)
+                        .foregroundColor(isMacroEffectivelyEnabled ? .white : Color.white.opacity(0.6))
                         .font(.system(size: 9, weight: .bold))
                 }
 
@@ -1486,13 +1501,13 @@ struct SidebarNodeView: View {
                 } else {
                     Text(macro.fileName.replacingOccurrences(of: ".shortking", with: "").toTitleCase())
                         .font(.system(size: 13, weight: isSelected ? .bold : .regular))
-                        .foregroundColor(isSelected ? Color.accentColor : (macro.isEnabled ? Color(white: 0.90) : Color.secondary.opacity(0.7)))
+                        .foregroundColor(isSelected ? Color.accentColor : (isMacroEffectivelyEnabled ? Color(white: 0.90) : Color.secondary.opacity(0.55)))
                         .lineLimit(1)
                 }
 
                 Spacer()
 
-                if !macro.isEnabled {
+                if !isMacroEffectivelyEnabled {
                     Text("Off")
                         .font(.system(size: 9, weight: .bold))
                         .foregroundColor(.secondary)
@@ -1503,7 +1518,7 @@ struct SidebarNodeView: View {
                 }
 
                 ShortcutBadgeView(trigger: macro.trigger, isDimmedMini: true, isSelected: isSelected)
-                    .opacity(isSelected ? 0.6 : (macro.isEnabled ? 1.0 : 0.4))
+                    .opacity(isSelected ? 0.6 : (isMacroEffectivelyEnabled ? 1.0 : 0.35))
             }
             .contentShape(Rectangle())
             .onTapGesture {
@@ -1516,7 +1531,7 @@ struct SidebarNodeView: View {
                     onSelect(macro.fileURL.path, flags)
                 }
             }
-            .opacity(macro.isEnabled ? 1.0 : 0.65)
+            .opacity(isMacroEffectivelyEnabled ? 1.0 : 0.45)
             .onDrag {
                 let pathsToDrag = selectedPaths.contains(macro.fileURL.path) ? Array(selectedPaths) : [macro.fileURL.path]
                 return NSItemProvider(object: pathsToDrag.joined(separator: "\n") as NSString)

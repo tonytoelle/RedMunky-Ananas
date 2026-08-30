@@ -14,7 +14,7 @@ class MacroItem: Identifiable, ObservableObject {
     @Published var triggers: [Trigger] = []
     @Published var actionItems: [MacroActionItem]  // items have stable IDs for drag-drop
     @Published var isEnabled: Bool = true
-    var parentFolderConfig: FolderConfig?
+    @Published var parentFolderConfig: FolderConfig?
 
     var isEffectivelyEnabled: Bool {
         guard isEnabled else { return false }
