@@ -1,10 +1,144 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import AVFoundation
+import PDFKit
+
+// ==========================================
+// MARK: - QuickLook & Finder Thumbnail Cache
+// ==========================================
+
+class FileThumbnailCache {
+    static let shared = FileThumbnailCache()
+    private var cache = NSCache<NSString, NSImage>()
+    
+    func thumbnail(for path: String, targetSize: CGSize = CGSize(width: 128, height: 128), completion: @escaping (NSImage) -> Void) {
+        let key = path as NSString
+        if let cached = cache.object(forKey: key) {
+            completion(cached)
+            return
+        }
+        
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let url = URL(fileURLWithPath: path)
+            let ext = url.pathExtension.lowercased()
+            var resultImage: NSImage?
+            
+            // 1. Image formats
+            let imageExtensions: Set<String> = ["png", "jpg", "jpeg", "heic", "webp", "gif", "tiff", "bmp", "svg", "icns"]
+            if imageExtensions.contains(ext) {
+                if let img = NSImage(contentsOfFile: path) {
+                    resultImage = img
+                }
+            }
+            // 2. Video formats
+            else if ["mp4", "mov", "m4v", "mkv", "avi"].contains(ext) {
+                let asset = AVAsset(url: url)
+                let generator = AVAssetImageGenerator(asset: asset)
+                generator.appliesPreferredTrackTransform = true
+                generator.maximumSize = CGSize(width: targetSize.width * 2, height: targetSize.height * 2)
+                if let cgImage = try? generator.copyCGImage(at: .zero, actualTime: nil) {
+                    resultImage = NSImage(cgImage: cgImage, size: targetSize)
+                }
+            }
+            // 3. PDF formats
+            else if ext == "pdf" {
+                if let pdfDoc = PDFDocument(url: url), let page = pdfDoc.page(at: 0) {
+                    let pageRect = page.bounds(for: .mediaBox)
+                    let img = NSImage(size: pageRect.size)
+                    img.lockFocus()
+                    if let context = NSGraphicsContext.current?.cgContext {
+                        context.setFillColor(NSColor.white.cgColor)
+                        context.fill(pageRect)
+                        page.draw(with: .mediaBox, to: context)
+                    }
+                    img.unlockFocus()
+                    resultImage = img
+                }
+            }
+            
+            // 4. Default / Fallback: Native Finder Icon
+            if resultImage == nil {
+                let icon = NSWorkspace.shared.icon(forFile: path)
+                icon.size = targetSize
+                resultImage = icon
+            }
+            
+            let finalImage = resultImage ?? NSWorkspace.shared.icon(forFile: path)
+            self?.cache.setObject(finalImage, forKey: key)
+            
+            DispatchQueue.main.async {
+                completion(finalImage)
+            }
+        }
+    }
+}
+
+struct AsyncFileThumbnailView: View {
+    let path: String
+    let size: CGFloat
+    @State private var image: NSImage?
+    
+    var body: some View {
+        Group {
+            if let img = image {
+                Image(nsImage: img)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+            } else {
+                Image(nsImage: NSWorkspace.shared.icon(forFile: path))
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+            }
+        }
+        .frame(width: size, height: size)
+        .shadow(color: Color.black.opacity(0.25), radius: 3, x: 0, y: 2)
+        .onAppear {
+            loadImage()
+        }
+        .onChange(of: path) { _, _ in
+            loadImage()
+        }
+    }
+    
+    private func loadImage() {
+        FileThumbnailCache.shared.thumbnail(for: path, targetSize: CGSize(width: size * 2, height: size * 2)) { loaded in
+            self.image = loaded
+        }
+    }
+}
+
+// PreferenceKey for tracking item frame coordinates for marquee selection
+struct ItemFramePreference: PreferenceKey {
+    static var defaultValue: [String: CGRect] = [:]
+    static func reduce(value: inout [String: CGRect], nextValue: () -> [String: CGRect]) {
+        value.merge(nextValue()) { $1 }
+    }
+}
+
+// ==========================================
+// MARK: - Main Drop Shelf View
+// ==========================================
 
 struct DropShelfView: View {
     @ObservedObject var manager: DropShelfManager
     @State private var isTargeted = false
     @State private var selectedPaths: Set<String> = []
+    
+    // Marquee Selection State
+    @State private var itemFrames: [String: CGRect] = [:]
+    @State private var marqueeStart: CGPoint? = nil
+    @State private var marqueeCurrent: CGPoint? = nil
+    @State private var initialSelectionBeforeMarquee: Set<String> = []
+    
+    private var marqueeRect: CGRect? {
+        guard let s = marqueeStart, let c = marqueeCurrent else { return nil }
+        let x = min(s.x, c.x)
+        let y = min(s.y, c.y)
+        let w = abs(s.x - c.x)
+        let h = abs(s.y - c.y)
+        guard w > 2 || h > 2 else { return nil }
+        return CGRect(x: x, y: y, width: w, height: h)
+    }
     
     var body: some View {
         ZStack {
@@ -125,7 +259,7 @@ struct DropShelfView: View {
                 
                 Spacer()
                 
-                // Drop Content Area / File Preview
+                // Drop Content Area / File Preview with Marquee Selection
                 Group {
                     if manager.heldItems.isEmpty {
                         // Empty State (Waiting for Drop)
@@ -142,17 +276,14 @@ struct DropShelfView: View {
                         }
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                     } else if manager.heldItems.count == 1, let firstItem = manager.heldItems.first {
-                        // Single Item Display (Classic Large Finder Icon)
+                        // Single Item Display (Classic Large Finder Icon with QuickLook Thumbnail)
                         let url = URL(fileURLWithPath: firstItem)
                         let fileName = url.lastPathComponent
                         let isSelected = selectedPaths.contains(firstItem)
                         
                         DraggableCardContainer(filePaths: [firstItem]) {
                             VStack(spacing: 6) {
-                                Image(nsImage: fileIcon(for: firstItem))
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fit)
-                                    .frame(width: 64, height: 64)
+                                AsyncFileThumbnailView(path: firstItem, size: 68)
                                 
                                 Text(fileName)
                                     .font(.system(size: 11, weight: .medium))
@@ -160,16 +291,19 @@ struct DropShelfView: View {
                                     .multilineTextAlignment(.center)
                                     .lineLimit(2)
                                     .truncationMode(.middle)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(
+                                        isSelected ?
+                                        RoundedRectangle(cornerRadius: 5, style: .continuous).fill(Color.accentColor) :
+                                        RoundedRectangle(cornerRadius: 5, style: .continuous).fill(Color.clear)
+                                    )
                                     .frame(maxWidth: 140)
                             }
                             .padding(8)
                             .background(
                                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                    .fill(isSelected ? Color.accentColor.opacity(0.25) : Color.clear)
-                            )
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                    .stroke(isSelected ? Color.accentColor : Color.clear, lineWidth: 1.5)
+                                    .fill(isSelected ? Color.accentColor.opacity(0.2) : Color.clear)
                             )
                             .contentShape(Rectangle())
                             .onTapGesture(count: 2) {
@@ -188,84 +322,142 @@ struct DropShelfView: View {
                         }
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                     } else {
-                        // Multiple Items Display (Finder Grid View with Selection)
-                        VStack(spacing: 6) {
-                            ScrollView(.vertical, showsIndicators: false) {
-                                LazyVGrid(columns: [GridItem(.adaptive(minimum: 64, maximum: 80), spacing: 8)], spacing: 10) {
-                                    ForEach(manager.heldItems, id: \.self) { itemPath in
-                                        let itemURL = URL(fileURLWithPath: itemPath)
-                                        let isSelected = selectedPaths.contains(itemPath)
-                                        let dragPayload = selectedPaths.contains(itemPath) && selectedPaths.count > 1 ? Array(selectedPaths) : [itemPath]
-                                        
-                                        DraggableCardContainer(filePaths: dragPayload) {
-                                            VStack(spacing: 4) {
-                                                Image(nsImage: fileIcon(for: itemPath))
-                                                    .resizable()
-                                                    .aspectRatio(contentMode: .fit)
-                                                    .frame(width: 44, height: 44)
-                                                
-                                                Text(itemURL.lastPathComponent)
-                                                    .font(.system(size: 10, weight: .medium))
-                                                    .foregroundColor(.white)
-                                                    .multilineTextAlignment(.center)
-                                                    .lineLimit(2)
-                                                    .truncationMode(.middle)
-                                                    .frame(maxWidth: 72)
-                                            }
-                                            .padding(6)
-                                            .background(
-                                                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                                    .fill(isSelected ? Color.accentColor.opacity(0.3) : Color.clear)
-                                            )
-                                            .overlay(
-                                                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                                    .stroke(isSelected ? Color.accentColor : Color.clear, lineWidth: 1.5)
-                                            )
-                                            .contentShape(Rectangle())
-                                            .onTapGesture(count: 2) {
-                                                NSWorkspace.shared.open(itemURL)
-                                            }
-                                            .onTapGesture(count: 1) {
-                                                if NSEvent.modifierFlags.contains(.command) {
-                                                    if selectedPaths.contains(itemPath) {
-                                                        selectedPaths.remove(itemPath)
-                                                    } else {
-                                                        selectedPaths.insert(itemPath)
+                        // Multiple Items Display (Finder Icon Grid View with Marquee Box Selection)
+                        ZStack(alignment: .topLeading) {
+                            VStack(spacing: 6) {
+                                ScrollView(.vertical, showsIndicators: false) {
+                                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 68, maximum: 85), spacing: 8)], spacing: 10) {
+                                        ForEach(manager.heldItems, id: \.self) { itemPath in
+                                            let itemURL = URL(fileURLWithPath: itemPath)
+                                            let isSelected = selectedPaths.contains(itemPath)
+                                            let dragPayload = selectedPaths.contains(itemPath) && selectedPaths.count > 1 ? Array(selectedPaths) : [itemPath]
+                                            
+                                            DraggableCardContainer(filePaths: dragPayload) {
+                                                VStack(spacing: 4) {
+                                                    AsyncFileThumbnailView(path: itemPath, size: 48)
+                                                    
+                                                    Text(itemURL.lastPathComponent)
+                                                        .font(.system(size: 10, weight: .medium))
+                                                        .foregroundColor(.white)
+                                                        .multilineTextAlignment(.center)
+                                                        .lineLimit(2)
+                                                        .truncationMode(.middle)
+                                                        .padding(.horizontal, 4)
+                                                        .padding(.vertical, 1)
+                                                        .background(
+                                                            isSelected ?
+                                                            RoundedRectangle(cornerRadius: 4, style: .continuous).fill(Color.accentColor) :
+                                                            RoundedRectangle(cornerRadius: 4, style: .continuous).fill(Color.clear)
+                                                        )
+                                                        .frame(maxWidth: 74)
+                                                }
+                                                .padding(6)
+                                                .background(
+                                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                                        .fill(isSelected ? Color.accentColor.opacity(0.2) : Color.clear)
+                                                )
+                                                .contentShape(Rectangle())
+                                                .background(
+                                                    GeometryReader { geo in
+                                                        Color.clear.preference(
+                                                            key: ItemFramePreference.self,
+                                                            value: [itemPath: geo.frame(in: .named("DropShelfGridSpace"))]
+                                                        )
                                                     }
-                                                } else {
-                                                    if selectedPaths.contains(itemPath) && selectedPaths.count == 1 {
-                                                        selectedPaths.removeAll()
+                                                )
+                                                .onTapGesture(count: 2) {
+                                                    NSWorkspace.shared.open(itemURL)
+                                                }
+                                                .onTapGesture(count: 1) {
+                                                    if NSEvent.modifierFlags.contains(.command) {
+                                                        if selectedPaths.contains(itemPath) {
+                                                            selectedPaths.remove(itemPath)
+                                                        } else {
+                                                            selectedPaths.insert(itemPath)
+                                                        }
                                                     } else {
-                                                        selectedPaths = [itemPath]
+                                                        if selectedPaths.contains(itemPath) && selectedPaths.count == 1 {
+                                                            selectedPaths.removeAll()
+                                                        } else {
+                                                            selectedPaths = [itemPath]
+                                                        }
                                                     }
                                                 }
-                                            }
-                                            .contextMenu {
-                                                fileContextMenu(for: selectedPaths.contains(itemPath) ? Array(selectedPaths) : [itemPath])
+                                                .contextMenu {
+                                                    fileContextMenu(for: selectedPaths.contains(itemPath) ? Array(selectedPaths) : [itemPath])
+                                                }
                                             }
                                         }
                                     }
+                                    .padding(.horizontal, 10)
+                                    .padding(.top, 4)
                                 }
-                                .padding(.horizontal, 10)
-                                .padding(.top, 4)
+                                
+                                // Bottom Action: Drag All or Drag Selected
+                                let dragTargets = selectedPaths.isEmpty ? manager.heldItems : Array(selectedPaths)
+                                DraggableCardContainer(filePaths: dragTargets) {
+                                    HStack(spacing: 5) {
+                                        Image(systemName: "hand.draw.fill")
+                                            .font(.system(size: 10))
+                                        Text(selectedPaths.isEmpty ? "Drag All (\(manager.heldItems.count))" : "Drag Selected (\(selectedPaths.count))")
+                                            .font(.system(size: 10.5, weight: .semibold))
+                                    }
+                                    .foregroundColor(.white.opacity(0.9))
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 4)
+                                    .background(selectedPaths.isEmpty ? Color.white.opacity(0.12) : Color.accentColor.opacity(0.85))
+                                    .clipShape(Capsule())
+                                }
+                                .padding(.bottom, 6)
                             }
                             
-                            // Bottom Action: Drag All or Drag Selected
-                            let dragTargets = selectedPaths.isEmpty ? manager.heldItems : Array(selectedPaths)
-                            DraggableCardContainer(filePaths: dragTargets) {
-                                HStack(spacing: 5) {
-                                    Image(systemName: "hand.draw.fill")
-                                        .font(.system(size: 10))
-                                    Text(selectedPaths.isEmpty ? "Drag All (\(manager.heldItems.count))" : "Drag Selected (\(selectedPaths.count))")
-                                        .font(.system(size: 10.5, weight: .semibold))
-                                }
-                                .foregroundColor(.white.opacity(0.9))
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 4)
-                                .background(selectedPaths.isEmpty ? Color.white.opacity(0.12) : Color.accentColor.opacity(0.8))
-                                .clipShape(Capsule())
+                            // Visual Finder-style Marquee Box Overlay
+                            if let rect = marqueeRect {
+                                Rectangle()
+                                    .fill(Color.accentColor.opacity(0.18))
+                                    .overlay(
+                                        Rectangle()
+                                            .stroke(Color.accentColor.opacity(0.75), lineWidth: 1)
+                                    )
+                                    .frame(width: rect.width, height: rect.height)
+                                    .position(x: rect.midX, y: rect.midY)
+                                    .allowsHitTesting(false)
                             }
-                            .padding(.bottom, 6)
+                        }
+                        .coordinateSpace(name: "DropShelfGridSpace")
+                        .contentShape(Rectangle())
+                        .gesture(
+                            DragGesture(minimumDistance: 3, coordinateSpace: .named("DropShelfGridSpace"))
+                                .onChanged { value in
+                                    if marqueeStart == nil {
+                                        marqueeStart = value.startLocation
+                                        if NSEvent.modifierFlags.contains(.command) || NSEvent.modifierFlags.contains(.shift) {
+                                            initialSelectionBeforeMarquee = selectedPaths
+                                        } else {
+                                            initialSelectionBeforeMarquee = []
+                                            selectedPaths.removeAll()
+                                        }
+                                    }
+                                    marqueeCurrent = value.location
+                                    
+                                    if let rect = marqueeRect {
+                                        var newlySelected = initialSelectionBeforeMarquee
+                                        for (path, frame) in itemFrames {
+                                            if rect.intersects(frame) {
+                                                newlySelected.insert(path)
+                                            }
+                                        }
+                                        selectedPaths = newlySelected
+                                    }
+                                }
+                                .onEnded { _ in
+                                    marqueeStart = nil
+                                    marqueeCurrent = nil
+                                    initialSelectionBeforeMarquee.removeAll()
+                                }
+                        )
+                        .onPreferenceChange(ItemFramePreference.self) { frames in
+                            self.itemFrames = frames
                         }
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
@@ -401,12 +593,6 @@ struct DropShelfView: View {
             Label(paths.count > 1 ? "Move \(paths.count) to Trash" : "Move to Trash", systemImage: "trash")
         }
     }
-    
-    private func fileIcon(for path: String) -> NSImage {
-        let icon = NSWorkspace.shared.icon(forFile: path)
-        icon.size = NSSize(width: 128, height: 128)
-        return icon
-    }
 }
 
 // ==========================================
@@ -461,13 +647,17 @@ class DraggableContainerNSView: NSView, NSDraggingSource {
     
     override func mouseDown(with event: NSEvent) {
         dragStartLocation = event.locationInWindow
+        super.mouseDown(with: event)
     }
     
     override func mouseDragged(with event: NSEvent) {
-        guard let start = dragStartLocation else { return }
+        guard let start = dragStartLocation else {
+            super.mouseDragged(with: event)
+            return
+        }
         let current = event.locationInWindow
         let dist = hypot(current.x - start.x, current.y - start.y)
-        guard dist > 3 else { return }
+        guard dist > 4 else { return }
         dragStartLocation = nil
         
         guard !filePaths.isEmpty else { return }
@@ -488,6 +678,7 @@ class DraggableContainerNSView: NSView, NSDraggingSource {
     
     override func mouseUp(with event: NSEvent) {
         dragStartLocation = nil
+        super.mouseUp(with: event)
     }
     
     func draggingSession(_ session: NSDraggingSession, endedAt screenPoint: NSPoint, operation: NSDragOperation) {
