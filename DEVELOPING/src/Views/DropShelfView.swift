@@ -433,12 +433,12 @@ struct DropShelfView: View {
                                                 .lineLimit(2)
                                                 .truncationMode(.middle)
                                                 .frame(width: 66, height: 26, alignment: .top)
-                                                .padding(.horizontal, 3)
-                                                .padding(.vertical, 1)
+                                                .padding(.horizontal, 4)
+                                                .padding(.vertical, 1.5)
                                                 .background(
                                                     isSelected ?
-                                                    RoundedRectangle(cornerRadius: 3.5, style: .continuous).fill(Color.accentColor) :
-                                                    RoundedRectangle(cornerRadius: 3.5, style: .continuous).fill(Color.clear)
+                                                    RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color.accentColor) :
+                                                    RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color.clear)
                                                 )
                                         }
                                         .padding(3)
