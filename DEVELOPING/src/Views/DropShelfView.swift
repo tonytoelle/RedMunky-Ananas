@@ -126,6 +126,27 @@ struct ItemFramePreference: PreferenceKey {
 }
 
 // ==========================================
+// MARK: - Native Window Dragging Top Bar Area
+// ==========================================
+
+struct WindowDragArea: NSViewRepresentable {
+    func makeNSView(context: Context) -> WindowDragNSView {
+        return WindowDragNSView()
+    }
+    func updateNSView(_ nsView: WindowDragNSView, context: Context) {}
+}
+
+class WindowDragNSView: NSView {
+    override var mouseDownCanMoveWindow: Bool {
+        return true
+    }
+    
+    override func mouseDown(with event: NSEvent) {
+        self.window?.performDrag(with: event)
+    }
+}
+
+// ==========================================
 // MARK: - Main Drop Shelf View
 // ==========================================
 
@@ -164,108 +185,114 @@ struct DropShelfView: View {
                 .animation(.easeInOut(duration: 0.2), value: isTargeted)
             
             VStack(spacing: 0) {
-                // Header Area
-                HStack(spacing: 6) {
-                    // Close Button (X)
-                    Button {
-                        manager.closeShelf()
-                    } label: {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 11, weight: .bold))
-                            .foregroundColor(.white.opacity(0.8))
-                            .frame(width: 26, height: 26)
-                            .background(Color.white.opacity(0.1))
-                            .clipShape(Circle())
-                    }
-                    .buttonStyle(.plain)
+                // Header Area (Draggable Window Area)
+                ZStack {
+                    WindowDragArea()
+                        .frame(height: 38)
                     
-                    if !manager.heldItems.isEmpty {
-                        Text(selectedPaths.isEmpty ? "\(manager.heldItems.count) items" : "\(selectedPaths.count) of \(manager.heldItems.count) selected")
-                            .font(.system(size: 10.5, weight: .medium))
-                            .foregroundColor(.white.opacity(0.6))
-                            .padding(.leading, 4)
-                    }
-                    
-                    Spacer()
-                    
-                    if !manager.heldItems.isEmpty {
-                        // AirDrop / Share Button
+                    HStack(spacing: 6) {
+                        // Close Button (X)
                         Button {
-                            shareSelectedOrAll()
+                            manager.closeShelf()
                         } label: {
-                            Image(systemName: "square.and.arrow.up")
-                                .font(.system(size: 11, weight: .semibold))
-                                .foregroundColor(.white.opacity(0.85))
+                            Image(systemName: "xmark")
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundColor(.white.opacity(0.8))
                                 .frame(width: 26, height: 26)
                                 .background(Color.white.opacity(0.1))
                                 .clipShape(Circle())
                         }
                         .buttonStyle(.plain)
-                        .help("AirDrop / Share")
-                    }
-                    
-                    // Options Menu (...)
-                    Menu {
+                        
                         if !manager.heldItems.isEmpty {
-                            Button("Select All") {
-                                selectedPaths = Set(manager.heldItems)
+                            Text(selectedPaths.isEmpty ? "\(manager.heldItems.count) items" : "\(selectedPaths.count) of \(manager.heldItems.count) selected")
+                                .font(.system(size: 10.5, weight: .medium))
+                                .foregroundColor(.white.opacity(0.6))
+                                .padding(.leading, 4)
+                        }
+                        
+                        Spacer()
+                        
+                        if !manager.heldItems.isEmpty {
+                            // AirDrop / Share Button
+                            Button {
+                                shareSelectedOrAll()
+                            } label: {
+                                Image(systemName: "square.and.arrow.up")
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .foregroundColor(.white.opacity(0.85))
+                                    .frame(width: 26, height: 26)
+                                    .background(Color.white.opacity(0.1))
+                                    .clipShape(Circle())
                             }
-                            
-                            if !selectedPaths.isEmpty {
-                                Button("Deselect All") {
-                                    selectedPaths.removeAll()
-                                }
-                            }
-                            
-                            Divider()
-                            
-                            if let first = selectedPaths.first ?? manager.heldItems.first {
-                                let url = URL(fileURLWithPath: first)
-                                Button("Open with Default App") {
-                                    let targetUrls = activeTargetPaths().map { URL(fileURLWithPath: $0) }
-                                    for u in targetUrls { NSWorkspace.shared.open(u) }
+                            .buttonStyle(.plain)
+                            .help("AirDrop / Share")
+                        }
+                        
+                        // Options Menu (...)
+                        Menu {
+                            if !manager.heldItems.isEmpty {
+                                Button("Select All") {
+                                    selectedPaths = Set(manager.heldItems)
                                 }
                                 
-                                Button("Show in Finder") {
-                                    let targetUrls = activeTargetPaths().map { URL(fileURLWithPath: $0) }
-                                    NSWorkspace.shared.activateFileViewerSelecting(targetUrls)
-                                }
-                                
-                                Button("Quick Look") {
-                                    NSWorkspace.shared.open(url)
+                                if !selectedPaths.isEmpty {
+                                    Button("Deselect All") {
+                                        selectedPaths.removeAll()
+                                    }
                                 }
                                 
                                 Divider()
                                 
-                                Button("Copy to Clipboard") {
-                                    let pasteboard = NSPasteboard.general
-                                    pasteboard.clearContents()
-                                    pasteboard.writeObjects(activeTargetPaths().map { URL(fileURLWithPath: $0) as NSURL })
+                                if let first = selectedPaths.first ?? manager.heldItems.first {
+                                    let url = URL(fileURLWithPath: first)
+                                    Button("Open with Default App") {
+                                        let targetUrls = activeTargetPaths().map { URL(fileURLWithPath: $0) }
+                                        for u in targetUrls { NSWorkspace.shared.open(u) }
+                                    }
+                                    
+                                    Button("Show in Finder") {
+                                        let targetUrls = activeTargetPaths().map { URL(fileURLWithPath: $0) }
+                                        NSWorkspace.shared.activateFileViewerSelecting(targetUrls)
+                                    }
+                                    
+                                    Button("Quick Look") {
+                                        NSWorkspace.shared.open(url)
+                                    }
+                                    
+                                    Divider()
+                                    
+                                    Button("Copy to Clipboard") {
+                                        let pasteboard = NSPasteboard.general
+                                        pasteboard.clearContents()
+                                        pasteboard.writeObjects(activeTargetPaths().map { URL(fileURLWithPath: $0) as NSURL })
+                                    }
+                                    
+                                    Button("AirDrop / Share...") {
+                                        shareSelectedOrAll()
+                                    }
                                 }
                                 
-                                Button("AirDrop / Share...") {
-                                    shareSelectedOrAll()
+                                Divider()
+                                
+                                Button("Clear Shelf") {
+                                    manager.closeShelf()
                                 }
                             }
-                            
-                            Divider()
-                            
-                            Button("Clear Shelf") {
-                                manager.closeShelf()
-                            }
+                        } label: {
+                            Image(systemName: "ellipsis")
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundColor(.white.opacity(0.8))
+                                .frame(width: 26, height: 26)
+                                .background(Color.white.opacity(0.1))
+                                .clipShape(Circle())
                         }
-                    } label: {
-                        Image(systemName: "ellipsis")
-                            .font(.system(size: 11, weight: .bold))
-                            .foregroundColor(.white.opacity(0.8))
-                            .frame(width: 26, height: 26)
-                            .background(Color.white.opacity(0.1))
-                            .clipShape(Circle())
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
+                    .padding(.horizontal, 10)
+                    .padding(.top, 8)
                 }
-                .padding(.horizontal, 10)
-                .padding(.top, 10)
+                .frame(height: 38)
                 
                 Spacer()
                 
