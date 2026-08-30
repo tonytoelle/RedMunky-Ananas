@@ -415,8 +415,8 @@ struct DropShelfView: View {
                                                 if let offset = activeDragOffsets[t] {
                                                     let origin = currentPosition(for: t, in: outerGeo.size)
                                                     itemPositions[t] = CGPoint(
-                                                        x: max(40, min(outerGeo.size.width - 40, origin.x + offset.width)),
-                                                        y: max(40, min(outerGeo.size.height - 50, origin.y + offset.height))
+                                                        x: max(38, min(outerGeo.size.width - 38, origin.x + offset.width)),
+                                                        y: max(38, min(outerGeo.size.height - 52, origin.y + offset.height))
                                                     )
                                                     activeDragOffsets.removeValue(forKey: t)
                                                 }
@@ -546,9 +546,9 @@ struct DropShelfView: View {
                         HStack {
                             Spacer()
                             Text(selectedPaths.count == manager.heldItems.count ? "\(manager.heldItems.count) items (all selected)" : "\(selectedPaths.count) of \(manager.heldItems.count) selected")
-                                .font(.system(size: 10, weight: .medium))
+                                .font(.system(size: 9.5, weight: .medium))
                                 .foregroundColor(.white.opacity(0.6))
-                                .padding(.bottom, 6)
+                                .padding(.bottom, 8)
                                 .padding(.top, 2)
                             Spacer()
                         }
@@ -559,36 +559,36 @@ struct DropShelfView: View {
                 }
             }
         }
-        .frame(minWidth: 200, maxWidth: .infinity, minHeight: 240, maxHeight: .infinity)
+        .frame(minWidth: 214, maxWidth: .infinity, minHeight: 254, maxHeight: .infinity)
     }
     
-    private func currentPosition(for path: String, in size: CGSize = CGSize(width: 200, height: 240)) -> CGPoint {
+    private func currentPosition(for path: String, in size: CGSize = CGSize(width: 214, height: 254)) -> CGPoint {
         if let pos = itemPositions[path] {
             return pos
         }
         guard let idx = manager.heldItems.firstIndex(of: path) else {
-            return CGPoint(x: 52, y: 55)
+            return CGPoint(x: 55, y: 50)
         }
         
-        let spacingX: CGFloat = 96
-        let spacingY: CGFloat = 100
+        let spacingX: CGFloat = 104
+        let spacingY: CGFloat = 94
         let cols = max(2, Int((size.width - 16) / spacingX))
         let col = idx % cols
         let row = idx / cols
         let startX: CGFloat = 55
-        let startY: CGFloat = 58
+        let startY: CGFloat = 50
         return CGPoint(x: startX + CGFloat(col) * spacingX, y: startY + CGFloat(row) * spacingY)
     }
     
     private func realignToGrid(canvasWidth: CGFloat) {
-        let spacingX: CGFloat = 96
-        let spacingY: CGFloat = 100
+        let spacingX: CGFloat = 104
+        let spacingY: CGFloat = 94
         let cols = max(2, Int((canvasWidth - 16) / spacingX))
         for (idx, path) in manager.heldItems.enumerated() {
             let col = idx % cols
             let row = idx / cols
             let startX: CGFloat = 55
-            let startY: CGFloat = 58
+            let startY: CGFloat = 50
             itemPositions[path] = CGPoint(x: startX + CGFloat(col) * spacingX, y: startY + CGFloat(row) * spacingY)
         }
     }
@@ -623,9 +623,9 @@ struct DropShelfView: View {
     private func toggleExpand() {
         isExpanded.toggle()
         if isExpanded {
-            manager.expandWindow(width: 410, height: 430)
+            manager.expandWindow(width: 430, height: 450)
         } else {
-            manager.expandWindow(width: 200, height: 240)
+            manager.expandWindow(width: 214, height: 254)
         }
     }
     

@@ -19,7 +19,7 @@ class DropShelfWindow: NSPanel {
         self.hasShadow = true
         self.isMovable = true
         self.isMovableByWindowBackground = false
-        self.minSize = NSSize(width: 200, height: 240)
+        self.minSize = NSSize(width: 214, height: 254)
         self.maxSize = NSSize(width: 800, height: 800)
         self.contentView = contentView
         self.invalidateShadow()
@@ -127,7 +127,7 @@ class DropShelfManager: ObservableObject {
         // Shelf starts empty waiting for drop
         self.heldItems = []
         
-        let initialSize = NSSize(width: 200, height: 240)
+        let initialSize = NSSize(width: 214, height: 254)
         let origin = CGPoint(x: point.x - initialSize.width/2 + 25, y: point.y - initialSize.height/2 + 25)
         
         DispatchQueue.main.async { [weak self] in
