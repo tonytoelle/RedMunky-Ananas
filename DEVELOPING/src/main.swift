@@ -252,10 +252,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDele
         // 1. Application Menu (ShortKing)
         let appMenuItem = NSMenuItem()
         let appMenu = NSMenu(title: "ShortKing")
-        appMenu.addItem(withTitle: "About ShortKing", action: #selector(showAbout), keyEquivalent: "").target = self
+        
+        let aboutItem = NSMenuItem(title: "About ShortKing", action: #selector(showAbout), keyEquivalent: "")
+        aboutItem.setSymbol("info.circle")
+        aboutItem.target = self
+        appMenu.addItem(aboutItem)
+        
         appMenu.addItem(NSMenuItem.separator())
         
         let settingsItem = NSMenuItem(title: "Settings…", action: #selector(showSettingsWindow), keyEquivalent: ",")
+        settingsItem.setSymbol("gearshape")
         settingsItem.target = self
         appMenu.addItem(settingsItem)
 
@@ -263,6 +269,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDele
 
         let relaunchItem = NSMenuItem(title: "Relaunch ShortKing", action: #selector(relaunchApp), keyEquivalent: "r")
         relaunchItem.keyEquivalentModifierMask = [.command, .shift]
+        relaunchItem.setSymbol("arrow.clockwise")
         relaunchItem.target = self
         appMenu.addItem(relaunchItem)
 
@@ -275,13 +282,25 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDele
         appMenu.addItem(servicesItem)
         appMenu.addItem(NSMenuItem.separator())
 
-        appMenu.addItem(withTitle: "Hide ShortKing", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
+        let hideItem = NSMenuItem(title: "Hide ShortKing", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
+        hideItem.setSymbol("eye.slash")
+        appMenu.addItem(hideItem)
+        
         let hideOthersItem = NSMenuItem(title: "Hide Others", action: #selector(NSApplication.hideOtherApplications(_:)), keyEquivalent: "h")
         hideOthersItem.keyEquivalentModifierMask = [.command, .option]
+        hideOthersItem.setSymbol("square.dashed")
         appMenu.addItem(hideOthersItem)
-        appMenu.addItem(withTitle: "Show All", action: #selector(NSApplication.unhideAllApplications(_:)), keyEquivalent: "")
+        
+        let showAllItem = NSMenuItem(title: "Show All", action: #selector(NSApplication.unhideAllApplications(_:)), keyEquivalent: "")
+        showAllItem.setSymbol("eye")
+        appMenu.addItem(showAllItem)
+        
         appMenu.addItem(NSMenuItem.separator())
-        appMenu.addItem(withTitle: "Quit ShortKing", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        
+        let quitItem = NSMenuItem(title: "Quit ShortKing", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        quitItem.setSymbol("power")
+        appMenu.addItem(quitItem)
+        
         appMenuItem.submenu = appMenu
         mainMenu.addItem(appMenuItem)
 
@@ -639,6 +658,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDele
 
     @objc func reload() { MacroStore.shared.loadMacros() }
     @objc func openFolder() { NSWorkspace.shared.open(MacroStore.shared.watchDirectoryURL) }
+}
+
+extension NSMenuItem {
+    func setSymbol(_ symbolName: String) {
+        if let img = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil) {
+            img.isTemplate = true
+            self.image = img
+        }
+    }
 }
 
 // ==========================================

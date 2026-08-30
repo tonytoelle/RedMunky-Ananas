@@ -76,9 +76,9 @@ struct SettingsView: View {
             if category.rawValue.lowercased().contains(query) { return true }
             switch category {
             case .general:
-                return "login startup boot dock menubar always on top folder watch directory document path".contains(query)
+                return "login startup boot dock menubar always on top folder watch directory document path trackpad middle click".contains(query)
             case .permissions:
-                return "accessibility input monitoring permission privacy security panic emergency stop shortcut cmd control shift x".contains(query)
+                return "accessibility input monitoring permission privacy security panic emergency stop shortcut cmd control shift x screen recording".contains(query)
             case .engine:
                 return "delay timing speed loop safety iterations sound feedback audio display brightness".contains(query)
             case .appearance:
@@ -89,136 +89,132 @@ struct SettingsView: View {
         }
     }
 
-    var body: some View {
-        HSplitView {
-            // ═══════════════════════════════════════════════════
-            // LEFT SIDEBAR (Clean Dark Navigation)
-            // ═══════════════════════════════════════════════════
-            VStack(alignment: .leading, spacing: 0) {
-                // Search Pill Field
-                HStack(spacing: 6) {
-                    Image(systemName: "magnifyingglass")
-                        .foregroundColor(.secondary)
-                        .font(.system(size: 12))
-                    TextField("Search Settings…", text: $searchText)
-                        .textFieldStyle(.plain)
-                        .font(.system(size: 12))
-                        .focused($isSearchFocused)
-                    if !searchText.isEmpty {
-                        Button { searchText = "" } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .foregroundColor(.secondary)
-                                .font(.system(size: 12))
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 5)
-                .background(Color(white: 0.20))
-                .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
-                .padding(.horizontal, 10)
-                .padding(.top, 12)
-                .padding(.bottom, 8)
-
-                // Category List
-                ScrollView(showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 3) {
-                        ForEach(filteredCategories) { category in
-                            sidebarButton(category: category)
-                        }
-                    }
-                    .padding(.horizontal, 8)
-                    .padding(.bottom, 10)
-                }
-            }
-            .frame(width: 220)
-            .background(Color(white: 0.12))
-
-            // ═══════════════════════════════════════════════════
-            // RIGHT DETAIL CANVAS
-            // ═══════════════════════════════════════════════════
-            VStack(spacing: 0) {
-                // Title Bar Header
-                HStack(spacing: 10) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 6, style: .continuous)
-                            .fill(selectedCategory.iconColor.opacity(0.2))
-                            .frame(width: 28, height: 28)
-                        Image(systemName: selectedCategory.iconName)
-                            .foregroundColor(selectedCategory.iconColor)
-                            .font(.system(size: 14, weight: .semibold))
-                    }
-
-                    Text(selectedCategory.rawValue)
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundColor(.white)
-
-                    Spacer()
-                }
-                .padding(.horizontal, 22)
-                .padding(.top, 16)
-                .padding(.bottom, 12)
-                .background(Color(white: 0.14))
-                .overlay(Rectangle().frame(height: 1).foregroundColor(Color.white.opacity(0.06)), alignment: .bottom)
-
-                // Scrollable Content
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        switch selectedCategory {
-                        case .general:
-                            renderGeneralSettings()
-                        case .permissions:
-                            renderPermissionsSettings()
-                        case .engine:
-                            renderEngineSettings()
-                        case .appearance:
-                            renderAppearanceSettings()
-                        case .about:
-                            renderAboutSettings()
-                        }
-                    }
-                    .padding(22)
-                }
-            }
-            .frame(minWidth: 480)
-            .background(Color(white: 0.14))
+    private func categoryDescription(for category: SettingsCategory) -> String {
+        switch category {
+        case .general:
+            return "Configure startup behavior, window controls, and macro storage."
+        case .permissions:
+            return "Manage macOS system accessibility, screen recording, and panic stops."
+        case .engine:
+            return "Tune execution timing, iteration ceilings, and sound effects."
+        case .appearance:
+            return "Customize card layout, step indicators, and sidebar aesthetics."
+        case .about:
+            return "Software version, project architecture, and developer resources."
         }
-        .frame(minWidth: 700, idealWidth: 740, maxWidth: .infinity, minHeight: 480, idealHeight: 530, maxHeight: .infinity)
     }
 
-    // Sidebar Row
-    @ViewBuilder
-    private func sidebarButton(category: SettingsCategory) -> some View {
-        Button {
-            selectedCategory = category
-        } label: {
-            HStack(spacing: 9) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 5, style: .continuous)
-                        .fill(category.iconColor)
-                        .frame(width: 22, height: 22)
-                    Image(systemName: category.iconName)
-                        .foregroundColor(.white)
-                        .font(.system(size: 11, weight: .semibold))
+    var body: some View {
+        ZStack {
+            VisualEffectView(material: .fullScreenUI, blendingMode: .behindWindow)
+                .ignoresSafeArea()
+
+            HSplitView {
+                // ═══════════════════════════════════════════════════
+                // LEFT SIDEBAR (Matching MainEditorView Sidebar)
+                // ═══════════════════════════════════════════════════
+                VStack(alignment: .leading, spacing: 0) {
+                    // Search Pill Field
+                    HStack(spacing: 8) {
+                        Image(systemName: "magnifyingglass")
+                            .foregroundColor(isSearchFocused ? Color.accentColor : Color(white: 0.55))
+                            .font(.system(size: 13, weight: .medium))
+                        TextField("Search settings…", text: $searchText)
+                            .textFieldStyle(.plain)
+                            .font(.system(size: 13))
+                            .foregroundColor(.white)
+                            .focused($isSearchFocused)
+                        if !searchText.isEmpty {
+                            Button { searchText = "" } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundColor(Color(white: 0.55))
+                                    .font(.system(size: 13))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 7)
+                    .background(Color.white.opacity(0.07))
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(isSearchFocused ? Color.accentColor.opacity(0.6) : Color.white.opacity(0.08), lineWidth: 1)
+                    )
+                    .padding(.horizontal, 12)
+                    .padding(.top, 14)
+                    .padding(.bottom, 10)
+
+                    // Category List
+                    ScrollView(showsIndicators: false) {
+                        VStack(alignment: .leading, spacing: 3) {
+                            ForEach(filteredCategories) { category in
+                                SidebarCategoryRow(
+                                    category: category,
+                                    isSelected: selectedCategory == category,
+                                    onSelect: { selectedCategory = category }
+                                )
+                            }
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.bottom, 12)
+                    }
                 }
+                .frame(width: 220)
+                .background(Color.clear)
 
-                Text(category.rawValue)
-                    .font(.system(size: 12.5, weight: selectedCategory == category ? .semibold : .regular))
-                    .foregroundColor(selectedCategory == category ? .white : Color(white: 0.88))
+                // ═══════════════════════════════════════════════════
+                // RIGHT DETAIL CANVAS (Matching MainEditorView Detail)
+                // ═══════════════════════════════════════════════════
+                VStack(spacing: 0) {
+                    // Header Bar with Window Drag Support
+                    HStack(spacing: 12) {
+                        Image(systemName: selectedCategory.iconName)
+                            .foregroundColor(selectedCategory.iconColor)
+                            .font(.system(size: 18, weight: .bold))
 
-                Spacer()
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(selectedCategory.rawValue)
+                                .font(.system(size: 16, weight: .bold))
+                                .foregroundColor(.white)
+                            Text(categoryDescription(for: selectedCategory))
+                                .font(.system(size: 11.5))
+                                .foregroundColor(Color(white: 0.6))
+                        }
+
+                        Spacer()
+                    }
+                    .padding(.horizontal, 24)
+                    .padding(.top, 16)
+                    .padding(.bottom, 14)
+                    .background(WindowDragView())
+                    .overlay(Rectangle().frame(height: 1).foregroundColor(Color.white.opacity(0.06)), alignment: .bottom)
+
+                    // Scrollable Settings Cards
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 18) {
+                            switch selectedCategory {
+                            case .general:
+                                renderGeneralSettings()
+                            case .permissions:
+                                renderPermissionsSettings()
+                            case .engine:
+                                renderEngineSettings()
+                            case .appearance:
+                                renderAppearanceSettings()
+                            case .about:
+                                renderAboutSettings()
+                            }
+                        }
+                        .padding(24)
+                    }
+                }
+                .frame(minWidth: 480)
+                .background(Color.clear)
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 6)
-            .background(
-                selectedCategory == category
-                    ? Color(red: 0.10, green: 0.48, blue: 0.95)
-                    : Color.clear
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
         }
-        .buttonStyle(.plain)
+        .frame(minWidth: 720, idealWidth: 760, maxWidth: .infinity, minHeight: 500, idealHeight: 560, maxHeight: .infinity)
+        .preferredColorScheme(.dark)
     }
 
     // ═══════════════════════════════════════════════════
@@ -284,6 +280,7 @@ struct SettingsView: View {
                 )
             }
         }
+
         // Trackpad Middle Click Card
         settingsCard(title: "Trackpad Gestures", icon: "hand.tap.fill", iconColor: .orange) {
             toggleRow(
@@ -305,10 +302,10 @@ struct SettingsView: View {
 
         // Macro Watch Directory Card
         settingsCard(title: "Macro Watch Directory (Penyimpanan Dokumen)", icon: "folder.fill", iconColor: Color(red: 0.15, green: 0.65, blue: 0.95)) {
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 12) {
                 Text("ShortKing monitors this folder in real-time. Any `.shortking` JSON macro file added or edited here will automatically sync.")
-                    .font(.system(size: 11))
-                    .foregroundColor(.secondary)
+                    .font(.system(size: 11.5))
+                    .foregroundColor(Color(white: 0.65))
 
                 HStack(spacing: 8) {
                     Text(store.watchDirectoryURL.path)
@@ -316,10 +313,11 @@ struct SettingsView: View {
                         .foregroundColor(.white)
                         .lineLimit(1)
                         .truncationMode(.middle)
-                        .padding(8)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 8)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color(white: 0.10))
-                        .cornerRadius(6)
+                        .background(Color(white: 0.12))
+                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                 }
 
                 HStack(spacing: 10) {
@@ -383,8 +381,8 @@ struct SettingsView: View {
                                 .font(.system(size: 13, weight: .medium))
                                 .foregroundColor(.white)
                             Text("Required by macOS to simulate mouse clicks, keyboard shortcuts, drags, and macro events.")
-                                .font(.system(size: 11))
-                                .foregroundColor(.secondary)
+                                .font(.system(size: 11.5))
+                                .foregroundColor(Color(white: 0.65))
                         }
                         Spacer()
                         statusBadge(isGranted: permissions.isAccessibilityGranted)
@@ -406,7 +404,7 @@ struct SettingsView: View {
                         .controlSize(.small)
                     }
                 }
-                .padding(.vertical, 10)
+                .padding(.vertical, 8)
 
                 cardDivider()
 
@@ -418,8 +416,8 @@ struct SettingsView: View {
                                 .font(.system(size: 13, weight: .medium))
                                 .foregroundColor(.white)
                             Text("Required to capture global hotkey triggers while other applications are in the foreground.")
-                                .font(.system(size: 11))
-                                .foregroundColor(.secondary)
+                                .font(.system(size: 11.5))
+                                .foregroundColor(Color(white: 0.65))
                         }
                         Spacer()
                         statusBadge(isGranted: permissions.isInputMonitoringGranted)
@@ -441,7 +439,7 @@ struct SettingsView: View {
                         .controlSize(.small)
                     }
                 }
-                .padding(.vertical, 10)
+                .padding(.vertical, 8)
 
                 cardDivider()
 
@@ -453,8 +451,8 @@ struct SettingsView: View {
                                 .font(.system(size: 13, weight: .medium))
                                 .foregroundColor(.white)
                             Text("Required to capture screen coordinates, pixel colors, and drag-and-drop targets during macro execution.")
-                                .font(.system(size: 11))
-                                .foregroundColor(.secondary)
+                                .font(.system(size: 11.5))
+                                .foregroundColor(Color(white: 0.65))
                         }
                         Spacer()
                         statusBadge(isGranted: permissions.isScreenRecordingGranted)
@@ -476,7 +474,7 @@ struct SettingsView: View {
                         .controlSize(.small)
                     }
                 }
-                .padding(.vertical, 10)
+                .padding(.vertical, 8)
             }
         }
 
@@ -489,8 +487,8 @@ struct SettingsView: View {
                             .font(.system(size: 13, weight: .medium))
                             .foregroundColor(.white)
                         Text("Pressing this combination immediately aborts all running macro simulations, loops, and actions.")
-                            .font(.system(size: 11))
-                            .foregroundColor(.secondary)
+                            .font(.system(size: 11.5))
+                            .foregroundColor(Color(white: 0.65))
                     }
                     Spacer()
                     Text("⌘ + ⌃ + ⇧ + X")
@@ -499,8 +497,8 @@ struct SettingsView: View {
                         .padding(.horizontal, 10)
                         .padding(.vertical, 5)
                         .background(Color.red.opacity(0.15))
-                        .cornerRadius(6)
-                        .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.red.opacity(0.3), lineWidth: 1))
+                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.red.opacity(0.3), lineWidth: 1))
                 }
 
                 cardDivider()
@@ -544,8 +542,8 @@ struct SettingsView: View {
                             .font(.system(size: 13, weight: .medium))
                             .foregroundColor(.white)
                         Text("Default pause duration between sequential macro steps so target applications process events smoothly.")
-                            .font(.system(size: 11))
-                            .foregroundColor(.secondary)
+                            .font(.system(size: 11.5))
+                            .foregroundColor(Color(white: 0.65))
                     }
                     Spacer()
                     Text(String(format: "%.2f s (%d ms)", defaultStepDelay, Int(defaultStepDelay * 1000)))
@@ -554,7 +552,7 @@ struct SettingsView: View {
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
                         .background(Color(white: 0.12))
-                        .cornerRadius(5)
+                        .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
                 }
 
                 HStack(spacing: 12) {
@@ -574,8 +572,8 @@ struct SettingsView: View {
                             .font(.system(size: 13, weight: .medium))
                             .foregroundColor(.white)
                         Text("Safety ceiling for 'Do Again' repeat loops to prevent infinite freezes.")
-                            .font(.system(size: 11))
-                            .foregroundColor(.secondary)
+                            .font(.system(size: 11.5))
+                            .foregroundColor(Color(white: 0.65))
                     }
                     Spacer()
                     Picker("", selection: $maxLoopIterations) {
@@ -625,8 +623,8 @@ struct SettingsView: View {
                             .font(.system(size: 13, weight: .medium))
                             .foregroundColor(.white)
                         Text("Direct GPU display brightness control for Apple Silicon and Intel Mac screens.")
-                            .font(.system(size: 11))
-                            .foregroundColor(.secondary)
+                            .font(.system(size: 11.5))
+                            .foregroundColor(Color(white: 0.65))
                     }
                     Spacer()
                     HStack(spacing: 5) {
@@ -638,7 +636,7 @@ struct SettingsView: View {
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
                     .background(Color.green.opacity(0.12))
-                    .cornerRadius(5)
+                    .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
                 }
             }
         }
@@ -685,8 +683,8 @@ struct SettingsView: View {
                             .font(.system(size: 13, weight: .medium))
                             .foregroundColor(.white)
                         Text("Standardized JSON structure compatible with Git version control and text editors.")
-                            .font(.system(size: 11))
-                            .foregroundColor(.secondary)
+                            .font(.system(size: 11.5))
+                            .foregroundColor(Color(white: 0.65))
                     }
                     Spacer()
                     Text("Auto-Save Active ✅")
@@ -725,7 +723,7 @@ struct SettingsView: View {
                         .font(.system(size: 12, weight: .medium))
                         .foregroundColor(.secondary)
                     Text("Compact & High-Performance macOS Macro Automation Engine powered by Carbon HotKeys & Quartz Event Simulation.")
-                        .font(.system(size: 11))
+                        .font(.system(size: 11.5))
                         .foregroundColor(Color(white: 0.7))
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -791,7 +789,7 @@ struct SettingsView: View {
         iconColor: Color,
         @ViewBuilder content: () -> Content
     ) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 7) {
                 Image(systemName: icon)
                     .foregroundColor(iconColor)
@@ -826,8 +824,8 @@ struct SettingsView: View {
                     .foregroundColor(.white)
                     .font(.system(size: 12.5, weight: .medium))
                 Text(subtitle)
-                    .font(.system(size: 11))
-                    .foregroundColor(.secondary)
+                    .font(.system(size: 11.5))
+                    .foregroundColor(Color(white: 0.65))
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer()
@@ -857,10 +855,43 @@ struct SettingsView: View {
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
         .background((isGranted ? Color.green : Color.red).opacity(0.12))
-        .cornerRadius(6)
+        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
     }
 }
 
-// ==========================================
-// MARK: - Folder Inspector View (Simple, Clean Layout)
-// ==========================================
+// ═══════════════════════════════════════════════════
+// SIDEBAR CATEGORY ROW (Clean, Frameless, matching MainEditorView)
+// ═══════════════════════════════════════════════════
+private struct SidebarCategoryRow: View {
+    let category: SettingsCategory
+    let isSelected: Bool
+    let onSelect: () -> Void
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: onSelect) {
+            HStack(spacing: 10) {
+                Image(systemName: category.iconName)
+                    .foregroundColor(isSelected ? .white : category.iconColor)
+                    .font(.system(size: 14, weight: .semibold))
+                    .frame(width: 20, height: 20)
+
+                Text(category.rawValue)
+                    .font(.system(size: 13, weight: isSelected ? .bold : .medium))
+                    .foregroundColor(isSelected ? .white : Color(white: 0.90))
+
+                Spacer()
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .background(
+                isSelected
+                    ? Color.accentColor
+                    : (isHovered ? Color.white.opacity(0.06) : Color.clear)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovered = $0 }
+    }
+}
