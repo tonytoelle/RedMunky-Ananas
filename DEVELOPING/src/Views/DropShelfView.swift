@@ -212,22 +212,6 @@ struct DropShelfView: View {
                             }
                             .buttonStyle(.plain)
                             
-                            if !manager.heldItems.isEmpty {
-                                VStack(alignment: .leading, spacing: 0.5) {
-                                    Text("\(manager.heldItems.count) \(manager.heldItems.count == 1 ? "item" : "items")")
-                                        .font(.system(size: 11, weight: .semibold))
-                                        .foregroundColor(.white)
-                                    
-                                    if !selectedPaths.isEmpty {
-                                        Text(selectedPaths.count == manager.heldItems.count ? "(all selected)" : "(\(selectedPaths.count) selected)")
-                                            .font(.system(size: 9, weight: .regular))
-                                            .foregroundColor(.white.opacity(0.65))
-                                    }
-                                }
-                                .padding(.leading, 3)
-                                .allowsHitTesting(false) // Clicks and drags on title pass directly to WindowDragArea
-                            }
-                            
                             Spacer()
                                 .allowsHitTesting(false)
                             
@@ -561,8 +545,21 @@ struct DropShelfView: View {
                         return true
                     }
                     
-                    Spacer()
-                        .frame(height: 6)
+                    // Bottom Status Info (Centered at bottom)
+                    if !manager.heldItems.isEmpty {
+                        HStack {
+                            Spacer()
+                            Text(selectedPaths.count == manager.heldItems.count ? "\(manager.heldItems.count) items (all selected)" : "\(selectedPaths.count) of \(manager.heldItems.count) selected")
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundColor(.white.opacity(0.6))
+                                .padding(.bottom, 6)
+                                .padding(.top, 2)
+                            Spacer()
+                        }
+                    } else {
+                        Spacer()
+                            .frame(height: 6)
+                    }
                 }
             }
         }
@@ -893,8 +890,15 @@ class DraggableContainerNSView: NSView, NSDraggingSource {
     }
     
     func draggingSession(_ session: NSDraggingSession, endedAt screenPoint: NSPoint, operation: NSDragOperation) {
-        // If the items were successfully dropped into Finder or another target
-        if operation != [] {
+        let isInsideWindow = (self.window?.frame.contains(screenPoint) ?? false) || (DropShelfManager.shared.shelfWindow?.frame.contains(screenPoint) ?? false)
+        
+        if isInsideWindow || operation == [] {
+            // User aborted or dragged back into the shelf window -> Keep files in shelf!
+            DispatchQueue.main.async {
+                self.activeSessionPaths.removeAll()
+            }
+        } else {
+            // Items were successfully dropped into an external Finder window / target outside
             DispatchQueue.main.async {
                 for p in self.activeSessionPaths {
                     DropShelfManager.shared.heldItems.removeAll { $0 == p }
