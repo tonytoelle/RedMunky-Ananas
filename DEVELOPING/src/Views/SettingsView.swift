@@ -338,33 +338,30 @@ struct SettingsView: View {
         settingsCard(title: "macOS System Permissions", icon: "hand.raised.fill", iconColor: .green) {
             VStack(spacing: 0) {
                 // Accessibility Row
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Accessibility (Aksesibilitas)")
-                                .font(.system(size: 13, weight: .medium))
+                HStack(alignment: .center, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack(spacing: 8) {
+                            Text("Accessibility")
+                                .font(.system(size: 13, weight: .semibold))
                                 .foregroundColor(.white)
-                            Text("Required by macOS to simulate mouse clicks, keyboard shortcuts, drags, and macro events.")
-                                .font(.system(size: 11.5))
-                                .foregroundColor(Color(white: 0.65))
+                            statusBadge(isGranted: permissions.isAccessibilityGranted)
                         }
-                        Spacer()
-                        statusBadge(isGranted: permissions.isAccessibilityGranted)
+                        Text("Required to simulate mouse clicks and keyboard keystrokes.")
+                            .font(.system(size: 11.5))
+                            .foregroundColor(Color(white: 0.65))
                     }
-
-                    HStack(spacing: 8) {
-                        if !permissions.isAccessibilityGranted {
-                            Button("Request Permission Prompt") {
-                                permissions.requestAccessibilityPrompt()
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .controlSize(.small)
-                        }
-
-                        Button("Open macOS Privacy Settings") {
-                            permissions.openAccessibilitySettings()
+                    Spacer()
+                    if permissions.isAccessibilityGranted {
+                        Button("Open Settings") {
+                            permissions.grantOrOpenAccessibility()
                         }
                         .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    } else {
+                        Button("Grant Permission") {
+                            permissions.grantOrOpenAccessibility()
+                        }
+                        .buttonStyle(.borderedProminent)
                         .controlSize(.small)
                     }
                 }
@@ -373,33 +370,30 @@ struct SettingsView: View {
                 cardDivider()
 
                 // Input Monitoring Row
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Input Monitoring (Pemantauan Input)")
-                                .font(.system(size: 13, weight: .medium))
+                HStack(alignment: .center, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack(spacing: 8) {
+                            Text("Input Monitoring")
+                                .font(.system(size: 13, weight: .semibold))
                                 .foregroundColor(.white)
-                            Text("Required to capture global hotkey triggers while other applications are in the foreground.")
-                                .font(.system(size: 11.5))
-                                .foregroundColor(Color(white: 0.65))
+                            statusBadge(isGranted: permissions.isInputMonitoringGranted)
                         }
-                        Spacer()
-                        statusBadge(isGranted: permissions.isInputMonitoringGranted)
+                        Text("Required to detect global keyboard shortcut triggers.")
+                            .font(.system(size: 11.5))
+                            .foregroundColor(Color(white: 0.65))
                     }
-
-                    HStack(spacing: 8) {
-                        if !permissions.isInputMonitoringGranted {
-                            Button("Request Permission Prompt") {
-                                permissions.requestInputMonitoringPrompt()
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .controlSize(.small)
-                        }
-
-                        Button("Open Input Monitoring Settings") {
-                            permissions.openInputMonitoringSettings()
+                    Spacer()
+                    if permissions.isInputMonitoringGranted {
+                        Button("Open Settings") {
+                            permissions.grantOrOpenInputMonitoring()
                         }
                         .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    } else {
+                        Button("Grant Permission") {
+                            permissions.grantOrOpenInputMonitoring()
+                        }
+                        .buttonStyle(.borderedProminent)
                         .controlSize(.small)
                     }
                 }
@@ -408,33 +402,30 @@ struct SettingsView: View {
                 cardDivider()
 
                 // Screen Recording Row
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Screen Recording (Perekaman Layar)")
-                                .font(.system(size: 13, weight: .medium))
+                HStack(alignment: .center, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack(spacing: 8) {
+                            Text("Screen Recording")
+                                .font(.system(size: 13, weight: .semibold))
                                 .foregroundColor(.white)
-                            Text("Required to capture screen coordinates, pixel colors, and drag-and-drop targets during macro execution.")
-                                .font(.system(size: 11.5))
-                                .foregroundColor(Color(white: 0.65))
+                            statusBadge(isGranted: permissions.isScreenRecordingGranted)
                         }
-                        Spacer()
-                        statusBadge(isGranted: permissions.isScreenRecordingGranted)
+                        Text("Required to capture screen coordinates and inspect UI elements.")
+                            .font(.system(size: 11.5))
+                            .foregroundColor(Color(white: 0.65))
                     }
-
-                    HStack(spacing: 8) {
-                        if !permissions.isScreenRecordingGranted {
-                            Button("Request Permission Prompt") {
-                                permissions.requestScreenRecordingPrompt()
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .controlSize(.small)
-                        }
-
-                        Button("Open Screen Recording Settings") {
-                            permissions.openScreenRecordingSettings()
+                    Spacer()
+                    if permissions.isScreenRecordingGranted {
+                        Button("Open Settings") {
+                            permissions.grantOrOpenScreenRecording()
                         }
                         .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    } else {
+                        Button("Grant Permission") {
+                            permissions.grantOrOpenScreenRecording()
+                        }
+                        .buttonStyle(.borderedProminent)
                         .controlSize(.small)
                     }
                 }

@@ -521,7 +521,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDele
 
     func updateAlwaysOnTop() {
         let alwaysOnTop = UserDefaults.standard.bool(forKey: "alwaysOnTop")
-        window?.level = alwaysOnTop ? .floating : .normal
+        let targetLevel: NSWindow.Level = alwaysOnTop ? .floating : .normal
+        window?.level = targetLevel
+        settingsWindow?.level = targetLevel
+        inspectorWindow?.level = targetLevel
     }
 
     @objc func toggleAlwaysOnTop(_ sender: NSMenuItem) {
@@ -577,8 +580,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDele
             win.delegate = self
             settingsWindow = win
         }
+        let alwaysOnTop = UserDefaults.standard.bool(forKey: "alwaysOnTop")
+        settingsWindow?.level = alwaysOnTop ? .floating : .normal
         NSApp.activate(ignoringOtherApps: true)
         settingsWindow?.makeKeyAndOrderFront(nil)
+        settingsWindow?.orderFront(nil)
     }
 
     @objc func showInspectorWindow() {
@@ -592,18 +598,26 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDele
             win.title = "🔍 ShortKing — UI Element & Accessibility Inspector"
             win.titlebarAppearsTransparent = true
             win.titleVisibility = .hidden
-            win.level = .floating
             win.contentViewController = NSHostingController(rootView: UIInspectorView().preferredColorScheme(.dark))
             win.isReleasedWhenClosed = false
             win.delegate = self
             inspectorWindow = win
         }
+        let alwaysOnTop = UserDefaults.standard.bool(forKey: "alwaysOnTop")
+        inspectorWindow?.level = alwaysOnTop ? .floating : .normal
         NSApp.activate(ignoringOtherApps: true)
         inspectorWindow?.makeKeyAndOrderFront(nil)
+        inspectorWindow?.orderFront(nil)
         AXInspectorManager.shared.startInspecting()
     }
 
     // MARK: - NSWindowDelegate
+    func windowDidBecomeKey(_ notification: Notification) {
+        if let win = notification.object as? NSWindow {
+            win.orderFront(nil)
+        }
+    }
+
     func windowShouldClose(_ sender: NSWindow) -> Bool {
         sender.orderOut(nil)
         

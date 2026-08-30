@@ -103,6 +103,27 @@ class PermissionManager: ObservableObject {
             NSWorkspace.shared.open(url)
         }
     }
+
+    func grantOrOpenAccessibility() {
+        if !isAccessibilityGranted {
+            requestAccessibilityPrompt()
+        }
+        openAccessibilitySettings()
+    }
+
+    func grantOrOpenInputMonitoring() {
+        if !isInputMonitoringGranted {
+            requestInputMonitoringPrompt()
+        }
+        openInputMonitoringSettings()
+    }
+
+    func grantOrOpenScreenRecording() {
+        if !isScreenRecordingGranted {
+            requestScreenRecordingPrompt()
+        }
+        openScreenRecordingSettings()
+    }
 }
 
 // ==========================================
