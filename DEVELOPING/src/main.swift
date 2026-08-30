@@ -433,32 +433,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDele
 
         statusMenu.addItem(NSMenuItem.separator())
 
-        // Macro list submenu
-        let macros = MacroStore.shared.macros
-        if !macros.isEmpty {
-            let activeMacros = macros.filter { $0.isEffectivelyEnabled }
-            let macrosHeader = NSMenuItem(title: "Active Macros (\(activeMacros.count)):", action: nil, keyEquivalent: "")
-            macrosHeader.isEnabled = false
-            statusMenu.addItem(macrosHeader)
-
-            for macro in macros {
-                let name = macro.fileName.replacingOccurrences(of: ".shortking", with: "")
-                let statusIcon = macro.isEffectivelyEnabled ? "▶" : "⏸ (Off)"
-                let title = "  \(statusIcon) \(name)  [\(macro.trigger.displayString)]"
-                let item = NSMenuItem(title: title, action: #selector(runMacroFromMenu(_:)), keyEquivalent: "")
-                item.representedObject = macro
-                item.target = self
-                item.isEnabled = macro.isEffectivelyEnabled
-                statusMenu.addItem(item)
-            }
-            statusMenu.addItem(NSMenuItem.separator())
-        }
-
         let reloadItem = NSMenuItem(title: "Reload Macros", action: #selector(reload), keyEquivalent: "r")
         reloadItem.target = self
         statusMenu.addItem(reloadItem)
 
-        let folderItem = NSMenuItem(title: "Open Macros Folder", action: #selector(openFolder), keyEquivalent: "")
+        let folderItem = NSMenuItem(title: "Open Macros Folder", action: #selector(openFolder), keyEquivalent: "o")
         folderItem.target = self
         statusMenu.addItem(folderItem)
 
