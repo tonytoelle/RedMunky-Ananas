@@ -154,8 +154,12 @@ struct DropShelfView: View {
     @ObservedObject var manager: DropShelfManager
     @State private var isTargeted = false
     @State private var selectedPaths: Set<String> = []
+    @State private var lastClickedPath: String? = nil
     @State private var isExpanded = false
     @State private var plungePulse = false
+    
+    // Freeform item position offsets
+    @State private var itemOffsets: [String: CGSize] = [:]
     
     // Marquee Selection State
     @State private var itemFrames: [String: CGRect] = [:]
@@ -207,7 +211,7 @@ struct DropShelfView: View {
                         .buttonStyle(.plain)
                         
                         if !manager.heldItems.isEmpty {
-                            Text(selectedPaths.isEmpty ? "\(manager.heldItems.count) items" : "\(selectedPaths.count) of \(manager.heldItems.count)")
+                            Text(selectedPaths.count == manager.heldItems.count ? "\(manager.heldItems.count) items (all selected)" : "\(selectedPaths.count) of \(manager.heldItems.count) selected")
                                 .font(.system(size: 10.5, weight: .medium))
                                 .foregroundColor(.white.opacity(0.6))
                                 .padding(.leading, 4)
@@ -234,20 +238,27 @@ struct DropShelfView: View {
                         // Options Menu (...)
                         Menu {
                             if !manager.heldItems.isEmpty {
-                                Button("Select All") {
+                                Button("Select All (⌘A)") {
                                     selectedPaths = Set(manager.heldItems)
                                 }
                                 
                                 if !selectedPaths.isEmpty {
                                     Button("Deselect All") {
                                         selectedPaths.removeAll()
+                                        lastClickedPath = nil
                                     }
                                 }
                                 
                                 Divider()
                                 
-                                Button(isExpanded ? "Collapse View (194x204)" : "Expand View (4x4 Grid)") {
+                                Button(isExpanded ? "Compact View (194x204)" : "Expand View (4x4 Grid)") {
                                     toggleExpand()
+                                }
+                                
+                                Button("Reset Icon Positions") {
+                                    withAnimation(.spring()) {
+                                        itemOffsets.removeAll()
+                                    }
                                 }
                                 
                                 Divider()
@@ -264,13 +275,13 @@ struct DropShelfView: View {
                                         NSWorkspace.shared.activateFileViewerSelecting(targetUrls)
                                     }
                                     
-                                    Button("Quick Look") {
+                                    Button("Quick Look (Space)") {
                                         NSWorkspace.shared.open(url)
                                     }
                                     
                                     Divider()
                                     
-                                    Button("Copy to Clipboard") {
+                                    Button("Copy to Clipboard (⌘C)") {
                                         let pasteboard = NSPasteboard.general
                                         pasteboard.clearContents()
                                         pasteboard.writeObjects(activeTargetPaths().map { URL(fileURLWithPath: $0) as NSURL })
@@ -339,7 +350,7 @@ struct DropShelfView: View {
                         let fileName = url.lastPathComponent
                         let isSelected = selectedPaths.contains(firstItem)
                         
-                        DraggableCardContainer(filePaths: [firstItem]) {
+                        DraggableCardContainer(filePaths: activeTargetPaths()) {
                             VStack(spacing: 8) {
                                 AsyncFileThumbnailView(path: firstItem, size: 72)
                                 
@@ -364,16 +375,13 @@ struct DropShelfView: View {
                                     .fill(isSelected ? Color.accentColor.opacity(0.2) : Color.clear)
                             )
                             .contentShape(Rectangle())
+                            .offset(itemOffsets[firstItem] ?? .zero)
                             .scaleEffect(plungePulse ? 1.0 : 0.85)
                             .onTapGesture(count: 2) {
                                 NSWorkspace.shared.open(url)
                             }
                             .onTapGesture(count: 1) {
-                                if selectedPaths.contains(firstItem) {
-                                    selectedPaths.remove(firstItem)
-                                } else {
-                                    selectedPaths = [firstItem]
-                                }
+                                handleItemClick(firstItem)
                             }
                             .contextMenu {
                                 fileContextMenu(for: [firstItem])
@@ -387,13 +395,13 @@ struct DropShelfView: View {
                     } else {
                         // Multiple Items Display (Up to 4x4 Grid with Marquee Selection)
                         ZStack(alignment: .topLeading) {
-                            VStack(spacing: 6) {
+                            VStack(spacing: 4) {
                                 ScrollView(.vertical, showsIndicators: false) {
                                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 70, maximum: 86), spacing: 8)], spacing: 10) {
                                         ForEach(manager.heldItems, id: \.self) { itemPath in
                                             let itemURL = URL(fileURLWithPath: itemPath)
                                             let isSelected = selectedPaths.contains(itemPath)
-                                            let dragPayload = selectedPaths.contains(itemPath) && selectedPaths.count > 1 ? Array(selectedPaths) : [itemPath]
+                                            let dragPayload = selectedPaths.contains(itemPath) && !selectedPaths.isEmpty ? Array(selectedPaths) : [itemPath]
                                             
                                             DraggableCardContainer(filePaths: dragPayload) {
                                                 VStack(spacing: 4) {
@@ -420,6 +428,7 @@ struct DropShelfView: View {
                                                         .fill(isSelected ? Color.accentColor.opacity(0.2) : Color.clear)
                                                 )
                                                 .contentShape(Rectangle())
+                                                .offset(itemOffsets[itemPath] ?? .zero)
                                                 .background(
                                                     GeometryReader { geo in
                                                         Color.clear.preference(
@@ -432,19 +441,7 @@ struct DropShelfView: View {
                                                     NSWorkspace.shared.open(itemURL)
                                                 }
                                                 .onTapGesture(count: 1) {
-                                                    if NSEvent.modifierFlags.contains(.command) {
-                                                        if selectedPaths.contains(itemPath) {
-                                                            selectedPaths.remove(itemPath)
-                                                        } else {
-                                                            selectedPaths.insert(itemPath)
-                                                        }
-                                                    } else {
-                                                        if selectedPaths.contains(itemPath) && selectedPaths.count == 1 {
-                                                            selectedPaths.removeAll()
-                                                        } else {
-                                                            selectedPaths = [itemPath]
-                                                        }
-                                                    }
+                                                    handleItemClick(itemPath)
                                                 }
                                                 .contextMenu {
                                                     fileContextMenu(for: selectedPaths.contains(itemPath) ? Array(selectedPaths) : [itemPath])
@@ -460,44 +457,26 @@ struct DropShelfView: View {
                                     .padding(.top, 4)
                                 }
                                 
-                                HStack(spacing: 8) {
-                                    // Bottom Action: Drag All or Drag Selected
-                                    let dragTargets = selectedPaths.isEmpty ? manager.heldItems : Array(selectedPaths)
-                                    DraggableCardContainer(filePaths: dragTargets) {
-                                        HStack(spacing: 4) {
-                                            Image(systemName: "hand.draw.fill")
-                                                .font(.system(size: 9))
-                                            Text(selectedPaths.isEmpty ? "Drag All (\(manager.heldItems.count))" : "Drag (\(selectedPaths.count))")
-                                                .font(.system(size: 10, weight: .semibold))
+                                // See More / Compact Toggle Button (Only if more than 4 items)
+                                if manager.heldItems.count > 4 {
+                                    Button {
+                                        toggleExpand()
+                                    } label: {
+                                        HStack(spacing: 3) {
+                                            Image(systemName: isExpanded ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
+                                                .font(.system(size: 8, weight: .bold))
+                                            Text(isExpanded ? "Compact" : "See More")
+                                                .font(.system(size: 9.5, weight: .medium))
                                         }
-                                        .foregroundColor(.white.opacity(0.9))
+                                        .foregroundColor(.white.opacity(0.75))
                                         .padding(.horizontal, 8)
                                         .padding(.vertical, 3)
-                                        .background(selectedPaths.isEmpty ? Color.white.opacity(0.12) : Color.accentColor.opacity(0.85))
+                                        .background(Color.white.opacity(0.1))
                                         .clipShape(Capsule())
                                     }
-                                    
-                                    // See More / Expand Button (if more than 4 items)
-                                    if manager.heldItems.count > 4 {
-                                        Button {
-                                            toggleExpand()
-                                        } label: {
-                                            HStack(spacing: 3) {
-                                                Image(systemName: isExpanded ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
-                                                    .font(.system(size: 8, weight: .bold))
-                                                Text(isExpanded ? "Compact" : "See More")
-                                                    .font(.system(size: 9.5, weight: .medium))
-                                            }
-                                            .foregroundColor(.white.opacity(0.75))
-                                            .padding(.horizontal, 7)
-                                            .padding(.vertical, 3)
-                                            .background(Color.white.opacity(0.1))
-                                            .clipShape(Capsule())
-                                        }
-                                        .buttonStyle(.plain)
-                                    }
+                                    .buttonStyle(.plain)
+                                    .padding(.bottom, 6)
                                 }
-                                .padding(.bottom, 6)
                             }
                             
                             // Visual Finder-style Marquee Box Overlay
@@ -595,9 +574,10 @@ struct DropShelfView: View {
                             }
                         }
                         
-                        // Trigger "Nyemplung" Plunge Bounce Animation
+                        // Trigger "Nyemplung" Plunge Bounce Animation & DEFAULT SELECT ALL!
                         withAnimation(.spring(response: 0.45, dampingFraction: 0.58, blendDuration: 0.2)) {
                             manager.heldItems = current
+                            selectedPaths = Set(current) // Default: Select All so user can immediately drag to Finder!
                             plungePulse = true
                         }
                         
@@ -610,10 +590,37 @@ struct DropShelfView: View {
                 }
                 
                 Spacer()
-                    .frame(height: 6)
+                    .frame(height: 4)
             }
         }
         .frame(minWidth: 194, maxWidth: .infinity, minHeight: 204, maxHeight: .infinity)
+    }
+    
+    private func handleItemClick(_ itemPath: String) {
+        let isShift = NSEvent.modifierFlags.contains(.shift)
+        let isCmd = NSEvent.modifierFlags.contains(.command)
+        
+        if isShift, let last = lastClickedPath, let lastIdx = manager.heldItems.firstIndex(of: last), let currentIdx = manager.heldItems.firstIndex(of: itemPath) {
+            let lower = min(lastIdx, currentIdx)
+            let upper = max(lastIdx, currentIdx)
+            let rangeItems = manager.heldItems[lower...upper]
+            selectedPaths.formUnion(rangeItems)
+        } else if isCmd {
+            if selectedPaths.contains(itemPath) {
+                selectedPaths.remove(itemPath)
+            } else {
+                selectedPaths.insert(itemPath)
+            }
+            lastClickedPath = itemPath
+        } else {
+            if selectedPaths.contains(itemPath) && selectedPaths.count == 1 {
+                selectedPaths.removeAll()
+                lastClickedPath = nil
+            } else {
+                selectedPaths = [itemPath]
+                lastClickedPath = itemPath
+            }
+        }
     }
     
     private func toggleExpand() {
