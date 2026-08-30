@@ -423,7 +423,7 @@ struct DropShelfView: View {
                                             }
                                         }
                                     ) {
-                                        VStack(spacing: 3) {
+                                        VStack(spacing: 6) {
                                             AsyncFileThumbnailView(path: itemPath, size: manager.heldItems.count == 1 ? 64 : 46)
                                             
                                             Text(itemURL.lastPathComponent)
