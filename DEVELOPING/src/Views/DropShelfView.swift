@@ -402,28 +402,28 @@ struct DropShelfView: View {
                                             NSWorkspace.shared.open(itemURL)
                                         }
                                     ) {
-                                        VStack(spacing: 4) {
+                                        VStack(spacing: 3) {
                                             AsyncFileThumbnailView(path: itemPath, size: manager.heldItems.count == 1 ? 64 : 46)
                                             
                                             Text(itemURL.lastPathComponent)
-                                                .font(.system(size: 10, weight: .medium))
+                                                .font(.system(size: 9.5, weight: .medium))
                                                 .foregroundColor(.white)
                                                 .multilineTextAlignment(.center)
                                                 .lineLimit(2)
                                                 .truncationMode(.middle)
-                                                .frame(width: 72, height: 26, alignment: .top)
-                                                .padding(.horizontal, 4)
+                                                .frame(width: 66, height: 26, alignment: .top)
+                                                .padding(.horizontal, 3)
                                                 .padding(.vertical, 1)
                                                 .background(
                                                     isSelected ?
-                                                    RoundedRectangle(cornerRadius: 4, style: .continuous).fill(Color.accentColor) :
-                                                    RoundedRectangle(cornerRadius: 4, style: .continuous).fill(Color.clear)
+                                                    RoundedRectangle(cornerRadius: 3.5, style: .continuous).fill(Color.accentColor) :
+                                                    RoundedRectangle(cornerRadius: 3.5, style: .continuous).fill(Color.clear)
                                                 )
                                         }
-                                        .padding(4)
+                                        .padding(3)
                                         .background(
                                             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                                .fill(isSelected ? Color.accentColor.opacity(0.2) : Color.clear)
+                                                .fill(isSelected ? Color.accentColor.opacity(0.18) : Color.clear)
                                         )
                                         .contentShape(Rectangle())
                                         .background(
@@ -558,28 +558,28 @@ struct DropShelfView: View {
             return pos
         }
         guard let idx = manager.heldItems.firstIndex(of: path) else {
-            return CGPoint(x: 50, y: 50)
+            return CGPoint(x: 52, y: 55)
         }
         
-        let cols = max(2, Int((size.width - 20) / 80))
+        let spacingX: CGFloat = 96
+        let spacingY: CGFloat = 100
+        let cols = max(2, Int((size.width - 16) / spacingX))
         let col = idx % cols
         let row = idx / cols
-        let startX: CGFloat = 50
-        let startY: CGFloat = 50
-        let spacingX: CGFloat = 80
-        let spacingY: CGFloat = 85
+        let startX: CGFloat = 55
+        let startY: CGFloat = 58
         return CGPoint(x: startX + CGFloat(col) * spacingX, y: startY + CGFloat(row) * spacingY)
     }
     
     private func realignToGrid(canvasWidth: CGFloat) {
-        let cols = max(2, Int((canvasWidth - 20) / 80))
+        let spacingX: CGFloat = 96
+        let spacingY: CGFloat = 100
+        let cols = max(2, Int((canvasWidth - 16) / spacingX))
         for (idx, path) in manager.heldItems.enumerated() {
             let col = idx % cols
             let row = idx / cols
-            let startX: CGFloat = 50
-            let startY: CGFloat = 50
-            let spacingX: CGFloat = 80
-            let spacingY: CGFloat = 85
+            let startX: CGFloat = 55
+            let startY: CGFloat = 58
             itemPositions[path] = CGPoint(x: startX + CGFloat(col) * spacingX, y: startY + CGFloat(row) * spacingY)
         }
     }
@@ -614,7 +614,7 @@ struct DropShelfView: View {
     private func toggleExpand() {
         isExpanded.toggle()
         if isExpanded {
-            manager.expandWindow(width: 380, height: 390)
+            manager.expandWindow(width: 410, height: 430)
         } else {
             manager.expandWindow(width: 194, height: 204)
         }
