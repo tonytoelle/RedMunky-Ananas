@@ -559,36 +559,36 @@ struct DropShelfView: View {
                 }
             }
         }
-        .frame(minWidth: 214, maxWidth: .infinity, minHeight: 254, maxHeight: .infinity)
+        .frame(minWidth: 214, maxWidth: .infinity, minHeight: 264, maxHeight: .infinity)
     }
     
-    private func currentPosition(for path: String, in size: CGSize = CGSize(width: 214, height: 254)) -> CGPoint {
+    private func currentPosition(for path: String, in size: CGSize = CGSize(width: 214, height: 264)) -> CGPoint {
         if let pos = itemPositions[path] {
             return pos
         }
         guard let idx = manager.heldItems.firstIndex(of: path) else {
-            return CGPoint(x: 55, y: 50)
+            return CGPoint(x: 55, y: 58)
         }
         
         let spacingX: CGFloat = 104
-        let spacingY: CGFloat = 94
+        let spacingY: CGFloat = 96
         let cols = max(2, Int((size.width - 16) / spacingX))
         let col = idx % cols
         let row = idx / cols
         let startX: CGFloat = 55
-        let startY: CGFloat = 50
+        let startY: CGFloat = 58
         return CGPoint(x: startX + CGFloat(col) * spacingX, y: startY + CGFloat(row) * spacingY)
     }
     
     private func realignToGrid(canvasWidth: CGFloat) {
         let spacingX: CGFloat = 104
-        let spacingY: CGFloat = 94
+        let spacingY: CGFloat = 96
         let cols = max(2, Int((canvasWidth - 16) / spacingX))
         for (idx, path) in manager.heldItems.enumerated() {
             let col = idx % cols
             let row = idx / cols
             let startX: CGFloat = 55
-            let startY: CGFloat = 50
+            let startY: CGFloat = 58
             itemPositions[path] = CGPoint(x: startX + CGFloat(col) * spacingX, y: startY + CGFloat(row) * spacingY)
         }
     }
@@ -623,9 +623,9 @@ struct DropShelfView: View {
     private func toggleExpand() {
         isExpanded.toggle()
         if isExpanded {
-            manager.expandWindow(width: 430, height: 450)
+            manager.expandWindow(width: 430, height: 460)
         } else {
-            manager.expandWindow(width: 214, height: 254)
+            manager.expandWindow(width: 214, height: 264)
         }
     }
     
