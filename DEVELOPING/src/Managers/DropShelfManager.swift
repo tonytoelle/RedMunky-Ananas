@@ -16,10 +16,11 @@ class DropShelfWindow: NSPanel {
         self.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         self.backgroundColor = .clear
         self.isOpaque = false
-        self.hasShadow = false
+        self.hasShadow = true
         self.isMovable = true
         self.isMovableByWindowBackground = true
         self.contentView = contentView
+        self.invalidateShadow()
     }
 }
 
@@ -121,7 +122,7 @@ class DropShelfManager: ObservableObject {
     func showShelf(near point: CGPoint) {
         guard shelfWindow == nil else { return }
         
-        let size = NSSize(width: 200, height: 200)
+        let size = NSSize(width: 180, height: 180)
         // Position window offset slightly so it spawns next to cursor rather than directly under it
         let origin = CGPoint(x: point.x - size.width/2 + 25, y: point.y - size.height/2 + 25)
         

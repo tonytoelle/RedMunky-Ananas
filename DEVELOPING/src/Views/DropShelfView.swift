@@ -7,14 +7,15 @@ struct DropShelfView: View {
     
     var body: some View {
         ZStack {
-            // Visual Effect Background (HUD window style translucent black card)
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .fill(Color(white: 0.08).opacity(0.92))
+            // Native macOS Glass Background
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color(white: 0.12).opacity(0.85))
+                .background(.ultraThinMaterial)
+                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 24, style: .continuous)
-                        .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .stroke(Color.white.opacity(0.15), lineWidth: 0.5)
                 )
-                .shadow(color: Color.black.opacity(0.5), radius: 15, x: 0, y: 8)
             
             VStack(spacing: 0) {
                 // Header Area
@@ -100,8 +101,8 @@ struct DropShelfView: View {
                         
                         Divider()
                         
-                        Button("Clear Shelf") {
-                            manager.closeShelf()
+                        Button("Clear All") {
+                            manager.heldItems.removeAll()
                         }
                     } label: {
                         Image(systemName: "chevron.down")
@@ -111,92 +112,89 @@ struct DropShelfView: View {
                             .background(Color.white.opacity(0.1))
                             .clipShape(Circle())
                     }
-                    .menuStyle(.button)
                     .buttonStyle(.plain)
                 }
-                .padding(.horizontal, 14)
-                .padding(.top, 14)
+                .padding(.horizontal, 12)
+                .padding(.top, 12)
                 
-                // Content Canvas
-                VStack(spacing: 12) {
+                Spacer()
+                
+                // Drop Content Area / File Preview
+                Group {
                     if manager.heldItems.isEmpty {
-                        // Empty drop target
-                        VStack(spacing: 10) {
-                            Image(systemName: "square.and.arrow.down.on.square.fill")
-                                .font(.system(size: 32))
-                                .foregroundColor(isTargeted ? .accentColor : .white.opacity(0.4))
+                        // Empty State (Waiting for Drop)
+                        VStack(spacing: 8) {
+                            Image(systemName: "tray.and.arrow.down")
+                                .font(.system(size: 32, weight: .light))
+                                .foregroundColor(isTargeted ? .accentColor : .white.opacity(0.5))
+                                .scaleEffect(isTargeted ? 1.15 : 1.0)
+                                .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isTargeted)
                             
-                            Text("Wiggle & Drop\nHere to Hold")
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundColor(.white.opacity(0.5))
-                                .multilineTextAlignment(.center)
-                                .lineSpacing(2)
+                            Text(isTargeted ? "Release to Drop" : "Drop Files Here")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundColor(isTargeted ? .accentColor : .white.opacity(0.6))
                         }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .background(
-                            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                .stroke(isTargeted ? Color.accentColor : Color.white.opacity(0.15), style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .bevel, miterLimit: 10, dash: [4, 4], dashPhase: 0))
-                                .background(isTargeted ? Color.accentColor.opacity(0.08) : Color.clear)
-                                .cornerRadius(16)
-                        )
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 12)
                     } else {
-                        // Populated Item View
-                        VStack(spacing: 10) {
-                            let firstPath = manager.heldItems.first ?? ""
-                            let url = URL(fileURLWithPath: firstPath)
-                            let fileName = url.lastPathComponent
-                            let ext = url.pathExtension.uppercased()
-                            
-                            // Visual Document Card (Handled by AppKit dragging source)
-                            DraggableCardContainer(filePaths: manager.heldItems) {
-                                ZStack {
-                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                        .fill(Color.white)
-                                        .frame(width: 60, height: 75)
-                                        .shadow(color: Color.black.opacity(0.3), radius: 6, x: 0, y: 3)
-                                    
-                                    VStack(alignment: .leading, spacing: 3) {
-                                        Color.gray.opacity(0.3).frame(height: 5)
-                                        Color.gray.opacity(0.3).frame(height: 3)
-                                        Color.gray.opacity(0.3).frame(height: 3)
-                                        Color.gray.opacity(0.3).frame(height: 3)
-                                        Spacer()
-                                    }
-                                    .padding(10)
-                                    .frame(width: 60, height: 75)
-                                    
-                                    // File Badge Icon Overlay if not generic
-                                    if ext == "SHORTKING" {
-                                        Image(systemName: "crown.fill")
-                                            .font(.system(size: 16))
-                                            .foregroundColor(.orange)
-                                            .shadow(radius: 1)
+                        // Populated State (File Preview)
+                        VStack(spacing: 8) {
+                            if let firstItem = manager.heldItems.first {
+                                DraggableCardContainer(filePaths: manager.heldItems) {
+                                    VStack(spacing: 6) {
+                                        ZStack(alignment: .topTrailing) {
+                                            // File / Image Preview Icon
+                                            if let image = NSImage(contentsOfFile: firstItem) {
+                                                Image(nsImage: image)
+                                                    .resizable()
+                                                    .aspectRatio(contentMode: .fit)
+                                                    .frame(width: 58, height: 58)
+                                                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                                                    .shadow(radius: 2)
+                                            } else {
+                                                Image(nsImage: NSWorkspace.shared.icon(forFile: firstItem))
+                                                    .resizable()
+                                                    .aspectRatio(contentMode: .fit)
+                                                    .frame(width: 54, height: 54)
+                                            }
+                                            
+                                            // Item Count Badge (if > 1)
+                                            if manager.heldItems.count > 1 {
+                                                Text("\(manager.heldItems.count)")
+                                                    .font(.system(size: 10, weight: .bold))
+                                                    .foregroundColor(.white)
+                                                    .padding(.horizontal, 6)
+                                                    .padding(.vertical, 2)
+                                                    .background(Color.accentColor)
+                                                    .clipShape(Capsule())
+                                                    .offset(x: 8, y: -6)
+                                            }
+                                        }
+                                        
+                                        // File Name
+                                        Text(URL(fileURLWithPath: firstItem).lastPathComponent)
+                                            .font(.system(size: 12, weight: .semibold))
+                                            .foregroundColor(.white)
+                                            .lineLimit(1)
+                                            .truncationMode(.middle)
+                                            .padding(.horizontal, 14)
+                                        
+                                        // Extension Tag
+                                        let ext = URL(fileURLWithPath: firstItem).pathExtension.uppercased()
+                                        if !ext.isEmpty {
+                                            Text(ext)
+                                                .font(.system(size: 10, weight: .bold))
+                                                .foregroundColor(.white.opacity(0.7))
+                                                .padding(.horizontal, 8)
+                                                .padding(.vertical, 2)
+                                                .background(Color.white.opacity(0.12))
+                                                .clipShape(Capsule())
+                                        }
                                     }
                                 }
                             }
-                            .frame(width: 60, height: 75)
-                            
-                            // Filename Label
-                            Text(manager.heldItems.count > 1 ? "\(manager.heldItems.count) items selected" : fileName)
-                                .font(.system(size: 11, weight: .semibold))
-                                .foregroundColor(.white)
-                                .lineLimit(1)
-                                .padding(.horizontal, 12)
-                            
-                            // Item Type Tag capsule
-                            Text(manager.heldItems.count > 1 ? "MULTIPLE" : (ext.isEmpty ? "FILE" : ext))
-                                .font(.system(size: 9, weight: .bold))
-                                .foregroundColor(.white.opacity(0.7))
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 3)
-                                .background(Color.white.opacity(0.12))
-                                .clipShape(Capsule())
                         }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .onDrop(of: [.plainText, .utf8PlainText, .fileURL], isTargeted: $isTargeted) { providers in
                     for provider in providers {
                         _ = provider.loadObject(ofClass: NSString.self) { string, _ in
@@ -221,8 +219,7 @@ struct DropShelfView: View {
                     .frame(height: 14)
             }
         }
-        .padding(10)
-        .frame(width: 200, height: 200)
+        .frame(width: 180, height: 180)
     }
 }
 
