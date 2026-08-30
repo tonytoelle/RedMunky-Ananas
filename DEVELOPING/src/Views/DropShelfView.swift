@@ -442,10 +442,6 @@ struct DropShelfView: View {
                                                 )
                                         }
                                         .padding(3)
-                                        .background(
-                                            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                                .fill(isSelected ? Color.accentColor.opacity(0.18) : Color.clear)
-                                        )
                                         .contentShape(Rectangle())
                                         .background(
                                             GeometryReader { geo in
