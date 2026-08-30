@@ -196,7 +196,7 @@ struct DropShelfView: View {
                     // Header Area (Draggable Window Area)
                     ZStack {
                         WindowDragArea()
-                            .frame(height: 38)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
                         
                         HStack(spacing: 6) {
                             // Close Button (X)
@@ -213,13 +213,23 @@ struct DropShelfView: View {
                             .buttonStyle(.plain)
                             
                             if !manager.heldItems.isEmpty {
-                                Text(selectedPaths.count == manager.heldItems.count ? "\(manager.heldItems.count) items (all selected)" : "\(selectedPaths.count) of \(manager.heldItems.count) selected")
-                                    .font(.system(size: 10.5, weight: .medium))
-                                    .foregroundColor(.white.opacity(0.6))
-                                    .padding(.leading, 4)
+                                VStack(alignment: .leading, spacing: 0.5) {
+                                    Text("\(manager.heldItems.count) \(manager.heldItems.count == 1 ? "item" : "items")")
+                                        .font(.system(size: 11, weight: .semibold))
+                                        .foregroundColor(.white)
+                                    
+                                    if !selectedPaths.isEmpty {
+                                        Text(selectedPaths.count == manager.heldItems.count ? "(all selected)" : "(\(selectedPaths.count) selected)")
+                                            .font(.system(size: 9, weight: .regular))
+                                            .foregroundColor(.white.opacity(0.65))
+                                    }
+                                }
+                                .padding(.leading, 3)
+                                .allowsHitTesting(false) // Clicks and drags on title pass directly to WindowDragArea
                             }
                             
                             Spacer()
+                                .allowsHitTesting(false)
                             
                             if !manager.heldItems.isEmpty {
                                 // AirDrop / Share Button
@@ -253,7 +263,7 @@ struct DropShelfView: View {
                                     
                                     Divider()
                                     
-                                    Button(isExpanded ? "Compact View (194x204)" : "Expand View (4x4 Grid)") {
+                                    Button(isExpanded ? "Compact View (200x240)" : "Expand View (4x4 Grid)") {
                                         toggleExpand()
                                     }
                                     
@@ -550,10 +560,10 @@ struct DropShelfView: View {
                 }
             }
         }
-        .frame(minWidth: 194, maxWidth: .infinity, minHeight: 204, maxHeight: .infinity)
+        .frame(minWidth: 200, maxWidth: .infinity, minHeight: 240, maxHeight: .infinity)
     }
     
-    private func currentPosition(for path: String, in size: CGSize = CGSize(width: 194, height: 204)) -> CGPoint {
+    private func currentPosition(for path: String, in size: CGSize = CGSize(width: 200, height: 240)) -> CGPoint {
         if let pos = itemPositions[path] {
             return pos
         }
@@ -616,7 +626,7 @@ struct DropShelfView: View {
         if isExpanded {
             manager.expandWindow(width: 410, height: 430)
         } else {
-            manager.expandWindow(width: 194, height: 204)
+            manager.expandWindow(width: 200, height: 240)
         }
     }
     
