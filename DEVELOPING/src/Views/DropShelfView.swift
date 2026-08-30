@@ -402,10 +402,16 @@ struct DropShelfView: View {
                                     let isSelected = selectedPaths.contains(itemPath)
                                     let pos = currentPosition(for: itemPath, in: outerGeo.size)
                                     let dragOffset = activeDragOffsets[itemPath] ?? .zero
-                                    let dragPayload = selectedPaths.contains(itemPath) && !selectedPaths.isEmpty ? Array(selectedPaths) : [itemPath]
                                     
                                     DraggableCardContainer(
-                                        filePaths: dragPayload,
+                                        itemPath: itemPath,
+                                        getFilePaths: {
+                                            if selectedPaths.contains(itemPath) && !selectedPaths.isEmpty {
+                                                return Array(selectedPaths)
+                                            } else {
+                                                return [itemPath]
+                                            }
+                                        },
                                         onClick: {
                                             handleItemClick(itemPath)
                                         },
@@ -413,10 +419,6 @@ struct DropShelfView: View {
                                             NSWorkspace.shared.open(itemURL)
                                         },
                                         onMoveDelta: { delta in
-                                            if !selectedPaths.contains(itemPath) && !NSEvent.modifierFlags.contains(.command) && !NSEvent.modifierFlags.contains(.shift) {
-                                                selectedPaths = [itemPath]
-                                                lastClickedPath = itemPath
-                                            }
                                             let targets = selectedPaths.contains(itemPath) && !selectedPaths.isEmpty ? selectedPaths : [itemPath]
                                             for t in targets {
                                                 let current = activeDragOffsets[t] ?? .zero
@@ -715,7 +717,8 @@ struct DropShelfView: View {
 // ==========================================
 
 struct DraggableCardContainer<Content: View>: NSViewRepresentable {
-    let filePaths: [String]
+    let itemPath: String
+    let getFilePaths: () -> [String]
     var onClick: (() -> Void)? = nil
     var onDoubleClick: (() -> Void)? = nil
     var onMoveDelta: ((CGSize) -> Void)? = nil
@@ -723,14 +726,16 @@ struct DraggableCardContainer<Content: View>: NSViewRepresentable {
     let content: Content
     
     init(
-        filePaths: [String],
+        itemPath: String,
+        getFilePaths: @escaping () -> [String],
         onClick: (() -> Void)? = nil,
         onDoubleClick: (() -> Void)? = nil,
         onMoveDelta: ((CGSize) -> Void)? = nil,
         onEndMove: (() -> Void)? = nil,
         @ViewBuilder content: () -> Content
     ) {
-        self.filePaths = filePaths
+        self.itemPath = itemPath
+        self.getFilePaths = getFilePaths
         self.onClick = onClick
         self.onDoubleClick = onDoubleClick
         self.onMoveDelta = onMoveDelta
@@ -740,7 +745,8 @@ struct DraggableCardContainer<Content: View>: NSViewRepresentable {
     
     func makeNSView(context: Context) -> DraggableContainerNSView {
         let view = DraggableContainerNSView()
-        view.filePaths = filePaths
+        view.itemPath = itemPath
+        view.getFilePaths = getFilePaths
         view.onClick = onClick
         view.onDoubleClick = onDoubleClick
         view.onMoveDelta = onMoveDelta
@@ -759,7 +765,8 @@ struct DraggableCardContainer<Content: View>: NSViewRepresentable {
     }
     
     func updateNSView(_ nsView: DraggableContainerNSView, context: Context) {
-        nsView.filePaths = filePaths
+        nsView.itemPath = itemPath
+        nsView.getFilePaths = getFilePaths
         nsView.onClick = onClick
         nsView.onDoubleClick = onDoubleClick
         nsView.onMoveDelta = onMoveDelta
@@ -771,7 +778,8 @@ struct DraggableCardContainer<Content: View>: NSViewRepresentable {
 }
 
 class DraggableContainerNSView: NSView, NSDraggingSource {
-    var filePaths: [String] = []
+    var itemPath: String = ""
+    var getFilePaths: (() -> [String])?
     var onClick: (() -> Void)?
     var onDoubleClick: (() -> Void)?
     var onMoveDelta: ((CGSize) -> Void)?
@@ -782,6 +790,8 @@ class DraggableContainerNSView: NSView, NSDraggingSource {
     private var lastDragLocation: NSPoint?
     private var hasInitiatedSession = false
     private var isDraggingLocally = false
+    private var wasAlreadySelected = false
+    private var activeSessionPaths: [String] = []
     
     override var mouseDownCanMoveWindow: Bool {
         return false // Prevents the OS from dragging the window when clicking/dragging the card!
@@ -796,11 +806,24 @@ class DraggableContainerNSView: NSView, NSDraggingSource {
         lastDragLocation = event.locationInWindow
         hasInitiatedSession = false
         isDraggingLocally = false
+        wasAlreadySelected = false
         
         if event.clickCount == 2 {
             onDoubleClick?()
-        } else if event.clickCount == 1 {
+            return
+        }
+        
+        let isShift = NSEvent.modifierFlags.contains(.shift)
+        let isCmd = NSEvent.modifierFlags.contains(.command)
+        let currentSelection = getFilePaths?() ?? []
+        
+        if isShift || isCmd {
             onClick?()
+        } else if !currentSelection.contains(itemPath) || currentSelection.count <= 1 {
+            onClick?()
+        } else {
+            // Already part of multi-selection: preserve all selected items during drag!
+            wasAlreadySelected = true
         }
     }
     
@@ -822,15 +845,23 @@ class DraggableContainerNSView: NSView, NSDraggingSource {
             isDraggingLocally = false
             onEndMove?()
             
-            guard !filePaths.isEmpty else { return }
+            let targets = getFilePaths?() ?? [itemPath]
+            guard !targets.isEmpty else { return }
+            self.activeSessionPaths = targets
             
-            let urls = filePaths.map { URL(fileURLWithPath: $0) }
-            let draggingItems: [NSDraggingItem] = urls.map { url in
+            let urls = targets.map { URL(fileURLWithPath: $0) }
+            let draggingItems: [NSDraggingItem] = urls.enumerated().map { (index, url) in
                 let draggingItem = NSDraggingItem(pasteboardWriter: url as NSURL)
                 
                 let img = NSWorkspace.shared.icon(forFile: url.path)
                 img.size = NSSize(width: 48, height: 48)
-                let dragRect = NSRect(x: (self.bounds.width - 48)/2, y: (self.bounds.height - 48)/2, width: 48, height: 48)
+                let offset = CGFloat(min(index, 4) * 3)
+                let dragRect = NSRect(
+                    x: (self.bounds.width - 48)/2 + offset,
+                    y: (self.bounds.height - 48)/2 - offset,
+                    width: 48,
+                    height: 48
+                )
                 draggingItem.setDraggingFrame(dragRect, contents: img)
                 return draggingItem
             }
@@ -849,20 +880,26 @@ class DraggableContainerNSView: NSView, NSDraggingSource {
     override func mouseUp(with event: NSEvent) {
         if isDraggingLocally {
             onEndMove?()
+        } else if wasAlreadySelected && !hasInitiatedSession {
+            // Mouse up without drag on an already selected item collapses to single selection
+            onClick?()
         }
+        
         dragStartLocation = nil
         lastDragLocation = nil
         hasInitiatedSession = false
         isDraggingLocally = false
+        wasAlreadySelected = false
     }
     
     func draggingSession(_ session: NSDraggingSession, endedAt screenPoint: NSPoint, operation: NSDragOperation) {
-        // If the item was successfully dropped into Finder or another target
+        // If the items were successfully dropped into Finder or another target
         if operation != [] {
             DispatchQueue.main.async {
-                for p in self.filePaths {
+                for p in self.activeSessionPaths {
                     DropShelfManager.shared.heldItems.removeAll { $0 == p }
                 }
+                self.activeSessionPaths.removeAll()
                 if DropShelfManager.shared.heldItems.isEmpty {
                     DropShelfManager.shared.closeShelf()
                 }
