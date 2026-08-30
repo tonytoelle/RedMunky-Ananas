@@ -154,6 +154,8 @@ struct DropShelfView: View {
     @ObservedObject var manager: DropShelfManager
     @State private var isTargeted = false
     @State private var selectedPaths: Set<String> = []
+    @State private var isExpanded = false
+    @State private var plungePulse = false
     
     // Marquee Selection State
     @State private var itemFrames: [String: CGRect] = [:]
@@ -205,7 +207,7 @@ struct DropShelfView: View {
                         .buttonStyle(.plain)
                         
                         if !manager.heldItems.isEmpty {
-                            Text(selectedPaths.isEmpty ? "\(manager.heldItems.count) items" : "\(selectedPaths.count) of \(manager.heldItems.count) selected")
+                            Text(selectedPaths.isEmpty ? "\(manager.heldItems.count) items" : "\(selectedPaths.count) of \(manager.heldItems.count)")
                                 .font(.system(size: 10.5, weight: .medium))
                                 .foregroundColor(.white.opacity(0.6))
                                 .padding(.leading, 4)
@@ -240,6 +242,12 @@ struct DropShelfView: View {
                                     Button("Deselect All") {
                                         selectedPaths.removeAll()
                                     }
+                                }
+                                
+                                Divider()
+                                
+                                Button(isExpanded ? "Collapse View (194x204)" : "Expand View (4x4 Grid)") {
+                                    toggleExpand()
                                 }
                                 
                                 Divider()
@@ -301,15 +309,28 @@ struct DropShelfView: View {
                     if manager.heldItems.isEmpty {
                         // Empty State (Waiting for Drop)
                         VStack(spacing: 8) {
-                            Image(systemName: isTargeted ? "arrow.down.doc.fill" : "plus.rectangle.on.folder")
-                                .font(.system(size: 32, weight: .light))
-                                .foregroundColor(isTargeted ? .accentColor : .white.opacity(0.5))
-                                .scaleEffect(isTargeted ? 1.15 : 1.0)
-                                .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isTargeted)
-                            
-                            Text(isTargeted ? "Drop Files to Hold" : "Drop files to hold")
-                                .font(.system(size: 11.5, weight: .medium))
-                                .foregroundColor(isTargeted ? .accentColor : .white.opacity(0.6))
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    .strokeBorder(
+                                        isTargeted ? Color.accentColor : Color.white.opacity(0.25),
+                                        style: StrokeStyle(lineWidth: 1.5, dash: [5, 4])
+                                    )
+                                    .frame(width: 140, height: 110)
+                                    .background(isTargeted ? Color.accentColor.opacity(0.1) : Color.clear)
+                                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                                
+                                VStack(spacing: 6) {
+                                    Image(systemName: isTargeted ? "arrow.down.circle.fill" : "plus.rectangle.on.folder")
+                                        .font(.system(size: 30, weight: .light))
+                                        .foregroundColor(isTargeted ? .accentColor : .white.opacity(0.6))
+                                        .scaleEffect(isTargeted ? 1.2 : 1.0)
+                                    
+                                    Text(isTargeted ? "Drop to Hold" : "Drop files here")
+                                        .font(.system(size: 11, weight: .medium))
+                                        .foregroundColor(isTargeted ? .accentColor : .white.opacity(0.6))
+                                }
+                            }
+                            .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isTargeted)
                         }
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                     } else if manager.heldItems.count == 1, let firstItem = manager.heldItems.first {
@@ -343,6 +364,7 @@ struct DropShelfView: View {
                                     .fill(isSelected ? Color.accentColor.opacity(0.2) : Color.clear)
                             )
                             .contentShape(Rectangle())
+                            .scaleEffect(plungePulse ? 1.0 : 0.85)
                             .onTapGesture(count: 2) {
                                 NSWorkspace.shared.open(url)
                             }
@@ -357,13 +379,17 @@ struct DropShelfView: View {
                                 fileContextMenu(for: [firstItem])
                             }
                         }
+                        .transition(.asymmetric(
+                            insertion: .scale(scale: 0.5).combined(with: .opacity).combined(with: .offset(y: -20)),
+                            removal: .opacity
+                        ))
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                     } else {
-                        // Multiple Items Display (Finder Icon Grid View with Marquee Box Selection)
+                        // Multiple Items Display (Up to 4x4 Grid with Marquee Selection)
                         ZStack(alignment: .topLeading) {
                             VStack(spacing: 6) {
                                 ScrollView(.vertical, showsIndicators: false) {
-                                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 74, maximum: 90), spacing: 8)], spacing: 10) {
+                                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 70, maximum: 86), spacing: 8)], spacing: 10) {
                                         ForEach(manager.heldItems, id: \.self) { itemPath in
                                             let itemURL = URL(fileURLWithPath: itemPath)
                                             let isSelected = selectedPaths.contains(itemPath)
@@ -371,7 +397,7 @@ struct DropShelfView: View {
                                             
                                             DraggableCardContainer(filePaths: dragPayload) {
                                                 VStack(spacing: 4) {
-                                                    AsyncFileThumbnailView(path: itemPath, size: 52)
+                                                    AsyncFileThumbnailView(path: itemPath, size: 48)
                                                     
                                                     Text(itemURL.lastPathComponent)
                                                         .font(.system(size: 10, weight: .medium))
@@ -379,7 +405,7 @@ struct DropShelfView: View {
                                                         .multilineTextAlignment(.center)
                                                         .lineLimit(2)
                                                         .truncationMode(.middle)
-                                                        .frame(width: 76, height: 28, alignment: .top)
+                                                        .frame(width: 72, height: 28, alignment: .top)
                                                         .padding(.horizontal, 4)
                                                         .padding(.vertical, 1)
                                                         .background(
@@ -388,7 +414,7 @@ struct DropShelfView: View {
                                                             RoundedRectangle(cornerRadius: 4, style: .continuous).fill(Color.clear)
                                                         )
                                                 }
-                                                .padding(6)
+                                                .padding(5)
                                                 .background(
                                                     RoundedRectangle(cornerRadius: 10, style: .continuous)
                                                         .fill(isSelected ? Color.accentColor.opacity(0.2) : Color.clear)
@@ -424,26 +450,52 @@ struct DropShelfView: View {
                                                     fileContextMenu(for: selectedPaths.contains(itemPath) ? Array(selectedPaths) : [itemPath])
                                                 }
                                             }
+                                            .transition(.asymmetric(
+                                                insertion: .scale(scale: 0.4).combined(with: .opacity).combined(with: .offset(y: -20)),
+                                                removal: .opacity
+                                            ))
                                         }
                                     }
-                                    .padding(.horizontal, 10)
+                                    .padding(.horizontal, 8)
                                     .padding(.top, 4)
                                 }
                                 
-                                // Bottom Action: Drag All or Drag Selected
-                                let dragTargets = selectedPaths.isEmpty ? manager.heldItems : Array(selectedPaths)
-                                DraggableCardContainer(filePaths: dragTargets) {
-                                    HStack(spacing: 5) {
-                                        Image(systemName: "hand.draw.fill")
-                                            .font(.system(size: 10))
-                                        Text(selectedPaths.isEmpty ? "Drag All (\(manager.heldItems.count))" : "Drag Selected (\(selectedPaths.count))")
-                                            .font(.system(size: 10.5, weight: .semibold))
+                                HStack(spacing: 8) {
+                                    // Bottom Action: Drag All or Drag Selected
+                                    let dragTargets = selectedPaths.isEmpty ? manager.heldItems : Array(selectedPaths)
+                                    DraggableCardContainer(filePaths: dragTargets) {
+                                        HStack(spacing: 4) {
+                                            Image(systemName: "hand.draw.fill")
+                                                .font(.system(size: 9))
+                                            Text(selectedPaths.isEmpty ? "Drag All (\(manager.heldItems.count))" : "Drag (\(selectedPaths.count))")
+                                                .font(.system(size: 10, weight: .semibold))
+                                        }
+                                        .foregroundColor(.white.opacity(0.9))
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 3)
+                                        .background(selectedPaths.isEmpty ? Color.white.opacity(0.12) : Color.accentColor.opacity(0.85))
+                                        .clipShape(Capsule())
                                     }
-                                    .foregroundColor(.white.opacity(0.9))
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 4)
-                                    .background(selectedPaths.isEmpty ? Color.white.opacity(0.12) : Color.accentColor.opacity(0.85))
-                                    .clipShape(Capsule())
+                                    
+                                    // See More / Expand Button (if more than 4 items)
+                                    if manager.heldItems.count > 4 {
+                                        Button {
+                                            toggleExpand()
+                                        } label: {
+                                            HStack(spacing: 3) {
+                                                Image(systemName: isExpanded ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
+                                                    .font(.system(size: 8, weight: .bold))
+                                                Text(isExpanded ? "Compact" : "See More")
+                                                    .font(.system(size: 9.5, weight: .medium))
+                                            }
+                                            .foregroundColor(.white.opacity(0.75))
+                                            .padding(.horizontal, 7)
+                                            .padding(.vertical, 3)
+                                            .background(Color.white.opacity(0.1))
+                                            .clipShape(Capsule())
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
                                 }
                                 .padding(.bottom, 6)
                             }
@@ -542,18 +594,35 @@ struct DropShelfView: View {
                                 current.append(p)
                             }
                         }
-                        withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+                        
+                        // Trigger "Nyemplung" Plunge Bounce Animation
+                        withAnimation(.spring(response: 0.45, dampingFraction: 0.58, blendDuration: 0.2)) {
                             manager.heldItems = current
+                            plungePulse = true
+                        }
+                        
+                        // Auto expand to 4x4 if more than 4 items dropped
+                        if current.count > 4 && !isExpanded {
+                            toggleExpand()
                         }
                     }
                     return true
                 }
                 
                 Spacer()
-                    .frame(height: 8)
+                    .frame(height: 6)
             }
         }
-        .frame(minWidth: 140, maxWidth: .infinity, minHeight: 140, maxHeight: .infinity)
+        .frame(minWidth: 194, maxWidth: .infinity, minHeight: 204, maxHeight: .infinity)
+    }
+    
+    private func toggleExpand() {
+        isExpanded.toggle()
+        if isExpanded {
+            manager.expandWindow(width: 380, height: 390)
+        } else {
+            manager.expandWindow(width: 194, height: 204)
+        }
     }
     
     private func activeTargetPaths() -> [String] {

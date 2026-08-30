@@ -19,8 +19,8 @@ class DropShelfWindow: NSPanel {
         self.hasShadow = true
         self.isMovable = true
         self.isMovableByWindowBackground = false
-        self.minSize = NSSize(width: 140, height: 140)
-        self.maxSize = NSSize(width: 700, height: 700)
+        self.minSize = NSSize(width: 194, height: 204)
+        self.maxSize = NSSize(width: 800, height: 800)
         self.contentView = contentView
         self.invalidateShadow()
     }
@@ -42,7 +42,7 @@ class DropShelfManager: ObservableObject {
     }
     
     @Published var shelfWindow: DropShelfWindow? = nil
-    @Published var heldItems: [String] = [] // Holds file paths or macro paths
+    @Published var heldItems: [String] = [] // Holds file paths
     
     private var globalDragMonitor: Any? = nil
     private var localDragMonitor: Any? = nil
@@ -106,7 +106,7 @@ class DropShelfManager: ObservableObject {
             directionChanges = directionChanges.filter { now.timeIntervalSince($0) < 0.6 }
             
             if directionChanges.count >= 4 {
-                // Wiggle detected! Show the shelf window near the cursor
+                // Wiggle detected! Show the shelf window near the cursor as an empty drop zone
                 showShelf(near: currentPoint)
                 directionChanges.removeAll()
             }
@@ -124,12 +124,10 @@ class DropShelfManager: ObservableObject {
     func showShelf(near point: CGPoint) {
         guard shelfWindow == nil else { return }
         
-        let dragPboard = NSPasteboard(name: .drag)
-        if let urls = dragPboard.readObjects(forClasses: [NSURL.self], options: nil) as? [URL], !urls.isEmpty {
-            self.heldItems = urls.map { $0.path }
-        }
+        // Shelf starts empty waiting for drop
+        self.heldItems = []
         
-        let initialSize = NSSize(width: heldItems.count > 1 ? 260 : 180, height: heldItems.count > 1 ? 220 : 180)
+        let initialSize = NSSize(width: 194, height: 204)
         let origin = CGPoint(x: point.x - initialSize.width/2 + 25, y: point.y - initialSize.height/2 + 25)
         
         DispatchQueue.main.async { [weak self] in
@@ -142,6 +140,16 @@ class DropShelfManager: ObservableObject {
             
             self.shelfWindow = win
         }
+    }
+    
+    func expandWindow(width: CGFloat, height: CGFloat) {
+        guard let window = shelfWindow else { return }
+        var frame = window.frame
+        let deltaH = height - frame.height
+        frame.size.width = width
+        frame.size.height = height
+        frame.origin.y -= deltaH // keep top-left pinned
+        window.animator().setFrame(frame, display: true)
     }
     
     func closeShelf() {
