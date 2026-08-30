@@ -1895,7 +1895,7 @@ struct MainEditorView: View {
                             
                             Image(systemName: "sparkles")
                                 .font(.system(size: 52, weight: .regular))
-                                .foregroundColor(Color.accentColor)
+                                .foregroundColor(.white)
                             
                             VStack(spacing: 8) {
                                 Text("No Macro Selected")
