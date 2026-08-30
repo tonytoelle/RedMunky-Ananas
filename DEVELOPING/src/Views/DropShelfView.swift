@@ -347,11 +347,16 @@ struct DropShelfView: View {
                         } else {
                             // Freeform Desktop Canvas: Move items freely anywhere!
                             ZStack(alignment: .topLeading) {
-                                // Background Canvas Area for Marquee Drag
+                                // Background Canvas Area for Marquee Drag & Tap Deselect
                                 Color.clear
                                     .contentShape(Rectangle())
+                                    .onTapGesture {
+                                        // Tap outside icons deselects all items
+                                        selectedPaths.removeAll()
+                                        lastClickedPath = nil
+                                    }
                                     .gesture(
-                                        DragGesture(minimumDistance: 3, coordinateSpace: .named("DropShelfCanvasSpace"))
+                                        DragGesture(minimumDistance: 4, coordinateSpace: .named("DropShelfCanvasSpace"))
                                             .onChanged { value in
                                                 if marqueeStart == nil {
                                                     marqueeStart = value.startLocation
@@ -386,10 +391,17 @@ struct DropShelfView: View {
                                     let itemURL = URL(fileURLWithPath: itemPath)
                                     let isSelected = selectedPaths.contains(itemPath)
                                     let pos = currentPosition(for: itemPath, in: outerGeo.size)
-                                    let dragOffset = activeDragOffsets[itemPath] ?? .zero
                                     let dragPayload = selectedPaths.contains(itemPath) && !selectedPaths.isEmpty ? Array(selectedPaths) : [itemPath]
                                     
-                                    DraggableCardContainer(filePaths: dragPayload) {
+                                    DraggableCardContainer(
+                                        filePaths: dragPayload,
+                                        onClick: {
+                                            handleItemClick(itemPath)
+                                        },
+                                        onDoubleClick: {
+                                            NSWorkspace.shared.open(itemURL)
+                                        }
+                                    ) {
                                         VStack(spacing: 4) {
                                             AsyncFileThumbnailView(path: itemPath, size: manager.heldItems.count == 1 ? 64 : 46)
                                             
@@ -422,42 +434,11 @@ struct DropShelfView: View {
                                                 )
                                             }
                                         )
-                                        .onTapGesture(count: 2) {
-                                            NSWorkspace.shared.open(itemURL)
-                                        }
-                                        .onTapGesture(count: 1) {
-                                            handleItemClick(itemPath)
-                                        }
                                         .contextMenu {
                                             fileContextMenu(for: selectedPaths.contains(itemPath) ? Array(selectedPaths) : [itemPath])
                                         }
                                     }
-                                    .position(x: pos.x + dragOffset.width, y: pos.y + dragOffset.height)
-                                    .highPriorityGesture(
-                                        DragGesture(minimumDistance: 2, coordinateSpace: .named("DropShelfCanvasSpace"))
-                                            .onChanged { value in
-                                                if !selectedPaths.contains(itemPath) && !NSEvent.modifierFlags.contains(.command) && !NSEvent.modifierFlags.contains(.shift) {
-                                                    selectedPaths = [itemPath]
-                                                    lastClickedPath = itemPath
-                                                }
-                                                let targets = selectedPaths.contains(itemPath) ? selectedPaths : [itemPath]
-                                                for t in targets {
-                                                    activeDragOffsets[t] = value.translation
-                                                }
-                                            }
-                                            .onEnded { value in
-                                                let targets = selectedPaths.contains(itemPath) ? selectedPaths : [itemPath]
-                                                for t in targets {
-                                                    let origin = currentPosition(for: t, in: outerGeo.size)
-                                                    let offset = activeDragOffsets[t] ?? value.translation
-                                                    itemPositions[t] = CGPoint(
-                                                        x: max(40, min(outerGeo.size.width - 40, origin.x + offset.width)),
-                                                        y: max(40, min(outerGeo.size.height - 50, origin.y + offset.height))
-                                                    )
-                                                    activeDragOffsets.removeValue(forKey: t)
-                                                }
-                                            }
-                                    )
+                                    .position(x: pos.x, y: pos.y)
                                     .transition(.asymmetric(
                                         insertion: .scale(scale: 0.4).combined(with: .opacity).combined(with: .offset(y: -20)),
                                         removal: .opacity
@@ -721,16 +702,22 @@ struct DropShelfView: View {
 
 struct DraggableCardContainer<Content: View>: NSViewRepresentable {
     let filePaths: [String]
+    var onClick: (() -> Void)? = nil
+    var onDoubleClick: (() -> Void)? = nil
     let content: Content
     
-    init(filePaths: [String], @ViewBuilder content: () -> Content) {
+    init(filePaths: [String], onClick: (() -> Void)? = nil, onDoubleClick: (() -> Void)? = nil, @ViewBuilder content: () -> Content) {
         self.filePaths = filePaths
+        self.onClick = onClick
+        self.onDoubleClick = onDoubleClick
         self.content = content()
     }
     
     func makeNSView(context: Context) -> DraggableContainerNSView {
         let view = DraggableContainerNSView()
         view.filePaths = filePaths
+        view.onClick = onClick
+        view.onDoubleClick = onDoubleClick
         let hosting = NSHostingView(rootView: content)
         hosting.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(hosting)
@@ -746,6 +733,8 @@ struct DraggableCardContainer<Content: View>: NSViewRepresentable {
     
     func updateNSView(_ nsView: DraggableContainerNSView, context: Context) {
         nsView.filePaths = filePaths
+        nsView.onClick = onClick
+        nsView.onDoubleClick = onDoubleClick
         if let hosting = nsView.hostingView as? NSHostingView<Content> {
             hosting.rootView = content
         }
@@ -754,30 +743,37 @@ struct DraggableCardContainer<Content: View>: NSViewRepresentable {
 
 class DraggableContainerNSView: NSView, NSDraggingSource {
     var filePaths: [String] = []
+    var onClick: (() -> Void)?
+    var onDoubleClick: (() -> Void)?
     var hostingView: NSView?
     private var dragStartLocation: NSPoint?
+    private var hasInitiatedDrag = false
     
     override var mouseDownCanMoveWindow: Bool {
         return false // Prevents the OS from dragging the window when clicking/dragging the card!
     }
     
     func draggingSession(_ session: NSDraggingSession, sourceOperationMaskFor context: NSDraggingContext) -> NSDragOperation {
-        return [.copy, .move, .generic]
+        return [.copy, .move, .generic, .every]
     }
     
     override func mouseDown(with event: NSEvent) {
         dragStartLocation = event.locationInWindow
-        super.mouseDown(with: event)
+        hasInitiatedDrag = false
+        if event.clickCount == 2 {
+            onDoubleClick?()
+        } else if event.clickCount == 1 {
+            onClick?()
+        }
     }
     
     override func mouseDragged(with event: NSEvent) {
-        guard let start = dragStartLocation else {
-            super.mouseDragged(with: event)
-            return
-        }
+        guard let start = dragStartLocation, !hasInitiatedDrag else { return }
         let current = event.locationInWindow
         let dist = hypot(current.x - start.x, current.y - start.y)
-        guard dist > 4 else { return }
+        guard dist > 3 else { return }
+        
+        hasInitiatedDrag = true
         dragStartLocation = nil
         
         guard !filePaths.isEmpty else { return }
@@ -798,14 +794,19 @@ class DraggableContainerNSView: NSView, NSDraggingSource {
     
     override func mouseUp(with event: NSEvent) {
         dragStartLocation = nil
-        super.mouseUp(with: event)
+        hasInitiatedDrag = false
     }
     
     func draggingSession(_ session: NSDraggingSession, endedAt screenPoint: NSPoint, operation: NSDragOperation) {
-        // If the item was successfully dropped and accepted (not cancelled)
+        // If the item was successfully dropped into Finder or another target
         if operation != [] {
             DispatchQueue.main.async {
-                DropShelfManager.shared.closeShelf()
+                for p in self.filePaths {
+                    DropShelfManager.shared.heldItems.removeAll { $0 == p }
+                }
+                if DropShelfManager.shared.heldItems.isEmpty {
+                    DropShelfManager.shared.closeShelf()
+                }
             }
         }
     }
