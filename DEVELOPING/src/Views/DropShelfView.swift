@@ -79,19 +79,29 @@ struct AsyncFileThumbnailView: View {
     @State private var image: NSImage?
     
     var body: some View {
-        Group {
-            if let img = image {
-                Image(nsImage: img)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-            } else {
-                Image(nsImage: NSWorkspace.shared.icon(forFile: path))
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
+        ZStack {
+            RoundedRectangle(cornerRadius: size > 50 ? 12 : 9, style: .continuous)
+                .fill(Color(white: 0.16).opacity(0.7))
+            
+            Group {
+                if let img = image {
+                    Image(nsImage: img)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                } else {
+                    Image(nsImage: NSWorkspace.shared.icon(forFile: path))
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                }
             }
+            .clipShape(RoundedRectangle(cornerRadius: size > 50 ? 11 : 8, style: .continuous))
         }
         .frame(width: size, height: size)
-        .shadow(color: Color.black.opacity(0.25), radius: 3, x: 0, y: 2)
+        .overlay(
+            RoundedRectangle(cornerRadius: size > 50 ? 12 : 9, style: .continuous)
+                .stroke(Color.white.opacity(0.15), lineWidth: 0.75)
+        )
+        .shadow(color: Color.black.opacity(0.35), radius: 4, x: 0, y: 2)
         .onAppear {
             loadImage()
         }
@@ -282,8 +292,8 @@ struct DropShelfView: View {
                         let isSelected = selectedPaths.contains(firstItem)
                         
                         DraggableCardContainer(filePaths: [firstItem]) {
-                            VStack(spacing: 6) {
-                                AsyncFileThumbnailView(path: firstItem, size: 68)
+                            VStack(spacing: 8) {
+                                AsyncFileThumbnailView(path: firstItem, size: 72)
                                 
                                 Text(fileName)
                                     .font(.system(size: 11, weight: .medium))
@@ -291,6 +301,7 @@ struct DropShelfView: View {
                                     .multilineTextAlignment(.center)
                                     .lineLimit(2)
                                     .truncationMode(.middle)
+                                    .frame(width: 140, height: 32, alignment: .top)
                                     .padding(.horizontal, 6)
                                     .padding(.vertical, 2)
                                     .background(
@@ -298,11 +309,10 @@ struct DropShelfView: View {
                                         RoundedRectangle(cornerRadius: 5, style: .continuous).fill(Color.accentColor) :
                                         RoundedRectangle(cornerRadius: 5, style: .continuous).fill(Color.clear)
                                     )
-                                    .frame(maxWidth: 140)
                             }
                             .padding(8)
                             .background(
-                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
                                     .fill(isSelected ? Color.accentColor.opacity(0.2) : Color.clear)
                             )
                             .contentShape(Rectangle())
@@ -326,7 +336,7 @@ struct DropShelfView: View {
                         ZStack(alignment: .topLeading) {
                             VStack(spacing: 6) {
                                 ScrollView(.vertical, showsIndicators: false) {
-                                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 68, maximum: 85), spacing: 8)], spacing: 10) {
+                                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 74, maximum: 90), spacing: 8)], spacing: 10) {
                                         ForEach(manager.heldItems, id: \.self) { itemPath in
                                             let itemURL = URL(fileURLWithPath: itemPath)
                                             let isSelected = selectedPaths.contains(itemPath)
@@ -334,7 +344,7 @@ struct DropShelfView: View {
                                             
                                             DraggableCardContainer(filePaths: dragPayload) {
                                                 VStack(spacing: 4) {
-                                                    AsyncFileThumbnailView(path: itemPath, size: 48)
+                                                    AsyncFileThumbnailView(path: itemPath, size: 52)
                                                     
                                                     Text(itemURL.lastPathComponent)
                                                         .font(.system(size: 10, weight: .medium))
@@ -342,6 +352,7 @@ struct DropShelfView: View {
                                                         .multilineTextAlignment(.center)
                                                         .lineLimit(2)
                                                         .truncationMode(.middle)
+                                                        .frame(width: 76, height: 28, alignment: .top)
                                                         .padding(.horizontal, 4)
                                                         .padding(.vertical, 1)
                                                         .background(
@@ -349,11 +360,10 @@ struct DropShelfView: View {
                                                             RoundedRectangle(cornerRadius: 4, style: .continuous).fill(Color.accentColor) :
                                                             RoundedRectangle(cornerRadius: 4, style: .continuous).fill(Color.clear)
                                                         )
-                                                        .frame(maxWidth: 74)
                                                 }
                                                 .padding(6)
                                                 .background(
-                                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                                    RoundedRectangle(cornerRadius: 10, style: .continuous)
                                                         .fill(isSelected ? Color.accentColor.opacity(0.2) : Color.clear)
                                                 )
                                                 .contentShape(Rectangle())
