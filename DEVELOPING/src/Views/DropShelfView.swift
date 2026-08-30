@@ -221,8 +221,8 @@ struct DropShelfView: View {
                     .frame(height: 14)
             }
         }
-        .frame(width: 180, height: 180)
-        .ignoresSafeArea()
+        .padding(10)
+        .frame(width: 200, height: 200)
     }
 }
 
