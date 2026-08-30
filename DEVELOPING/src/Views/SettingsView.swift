@@ -7,7 +7,7 @@ import CoreImage
 import CoreImage.CIFilterBuiltins
 import ServiceManagement
 
-enum SettingsCategory: String, CaseIterable, Identifiable {
+enum SettingsCategory: String, CaseIterable, Identifiable, Hashable {
     case general = "General"
     case permissions = "Permissions & Security"
     case engine = "Macro Engine"
@@ -44,7 +44,6 @@ struct SettingsView: View {
 
     @State private var selectedCategory: SettingsCategory = .general
     @State private var searchText = ""
-    @FocusState private var isSearchFocused: Bool
 
     // General Settings
     @AppStorage("alwaysOnTop") private var alwaysOnTop: Bool = false
@@ -105,69 +104,35 @@ struct SettingsView: View {
     }
 
     var body: some View {
-        ZStack {
-            VisualEffectView(material: .fullScreenUI, blendingMode: .behindWindow)
-                .ignoresSafeArea()
+        NavigationSplitView(columnVisibility: .constant(.all)) {
+            List(selection: $selectedCategory) {
+                Section {
+                    ForEach(filteredCategories) { category in
+                        HStack(spacing: 9) {
+                            Image(systemName: category.iconName)
+                                .foregroundColor(category.iconColor)
+                                .font(.system(size: 14, weight: .semibold))
+                                .frame(width: 18, height: 18)
 
-            HSplitView {
-                // ═══════════════════════════════════════════════════
-                // LEFT SIDEBAR (Matching MainEditorView Sidebar)
-                // ═══════════════════════════════════════════════════
-                VStack(alignment: .leading, spacing: 0) {
-                    // Search Pill Field
-                    HStack(spacing: 8) {
-                        Image(systemName: "magnifyingglass")
-                            .foregroundColor(isSearchFocused ? Color.accentColor : Color(white: 0.55))
-                            .font(.system(size: 13, weight: .medium))
-                        TextField("Search settings…", text: $searchText)
-                            .textFieldStyle(.plain)
-                            .font(.system(size: 13))
-                            .foregroundColor(.white)
-                            .focused($isSearchFocused)
-                        if !searchText.isEmpty {
-                            Button { searchText = "" } label: {
-                                Image(systemName: "xmark.circle.fill")
-                                    .foregroundColor(Color(white: 0.55))
-                                    .font(.system(size: 13))
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 7)
-                    .background(Color.white.opacity(0.07))
-                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .stroke(isSearchFocused ? Color.accentColor.opacity(0.6) : Color.white.opacity(0.08), lineWidth: 1)
-                    )
-                    .padding(.horizontal, 12)
-                    .padding(.top, 14)
-                    .padding(.bottom, 10)
+                            Text(category.rawValue)
+                                .font(.system(size: 13, weight: selectedCategory == category ? .semibold : .medium))
 
-                    // Category List
-                    ScrollView(showsIndicators: false) {
-                        VStack(alignment: .leading, spacing: 3) {
-                            ForEach(filteredCategories) { category in
-                                SidebarCategoryRow(
-                                    category: category,
-                                    isSelected: selectedCategory == category,
-                                    onSelect: { selectedCategory = category }
-                                )
-                            }
+                            Spacer()
                         }
-                        .padding(.horizontal, 10)
-                        .padding(.bottom, 12)
+                        .tag(category)
                     }
                 }
-                .frame(width: 220)
-                .background(Color.clear)
+            }
+            .listStyle(.sidebar)
+            .searchable(text: $searchText, placement: .sidebar, prompt: "Search settings…")
+            .navigationSplitViewColumnWidth(min: 200, ideal: 225, max: 280)
+        } detail: {
+            ZStack {
+                VisualEffectView(material: .fullScreenUI, blendingMode: .behindWindow)
+                    .ignoresSafeArea()
 
-                // ═══════════════════════════════════════════════════
-                // RIGHT DETAIL CANVAS (Matching MainEditorView Detail)
-                // ═══════════════════════════════════════════════════
                 VStack(spacing: 0) {
-                    // Header Bar with Window Drag Support
+                    // Header Area
                     HStack(spacing: 12) {
                         Image(systemName: selectedCategory.iconName)
                             .foregroundColor(selectedCategory.iconColor)
@@ -209,10 +174,9 @@ struct SettingsView: View {
                         .padding(24)
                     }
                 }
-                .frame(minWidth: 480)
-                .background(Color.clear)
             }
         }
+        .navigationSplitViewStyle(.balanced)
         .frame(minWidth: 720, idealWidth: 760, maxWidth: .infinity, minHeight: 500, idealHeight: 560, maxHeight: .infinity)
         .preferredColorScheme(.dark)
     }
@@ -856,42 +820,5 @@ struct SettingsView: View {
         .padding(.vertical, 4)
         .background((isGranted ? Color.green : Color.red).opacity(0.12))
         .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-    }
-}
-
-// ═══════════════════════════════════════════════════
-// SIDEBAR CATEGORY ROW (Clean, Frameless, matching MainEditorView)
-// ═══════════════════════════════════════════════════
-private struct SidebarCategoryRow: View {
-    let category: SettingsCategory
-    let isSelected: Bool
-    let onSelect: () -> Void
-    @State private var isHovered = false
-
-    var body: some View {
-        Button(action: onSelect) {
-            HStack(spacing: 10) {
-                Image(systemName: category.iconName)
-                    .foregroundColor(isSelected ? .white : category.iconColor)
-                    .font(.system(size: 14, weight: .semibold))
-                    .frame(width: 20, height: 20)
-
-                Text(category.rawValue)
-                    .font(.system(size: 13, weight: isSelected ? .bold : .medium))
-                    .foregroundColor(isSelected ? .white : Color(white: 0.90))
-
-                Spacer()
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 7)
-            .background(
-                isSelected
-                    ? Color.accentColor
-                    : (isHovered ? Color.white.opacity(0.06) : Color.clear)
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
-        }
-        .buttonStyle(.plain)
-        .onHover { isHovered = $0 }
     }
 }
