@@ -264,6 +264,18 @@ struct SettingsView: View {
             )
         }
 
+        // Drop Shelf (Dropover Helper) Card
+        settingsCard(title: "Drop Shelf (Dropover Helper)", icon: "tray.and.arrow.down.fill", iconColor: .purple) {
+            toggleRow(
+                title: "Enable Drop Shelf Wiggle Gesture",
+                subtitle: "Wiggling the cursor while dragging files or items opens a floating shelf near your cursor to temporarily store items.",
+                isOn: Binding(
+                    get: { DropShelfManager.shared.isEnabled },
+                    set: { DropShelfManager.shared.isEnabled = $0 }
+                )
+            )
+        }
+
         // Macro Watch Directory Card
         settingsCard(title: "Macro Watch Directory (Penyimpanan Dokumen)", icon: "folder.fill", iconColor: Color(red: 0.15, green: 0.65, blue: 0.95)) {
             VStack(alignment: .leading, spacing: 12) {

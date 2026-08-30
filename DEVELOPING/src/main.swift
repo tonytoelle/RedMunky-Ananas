@@ -358,8 +358,18 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDele
         let toolsMenu = NSMenu(title: "Tools")
         let inspectorItem = NSMenuItem(title: "UI Element Inspector…", action: #selector(showInspectorWindow), keyEquivalent: "i")
         inspectorItem.keyEquivalentModifierMask = [.command, .option]
+        inspectorItem.setSymbol("magnifyingglass")
         inspectorItem.target = self
         toolsMenu.addItem(inspectorItem)
+        
+        toolsMenu.addItem(NSMenuItem.separator())
+        
+        let dropShelfItem = NSMenuItem(title: "Drop Shelf (Wiggle Drag)", action: #selector(toggleDropShelf(_:)), keyEquivalent: "")
+        dropShelfItem.target = self
+        dropShelfItem.state = DropShelfManager.shared.isEnabled ? .on : .off
+        dropShelfItem.setSymbol("tray.and.arrow.down")
+        toolsMenu.addItem(dropShelfItem)
+        
         toolsMenuItem.submenu = toolsMenu
         mainMenu.addItem(toolsMenuItem)
 
@@ -436,6 +446,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDele
         inspectorMenuItem.keyEquivalentModifierMask = [.command, .option]
         inspectorMenuItem.target = self
         toolsSubmenu.addItem(inspectorMenuItem)
+        
+        let dropShelfMenuItem = NSMenuItem(title: "📥 Drop Shelf (Wiggle to Hold)", action: #selector(toggleDropShelf(_:)), keyEquivalent: "")
+        dropShelfMenuItem.target = self
+        dropShelfMenuItem.state = DropShelfManager.shared.isEnabled ? .on : .off
+        toolsSubmenu.addItem(dropShelfMenuItem)
         
         toolsItem.submenu = toolsSubmenu
         statusMenu.addItem(toolsItem)
@@ -554,6 +569,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDele
         let newVal = !current
         LaunchAtLoginManager.shared.setEnabled(newVal)
         sender.state = newVal ? .on : .off
+    }
+
+    @objc func toggleDropShelf(_ sender: NSMenuItem) {
+        DropShelfManager.shared.isEnabled.toggle()
+        sender.state = DropShelfManager.shared.isEnabled ? .on : .off
     }
 
     func updateDockVisibility(_ show: Bool) {

@@ -26,6 +26,18 @@ class DropShelfWindow: NSPanel {
 class DropShelfManager: ObservableObject {
     static let shared = DropShelfManager()
     
+    @Published var isEnabled: Bool {
+        didSet {
+            UserDefaults.standard.set(isEnabled, forKey: "enableDropShelf")
+            if isEnabled {
+                startMonitoring()
+            } else {
+                stopMonitoring()
+                closeShelf()
+            }
+        }
+    }
+    
     @Published var shelfWindow: DropShelfWindow? = nil
     @Published var heldItems: [String] = [] // Holds file paths or macro paths
     
@@ -37,7 +49,15 @@ class DropShelfManager: ObservableObject {
     private var lastDirection: Int = 0 // -1 = left, 1 = right, 0 = stationary
     private var directionChanges: [Date] = []
     
+    init() {
+        let saved = UserDefaults.standard.object(forKey: "enableDropShelf") as? Bool ?? true
+        self.isEnabled = saved
+    }
+    
     func startMonitoring() {
+        guard isEnabled else { return }
+        stopMonitoring()
+        
         // Monitor global drags (drags starting from other apps like Finder)
         globalDragMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDragged]) { [weak self] event in
             self?.handleDrag(event: event)
@@ -57,9 +77,9 @@ class DropShelfManager: ObservableObject {
     }
     
     func stopMonitoring() {
-        if let monitor = globalDragMonitor { NSEvent.removeMonitor(monitor) }
-        if let monitor = localDragMonitor { NSEvent.removeMonitor(monitor) }
-        if let monitor = mouseUpMonitor { NSEvent.removeMonitor(monitor) }
+        if let monitor = globalDragMonitor { NSEvent.removeMonitor(monitor); globalDragMonitor = nil }
+        if let monitor = localDragMonitor { NSEvent.removeMonitor(monitor); localDragMonitor = nil }
+        if let monitor = mouseUpMonitor { NSEvent.removeMonitor(monitor); mouseUpMonitor = nil }
     }
     
     private func handleDrag(event: NSEvent) {
