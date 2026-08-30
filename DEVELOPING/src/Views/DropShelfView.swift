@@ -162,6 +162,11 @@ struct DropShelfView: View {
     @State private var itemPositions: [String: CGPoint] = [:]
     @State private var activeDragOffsets: [String: CGSize] = [:]
     
+    // 2-Finger Trackpad Canvas Scroll
+    @State private var scrollOffsetY: CGFloat = 0
+    @State private var isScrolling = false
+    @State private var scrollFadeTimer: Timer? = nil
+    
     // Marquee Selection State
     @State private var itemFrames: [String: CGRect] = [:]
     @State private var marqueeStart: CGPoint? = nil
@@ -421,6 +426,9 @@ struct DropShelfView: View {
                                                     activeDragOffsets.removeValue(forKey: t)
                                                 }
                                             }
+                                        },
+                                        onScrollWheel: { event in
+                                            handleScrollEvent(event, canvasHeight: outerGeo.size.height)
                                         }
                                     ) {
                                         VStack(spacing: 6) {
@@ -455,11 +463,29 @@ struct DropShelfView: View {
                                             fileContextMenu(for: selectedPaths.contains(itemPath) ? Array(selectedPaths) : [itemPath])
                                         }
                                     }
-                                    .position(x: pos.x + dragOffset.width, y: pos.y + dragOffset.height)
+                                    .position(x: pos.x + dragOffset.width, y: pos.y + dragOffset.height + scrollOffsetY)
                                     .transition(.asymmetric(
                                         insertion: .scale(scale: 0.4).combined(with: .opacity).combined(with: .offset(y: -20)),
                                         removal: .opacity
                                     ))
+                                }
+                                
+                                // Native macOS-style trackpad scroll indicator on the right edge
+                                let itemsMaxY = manager.heldItems.map { (itemPositions[$0]?.y ?? currentPosition(for: $0, in: CGSize(width: 200, height: outerGeo.size.height)).y) }.max() ?? 0
+                                let contentBottom = itemsMaxY + 45
+                                let visibleHeight = max(100, outerGeo.size.height - 50)
+                                let maxScrollDown = max(0, contentBottom - visibleHeight + 20)
+                                
+                                if maxScrollDown > 8 {
+                                    let thumbHeight = max(24, visibleHeight * (visibleHeight / (visibleHeight + maxScrollDown)))
+                                    let scrollRatio = max(0, min(1, -scrollOffsetY / maxScrollDown))
+                                    let thumbY = 48 + scrollRatio * (visibleHeight - thumbHeight - 20)
+                                    
+                                    Capsule()
+                                        .fill(Color.white.opacity(isScrolling ? 0.38 : 0.12))
+                                        .frame(width: 3.5, height: thumbHeight)
+                                        .position(x: outerGeo.size.width - 6, y: thumbY)
+                                        .allowsHitTesting(false)
                                 }
                                 
                                 // Visual Finder-style Marquee Box Overlay
@@ -476,6 +502,9 @@ struct DropShelfView: View {
                                 }
                             }
                             .coordinateSpace(name: "DropShelfCanvasSpace")
+                            .background(
+                                TrackpadScrollHandler(onScrollEvent: { handleScrollEvent($0, canvasHeight: outerGeo.size.height) })
+                            )
                             .onPreferenceChange(ItemFramePreference.self) { frames in
                                 self.itemFrames = frames
                             }
@@ -703,6 +732,87 @@ struct DropShelfView: View {
             Label(paths.count > 1 ? "Move \(paths.count) to Trash" : "Move to Trash", systemImage: "trash")
         }
     }
+    
+    private func handleScrollEvent(_ event: NSEvent, canvasHeight: CGFloat) {
+        let deltaY = event.hasPreciseScrollingDeltas ? event.scrollingDeltaY : event.deltaY * 12
+        
+        let itemsMaxY = manager.heldItems.map { (itemPositions[$0]?.y ?? currentPosition(for: $0, in: CGSize(width: 200, height: canvasHeight)).y) }.max() ?? 0
+        let contentBottom = itemsMaxY + 45
+        let visibleHeight = max(100, canvasHeight - 50)
+        let maxScrollDown = max(0, contentBottom - visibleHeight + 20)
+        
+        var newOffsetY = scrollOffsetY + deltaY
+        
+        // Elastic resistance when overscrolling past top or bottom
+        if newOffsetY > 0 {
+            newOffsetY = scrollOffsetY + deltaY * 0.25
+        } else if newOffsetY < -maxScrollDown {
+            newOffsetY = scrollOffsetY + deltaY * 0.25
+        }
+        
+        scrollOffsetY = newOffsetY
+        isScrolling = true
+        
+        scrollFadeTimer?.invalidate()
+        
+        let isEnd = event.phase == .ended || event.phase == .cancelled || event.momentumPhase == .ended || (!event.hasPreciseScrollingDeltas && event.phase == [])
+        
+        if isEnd {
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+                if scrollOffsetY > 0 {
+                    scrollOffsetY = 0
+                } else if scrollOffsetY < -maxScrollDown {
+                    scrollOffsetY = -maxScrollDown
+                }
+            }
+            
+            scrollFadeTimer = Timer.scheduledTimer(withTimeInterval: 0.6, repeats: false) { _ in
+                withAnimation(.easeOut(duration: 0.25)) {
+                    isScrolling = false
+                }
+            }
+        } else {
+            scrollFadeTimer = Timer.scheduledTimer(withTimeInterval: 0.8, repeats: false) { _ in
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+                    if scrollOffsetY > 0 {
+                        scrollOffsetY = 0
+                    } else if scrollOffsetY < -maxScrollDown {
+                        scrollOffsetY = -maxScrollDown
+                    }
+                }
+                withAnimation(.easeOut(duration: 0.25)) {
+                    isScrolling = false
+                }
+            }
+        }
+    }
+}
+
+// ==========================================
+// MARK: - Native AppKit Trackpad Scroll Handler
+// ==========================================
+
+struct TrackpadScrollHandler: NSViewRepresentable {
+    var onScrollEvent: (NSEvent) -> Void
+    
+    func makeNSView(context: Context) -> TrackpadScrollNSView {
+        let view = TrackpadScrollNSView()
+        view.onScrollEvent = onScrollEvent
+        return view
+    }
+    
+    func updateNSView(_ nsView: TrackpadScrollNSView, context: Context) {
+        nsView.onScrollEvent = onScrollEvent
+    }
+}
+
+class TrackpadScrollNSView: NSView {
+    var onScrollEvent: ((NSEvent) -> Void)?
+    
+    override func scrollWheel(with event: NSEvent) {
+        onScrollEvent?(event)
+        super.scrollWheel(with: event)
+    }
 }
 
 // ==========================================
@@ -716,6 +826,7 @@ struct DraggableCardContainer<Content: View>: NSViewRepresentable {
     var onDoubleClick: (() -> Void)? = nil
     var onMoveDelta: ((CGSize) -> Void)? = nil
     var onEndMove: (() -> Void)? = nil
+    var onScrollWheel: ((NSEvent) -> Void)? = nil
     let content: Content
     
     init(
@@ -725,6 +836,7 @@ struct DraggableCardContainer<Content: View>: NSViewRepresentable {
         onDoubleClick: (() -> Void)? = nil,
         onMoveDelta: ((CGSize) -> Void)? = nil,
         onEndMove: (() -> Void)? = nil,
+        onScrollWheel: ((NSEvent) -> Void)? = nil,
         @ViewBuilder content: () -> Content
     ) {
         self.itemPath = itemPath
@@ -733,6 +845,7 @@ struct DraggableCardContainer<Content: View>: NSViewRepresentable {
         self.onDoubleClick = onDoubleClick
         self.onMoveDelta = onMoveDelta
         self.onEndMove = onEndMove
+        self.onScrollWheel = onScrollWheel
         self.content = content()
     }
     
@@ -744,6 +857,7 @@ struct DraggableCardContainer<Content: View>: NSViewRepresentable {
         view.onDoubleClick = onDoubleClick
         view.onMoveDelta = onMoveDelta
         view.onEndMove = onEndMove
+        view.onScrollWheel = onScrollWheel
         let hosting = NSHostingView(rootView: content)
         hosting.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(hosting)
@@ -764,6 +878,7 @@ struct DraggableCardContainer<Content: View>: NSViewRepresentable {
         nsView.onDoubleClick = onDoubleClick
         nsView.onMoveDelta = onMoveDelta
         nsView.onEndMove = onEndMove
+        nsView.onScrollWheel = onScrollWheel
         if let hosting = nsView.hostingView as? NSHostingView<Content> {
             hosting.rootView = content
         }
@@ -777,6 +892,7 @@ class DraggableContainerNSView: NSView, NSDraggingSource {
     var onDoubleClick: (() -> Void)?
     var onMoveDelta: ((CGSize) -> Void)?
     var onEndMove: (() -> Void)?
+    var onScrollWheel: ((NSEvent) -> Void)?
     
     var hostingView: NSView?
     private var dragStartLocation: NSPoint?
@@ -788,6 +904,14 @@ class DraggableContainerNSView: NSView, NSDraggingSource {
     
     override var mouseDownCanMoveWindow: Bool {
         return false // Prevents the OS from dragging the window when clicking/dragging the card!
+    }
+    
+    override func scrollWheel(with event: NSEvent) {
+        if let onScrollWheel = onScrollWheel {
+            onScrollWheel(event)
+        } else {
+            super.scrollWheel(with: event)
+        }
     }
     
     func draggingSession(_ session: NSDraggingSession, sourceOperationMaskFor context: NSDraggingContext) -> NSDragOperation {
