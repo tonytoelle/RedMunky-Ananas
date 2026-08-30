@@ -231,20 +231,20 @@ struct DropShelfView: View {
                             Spacer()
                                 .allowsHitTesting(false)
                             
+                            // Expand / Compact Toggle Icon Button
                             if !manager.heldItems.isEmpty {
-                                // AirDrop / Share Button
                                 Button {
-                                    shareSelectedOrAll()
+                                    toggleExpand()
                                 } label: {
-                                    Image(systemName: "square.and.arrow.up")
-                                        .font(.system(size: 11, weight: .semibold))
+                                    Image(systemName: isExpanded ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
+                                        .font(.system(size: 10, weight: .semibold))
                                         .foregroundColor(.white.opacity(0.85))
                                         .frame(width: 26, height: 26)
                                         .background(Color.white.opacity(0.1))
                                         .clipShape(Circle())
                                 }
                                 .buttonStyle(.plain)
-                                .help("AirDrop / Share")
+                                .help(isExpanded ? "Compact View" : "Expand View")
                             }
                             
                             // Options Menu (...)
@@ -534,29 +534,8 @@ struct DropShelfView: View {
                         return true
                     }
                     
-                    // Bottom Compact / See More Pill (Only if more than 4 items)
-                    if manager.heldItems.count > 4 {
-                        Button {
-                            toggleExpand()
-                        } label: {
-                            HStack(spacing: 3) {
-                                Image(systemName: isExpanded ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
-                                    .font(.system(size: 8, weight: .bold))
-                                Text(isExpanded ? "Compact" : "See More")
-                                    .font(.system(size: 9.5, weight: .medium))
-                            }
-                            .foregroundColor(.white.opacity(0.75))
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 3)
-                            .background(Color.white.opacity(0.1))
-                            .clipShape(Capsule())
-                        }
-                        .buttonStyle(.plain)
-                        .padding(.bottom, 6)
-                    } else {
-                        Spacer()
-                            .frame(height: 4)
-                    }
+                    Spacer()
+                        .frame(height: 6)
                 }
             }
         }
