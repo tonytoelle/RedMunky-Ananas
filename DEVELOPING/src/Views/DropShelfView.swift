@@ -134,116 +134,203 @@ struct DropShelfView: View {
                                 .font(.system(size: 11.5, weight: .medium))
                                 .foregroundColor(isTargeted ? .accentColor : .white.opacity(0.6))
                         }
-                    } else {
-                        // Populated State (Authentic Finder Icon View)
-                        if let firstItem = manager.heldItems.first {
-                            let url = URL(fileURLWithPath: firstItem)
-                            let fileName = url.lastPathComponent
-                            
-                            DraggableCardContainer(filePaths: manager.heldItems) {
-                                VStack(spacing: 6) {
-                                    ZStack(alignment: .topTrailing) {
-                                        // Native macOS Finder File Icon
-                                        Image(nsImage: fileIcon(for: firstItem))
-                                            .resizable()
-                                            .aspectRatio(contentMode: .fit)
-                                            .frame(width: 64, height: 64)
-                                        
-                                        // Item Count Badge (if multiple items held)
-                                        if manager.heldItems.count > 1 {
-                                            Text("\(manager.heldItems.count)")
-                                                .font(.system(size: 10, weight: .bold))
-                                                .foregroundColor(.white)
-                                                .padding(.horizontal, 6)
-                                                .padding(.vertical, 2)
-                                                .background(Color.accentColor)
-                                                .clipShape(Capsule())
-                                                .offset(x: 10, y: -6)
-                                        }
-                                    }
-                                    
-                                    // Finder-style 2-line text label
-                                    Text(manager.heldItems.count > 1 ? "\(fileName)\n+ \(manager.heldItems.count - 1) items" : fileName)
-                                        .font(.system(size: 11, weight: .medium))
-                                        .foregroundColor(.white)
-                                        .multilineTextAlignment(.center)
-                                        .lineLimit(2)
-                                        .truncationMode(.middle)
-                                        .frame(maxWidth: 140)
-                                }
-                                .contentShape(Rectangle())
-                                .onTapGesture(count: 2) {
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else if manager.heldItems.count == 1, let firstItem = manager.heldItems.first {
+                        // Single Item Display (Classic Large Finder Icon)
+                        let url = URL(fileURLWithPath: firstItem)
+                        let fileName = url.lastPathComponent
+                        
+                        DraggableCardContainer(filePaths: manager.heldItems) {
+                            VStack(spacing: 6) {
+                                Image(nsImage: fileIcon(for: firstItem))
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fit)
+                                    .frame(width: 64, height: 64)
+                                
+                                Text(fileName)
+                                    .font(.system(size: 11, weight: .medium))
+                                    .foregroundColor(.white)
+                                    .multilineTextAlignment(.center)
+                                    .lineLimit(2)
+                                    .truncationMode(.middle)
+                                    .frame(maxWidth: 140)
+                            }
+                            .contentShape(Rectangle())
+                            .onTapGesture(count: 2) {
+                                NSWorkspace.shared.open(url)
+                            }
+                            .contextMenu {
+                                Button {
                                     NSWorkspace.shared.open(url)
+                                } label: {
+                                    Label("Open", systemImage: "arrow.up.forward.app")
                                 }
-                                .contextMenu {
-                                    Button {
-                                        NSWorkspace.shared.open(url)
-                                    } label: {
-                                        Label("Open", systemImage: "arrow.up.forward.app")
-                                    }
-                                    
-                                    Button {
-                                        NSWorkspace.shared.activateFileViewerSelecting([url])
-                                    } label: {
-                                        Label("Show in Finder", systemImage: "folder")
-                                    }
-                                    
-                                    Button {
-                                        NSWorkspace.shared.open(url)
-                                    } label: {
-                                        Label("Quick Look", systemImage: "eye")
-                                    }
-                                    
-                                    Divider()
-                                    
-                                    Button {
-                                        let pasteboard = NSPasteboard.general
-                                        pasteboard.clearContents()
-                                        pasteboard.writeObjects(manager.heldItems.map { URL(fileURLWithPath: $0) as NSURL })
-                                    } label: {
-                                        Label("Copy", systemImage: "doc.on.doc")
-                                    }
-                                    
-                                    Button(role: .destructive) {
-                                        for path in manager.heldItems {
-                                            let fileURL = URL(fileURLWithPath: path)
-                                            try? FileManager.default.trashItem(at: fileURL, resultingItemURL: nil)
-                                        }
-                                        manager.closeShelf()
-                                    } label: {
-                                        Label("Move to Trash", systemImage: "trash")
-                                    }
+                                Button {
+                                    NSWorkspace.shared.activateFileViewerSelecting([url])
+                                } label: {
+                                    Label("Show in Finder", systemImage: "folder")
+                                }
+                                Button {
+                                    NSWorkspace.shared.open(url)
+                                } label: {
+                                    Label("Quick Look", systemImage: "eye")
+                                }
+                                Divider()
+                                Button {
+                                    let pasteboard = NSPasteboard.general
+                                    pasteboard.clearContents()
+                                    pasteboard.writeObjects([url as NSURL])
+                                } label: {
+                                    Label("Copy", systemImage: "doc.on.doc")
+                                }
+                                Button(role: .destructive) {
+                                    try? FileManager.default.trashItem(at: url, resultingItemURL: nil)
+                                    manager.closeShelf()
+                                } label: {
+                                    Label("Move to Trash", systemImage: "trash")
                                 }
                             }
                         }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else {
+                        // Multiple Items Display (Finder Grid View)
+                        VStack(spacing: 6) {
+                            ScrollView(.vertical, showsIndicators: false) {
+                                LazyVGrid(columns: [GridItem(.adaptive(minimum: 64, maximum: 80), spacing: 8)], spacing: 10) {
+                                    ForEach(manager.heldItems, id: \.self) { itemPath in
+                                        let itemURL = URL(fileURLWithPath: itemPath)
+                                        DraggableCardContainer(filePaths: [itemPath]) {
+                                            VStack(spacing: 4) {
+                                                Image(nsImage: fileIcon(for: itemPath))
+                                                    .resizable()
+                                                    .aspectRatio(contentMode: .fit)
+                                                    .frame(width: 44, height: 44)
+                                                
+                                                Text(itemURL.lastPathComponent)
+                                                    .font(.system(size: 10, weight: .medium))
+                                                    .foregroundColor(.white)
+                                                    .multilineTextAlignment(.center)
+                                                    .lineLimit(2)
+                                                    .truncationMode(.middle)
+                                                    .frame(maxWidth: 72)
+                                            }
+                                            .padding(4)
+                                            .contentShape(Rectangle())
+                                            .onTapGesture(count: 2) {
+                                                NSWorkspace.shared.open(itemURL)
+                                            }
+                                            .contextMenu {
+                                                Button {
+                                                    NSWorkspace.shared.open(itemURL)
+                                                } label: {
+                                                    Label("Open", systemImage: "arrow.up.forward.app")
+                                                }
+                                                Button {
+                                                    NSWorkspace.shared.activateFileViewerSelecting([itemURL])
+                                                } label: {
+                                                    Label("Show in Finder", systemImage: "folder")
+                                                }
+                                                Button {
+                                                    NSWorkspace.shared.open(itemURL)
+                                                } label: {
+                                                    Label("Quick Look", systemImage: "eye")
+                                                }
+                                                Divider()
+                                                Button {
+                                                    let pasteboard = NSPasteboard.general
+                                                    pasteboard.clearContents()
+                                                    pasteboard.writeObjects([itemURL as NSURL])
+                                                } label: {
+                                                    Label("Copy", systemImage: "doc.on.doc")
+                                                }
+                                                Button(role: .destructive) {
+                                                    manager.heldItems.removeAll { $0 == itemPath }
+                                                    if manager.heldItems.isEmpty {
+                                                        manager.closeShelf()
+                                                    }
+                                                } label: {
+                                                    Label("Remove from Shelf", systemImage: "xmark.circle")
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                .padding(.horizontal, 10)
+                                .padding(.top, 4)
+                            }
+                            
+                            // Bottom Action: Drag All Files Together
+                            DraggableCardContainer(filePaths: manager.heldItems) {
+                                HStack(spacing: 5) {
+                                    Image(systemName: "hand.draw.fill")
+                                        .font(.system(size: 10))
+                                    Text("Drag All (\(manager.heldItems.count) items)")
+                                        .font(.system(size: 10.5, weight: .semibold))
+                                }
+                                .foregroundColor(.white.opacity(0.85))
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 4)
+                                .background(Color.white.opacity(0.12))
+                                .clipShape(Capsule())
+                            }
+                            .padding(.bottom, 6)
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .onDrop(of: [.plainText, .utf8PlainText, .fileURL], isTargeted: $isTargeted) { providers in
+                    var loadedPaths: [String] = []
+                    let group = DispatchGroup()
+                    
                     for provider in providers {
-                        _ = provider.loadObject(ofClass: NSString.self) { string, _ in
-                            guard let str = string as? String else { return }
-                            let paths = str.components(separatedBy: "\n").filter { !$0.isEmpty }
-                            // Filter local file paths
-                            let filePaths = paths.map { path -> String in
-                                if path.hasPrefix("file://"), let fileURL = URL(string: path) {
-                                    return fileURL.path
+                        group.enter()
+                        if provider.hasItemConformingToTypeIdentifier("public.file-url") {
+                            _ = provider.loadItem(forTypeIdentifier: "public.file-url", options: nil) { (item, _) in
+                                if let data = item as? Data, let url = URL(dataRepresentation: data, relativeTo: nil) {
+                                    loadedPaths.append(url.path)
+                                } else if let url = item as? URL {
+                                    loadedPaths.append(url.path)
+                                } else if let str = item as? String, let url = URL(string: str) {
+                                    loadedPaths.append(url.path)
                                 }
-                                return path
+                                group.leave()
                             }
-                            DispatchQueue.main.async {
-                                manager.heldItems = filePaths
+                        } else {
+                            _ = provider.loadObject(ofClass: NSString.self) { string, _ in
+                                if let str = string as? String {
+                                    let lines = str.components(separatedBy: "\n").filter { !$0.isEmpty }
+                                    for line in lines {
+                                        if line.hasPrefix("file://"), let u = URL(string: line) {
+                                            loadedPaths.append(u.path)
+                                        } else if FileManager.default.fileExists(atPath: line) {
+                                            loadedPaths.append(line)
+                                        }
+                                    }
+                                }
+                                group.leave()
                             }
                         }
+                    }
+                    
+                    group.notify(queue: .main) {
+                        guard !loadedPaths.isEmpty else { return }
+                        var current = manager.heldItems
+                        for p in loadedPaths {
+                            if !current.contains(p) {
+                                current.append(p)
+                            }
+                        }
+                        manager.heldItems = current
                     }
                     return true
                 }
                 
                 Spacer()
-                    .frame(height: 14)
+                    .frame(height: 10)
             }
         }
-        .frame(width: 180, height: 180)
+        .frame(minWidth: 140, maxWidth: .infinity, minHeight: 140, maxHeight: .infinity)
     }
     
     private func fileIcon(for path: String) -> NSImage {

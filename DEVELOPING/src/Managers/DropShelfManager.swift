@@ -7,7 +7,7 @@ class DropShelfWindow: NSPanel {
     init(contentView: NSView, size: NSSize) {
         super.init(
             contentRect: NSRect(origin: .zero, size: size),
-            styleMask: [.borderless, .nonactivatingPanel],
+            styleMask: [.borderless, .resizable, .nonactivatingPanel],
             backing: .buffered,
             defer: false
         )
@@ -19,6 +19,8 @@ class DropShelfWindow: NSPanel {
         self.hasShadow = true
         self.isMovable = true
         self.isMovableByWindowBackground = true
+        self.minSize = NSSize(width: 140, height: 140)
+        self.maxSize = NSSize(width: 700, height: 700)
         self.contentView = contentView
         self.invalidateShadow()
     }
@@ -122,15 +124,19 @@ class DropShelfManager: ObservableObject {
     func showShelf(near point: CGPoint) {
         guard shelfWindow == nil else { return }
         
-        let size = NSSize(width: 180, height: 180)
-        // Position window offset slightly so it spawns next to cursor rather than directly under it
-        let origin = CGPoint(x: point.x - size.width/2 + 25, y: point.y - size.height/2 + 25)
+        let dragPboard = NSPasteboard(name: .drag)
+        if let urls = dragPboard.readObjects(forClasses: [NSURL.self], options: nil) as? [URL], !urls.isEmpty {
+            self.heldItems = urls.map { $0.path }
+        }
+        
+        let initialSize = NSSize(width: heldItems.count > 1 ? 260 : 180, height: heldItems.count > 1 ? 220 : 180)
+        let origin = CGPoint(x: point.x - initialSize.width/2 + 25, y: point.y - initialSize.height/2 + 25)
         
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
             
             let hostView = NSHostingView(rootView: DropShelfView(manager: self))
-            let win = DropShelfWindow(contentView: hostView, size: size)
+            let win = DropShelfWindow(contentView: hostView, size: initialSize)
             win.setFrameOrigin(origin)
             win.makeKeyAndOrderFront(nil)
             
