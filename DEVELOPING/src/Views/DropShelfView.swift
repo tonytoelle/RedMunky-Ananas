@@ -37,6 +37,31 @@ class ImageExportManager {
         let fileManager = FileManager.default
         let baseName = customFileName ?? sourceURL.deletingPathExtension().lastPathComponent
         
+        // 1. Directory / Folder Export (Recursive folder structure)
+        var isDir: ObjCBool = false
+        if fileManager.fileExists(atPath: sourceURL.path, isDirectory: &isDir), isDir.boolValue {
+            let folderName = customFileName ?? sourceURL.lastPathComponent
+            var destFolderURL = destinationDirectory.appendingPathComponent(folderName, isDirectory: true)
+            destFolderURL = uniqueURL(for: destFolderURL)
+            do {
+                try fileManager.createDirectory(at: destFolderURL, withIntermediateDirectories: true)
+                if let childURLs = try? fileManager.contentsOfDirectory(at: sourceURL, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]) {
+                    for child in childURLs {
+                        _ = convertAndSave(
+                            sourceURL: child,
+                            format: format,
+                            destinationDirectory: destFolderURL,
+                            quality: quality
+                        )
+                    }
+                }
+                return destFolderURL
+            } catch {
+                return nil
+            }
+        }
+        
+        // 2. Original format export
         if format == .original {
             let originalName = (customFileName != nil && !sourceURL.pathExtension.isEmpty) ? "\(baseName).\(sourceURL.pathExtension)" : (customFileName ?? sourceURL.lastPathComponent)
             var destURL = destinationDirectory.appendingPathComponent(originalName)
@@ -49,6 +74,7 @@ class ImageExportManager {
             }
         }
         
+        // 3. Image conversion format export
         guard let source = CGImageSourceCreateWithURL(sourceURL as CFURL, nil),
               let cgImage = CGImageSourceCreateImageAtIndex(source, 0, nil) else {
             // Fallback via NSImage
@@ -58,7 +84,17 @@ class ImageExportManager {
                let cg = bitmap.cgImage {
                 return exportCGImage(cg, format: format, destinationDirectory: destinationDirectory, baseName: baseName, quality: quality)
             }
-            return nil
+            
+            // Fallback for non-image files: copy original file
+            let originalName = (customFileName != nil && !sourceURL.pathExtension.isEmpty) ? "\(baseName).\(sourceURL.pathExtension)" : (customFileName ?? sourceURL.lastPathComponent)
+            var destURL = destinationDirectory.appendingPathComponent(originalName)
+            destURL = uniqueURL(for: destURL)
+            do {
+                try fileManager.copyItem(at: sourceURL, to: destURL)
+                return destURL
+            } catch {
+                return nil
+            }
         }
         
         return exportCGImage(cgImage, format: format, destinationDirectory: destinationDirectory, baseName: baseName, quality: quality)
