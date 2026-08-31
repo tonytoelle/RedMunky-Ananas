@@ -1996,8 +1996,9 @@ class DraggableContainerNSView: NSView, NSDraggingSource {
         self.activeSessionOriginalFiles.removeAll()
         self.activeSessionStagingDirs.removeAll()
         
-        // If aborted or dropped back onto the shelf window itself, keep shelf state & clean temporary staging
-        if (isInside && operation == []) || targetsToRemove.isEmpty {
+        // If dropped back onto the shelf window itself OR operation was cancelled / rejected:
+        // DO NOT delete original files, DO NOT remove items from shelf!
+        if isInside || operation == [] || targetsToRemove.isEmpty {
             for dir in stagingDirs {
                 try? FileManager.default.removeItem(at: dir)
             }
