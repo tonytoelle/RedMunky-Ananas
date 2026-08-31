@@ -1065,119 +1065,60 @@ struct DropShelfView: View {
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .onDrop(of: [.fileURL, .url, .image, .png, .jpeg, .tiff, .gif, .plainText, .utf8PlainText], isTargeted: $isTargeted) { providers in
+                        // 1. Direct synchronous pasteboard extraction (Instant & 100% exact path from Finder)
+                        var directPaths: [String] = []
+                        let pasteboards = [NSPasteboard(name: .drag), NSPasteboard.general]
+                        for pb in pasteboards {
+                            if let urls = pb.readObjects(forClasses: [NSURL.self], options: nil) as? [URL] {
+                                for url in urls where url.isFileURL && FileManager.default.fileExists(atPath: url.path) {
+                                    if !directPaths.contains(url.path) {
+                                        directPaths.append(url.path)
+                                    }
+                                }
+                            }
+                            if !directPaths.isEmpty { break }
+                        }
+                        
+                        if !directPaths.isEmpty {
+                            processIngestedPaths(directPaths)
+                            return true
+                        }
+                        
+                        // 2. Asynchronous NSItemProvider extraction
                         var loadedPaths: [String] = []
                         let group = DispatchGroup()
-                        let cacheDir = currentDirectory ?? defaultDropShelfCacheDir()
-                        try? FileManager.default.createDirectory(at: cacheDir, withIntermediateDirectories: true)
                         
                         for provider in providers {
                             group.enter()
                             
-                            // 1. Primary: load directly as URL object (Handles any Finder file / system URL perfectly)
-                            if provider.canLoadObject(ofClass: URL.self) {
-                                _ = provider.loadObject(ofClass: URL.self) { url, _ in
-                                    if let url = url {
-                                        if url.isFileURL {
-                                            if let dir = currentDirectory {
-                                                let destURL = dir.appendingPathComponent(url.lastPathComponent)
-                                                try? FileManager.default.copyItem(at: url, to: destURL)
-                                                loadedPaths.append(destURL.path)
-                                            } else {
-                                                // PURE TRANSIT: Memorize exact source path directly
-                                                loadedPaths.append(url.path)
-                                            }
-                                        } else {
-                                            // Web URL
-                                            DispatchQueue.global(qos: .userInitiated).async {
-                                                if let data = try? Data(contentsOf: url), let _ = NSImage(data: data) {
-                                                    let formatter = DateFormatter()
-                                                    formatter.dateFormat = "yyyyMMdd_HHmmss_SSS"
-                                                    let timestamp = formatter.string(from: Date())
-                                                    let name = url.deletingPathExtension().lastPathComponent.isEmpty ? "Web_Image" : url.deletingPathExtension().lastPathComponent
-                                                    let ext = url.pathExtension.isEmpty ? "png" : url.pathExtension
-                                                    let fileURL = cacheDir.appendingPathComponent("\(name)_\(timestamp).\(ext)")
-                                                    try? data.write(to: fileURL)
-                                                    loadedPaths.append(fileURL.path)
-                                                }
-                                            }
-                                        }
-                                    }
-                                    group.leave()
-                                }
-                            }
-                            // 2. Secondary: check public.file-url identifier
-                            else if provider.hasItemConformingToTypeIdentifier("public.file-url") {
+                            // Check file-url type identifier first
+                            if provider.hasItemConformingToTypeIdentifier("public.file-url") {
                                 _ = provider.loadItem(forTypeIdentifier: "public.file-url", options: nil) { (item, _) in
-                                    if let url = item as? URL {
-                                        if let dir = currentDirectory {
-                                            let destURL = dir.appendingPathComponent(url.lastPathComponent)
-                                            try? FileManager.default.copyItem(at: url, to: destURL)
-                                            loadedPaths.append(destURL.path)
-                                        } else {
-                                            loadedPaths.append(url.path)
-                                        }
-                                    } else if let data = item as? Data, let url = URL(dataRepresentation: data, relativeTo: nil) {
-                                        if let dir = currentDirectory {
-                                            let destURL = dir.appendingPathComponent(url.lastPathComponent)
-                                            try? FileManager.default.copyItem(at: url, to: destURL)
-                                            loadedPaths.append(destURL.path)
-                                        } else {
-                                            loadedPaths.append(url.path)
-                                        }
-                                    } else if let str = item as? String, let url = URL(string: str) {
-                                        if let dir = currentDirectory {
-                                            let destURL = dir.appendingPathComponent(url.lastPathComponent)
-                                            try? FileManager.default.copyItem(at: url, to: destURL)
-                                            loadedPaths.append(destURL.path)
-                                        } else {
-                                            loadedPaths.append(url.path)
-                                        }
+                                    if let path = self.extractFilePath(from: item) {
+                                        loadedPaths.append(path)
                                     }
                                     group.leave()
                                 }
                             }
-                            // 3. Plain text / string path
+                            // Check NSURL object reading
+                            else if provider.canLoadObject(ofClass: NSURL.self) {
+                                _ = provider.loadObject(ofClass: NSURL.self) { (obj, _) in
+                                    if let nsURL = obj as? NSURL, let url = nsURL as URL?, url.isFileURL {
+                                        loadedPaths.append(url.path)
+                                    }
+                                    group.leave()
+                                }
+                            }
+                            // Check string / text path
                             else if provider.canLoadObject(ofClass: NSString.self) {
-                                _ = provider.loadObject(ofClass: NSString.self) { string, _ in
+                                _ = provider.loadObject(ofClass: NSString.self) { (string, _) in
                                     if let str = string as? String {
-                                        let lines = str.components(separatedBy: "\n").filter { !$0.isEmpty }
+                                        let lines = str.components(separatedBy: "\n").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
                                         for line in lines {
-                                            if line.hasPrefix("file://"), let u = URL(string: line) {
-                                                if let dir = currentDirectory {
-                                                    let destURL = dir.appendingPathComponent(u.lastPathComponent)
-                                                    try? FileManager.default.copyItem(at: u, to: destURL)
-                                                    loadedPaths.append(destURL.path)
-                                                } else {
-                                                    loadedPaths.append(u.path)
-                                                }
-                                            } else if FileManager.default.fileExists(atPath: line) {
-                                                let u = URL(fileURLWithPath: line)
-                                                if let dir = currentDirectory {
-                                                    let destURL = dir.appendingPathComponent(u.lastPathComponent)
-                                                    try? FileManager.default.copyItem(at: u, to: destURL)
-                                                    loadedPaths.append(destURL.path)
-                                                } else {
-                                                    loadedPaths.append(line)
-                                                }
+                                            if let path = self.extractFilePath(from: line) {
+                                                loadedPaths.append(path)
                                             }
                                         }
-                                    }
-                                    group.leave()
-                                }
-                            }
-                            // 4. Raw image fallback (Only for clipboard data with no file on disk)
-                            else if provider.canLoadObject(ofClass: NSImage.self) {
-                                _ = provider.loadObject(ofClass: NSImage.self) { obj, _ in
-                                    if let nsImg = obj as? NSImage,
-                                       let tiff = nsImg.tiffRepresentation,
-                                       let bitmap = NSBitmapImageRep(data: tiff),
-                                       let pngData = bitmap.representation(using: .png, properties: [:]) {
-                                        let formatter = DateFormatter()
-                                        formatter.dateFormat = "yyyyMMdd_HHmmss_SSS"
-                                        let timestamp = formatter.string(from: Date())
-                                        let fileURL = cacheDir.appendingPathComponent("Image_\(timestamp).png")
-                                        try? pngData.write(to: fileURL)
-                                        loadedPaths.append(fileURL.path)
                                     }
                                     group.leave()
                                 }
@@ -1187,28 +1128,7 @@ struct DropShelfView: View {
                         }
                         
                         group.notify(queue: .main) {
-                            guard !loadedPaths.isEmpty else { return }
-                            if currentDirectory == nil {
-                                var current = manager.heldItems
-                                for p in loadedPaths {
-                                    if !current.contains(p) {
-                                        current.append(p)
-                                    }
-                                }
-                                withAnimation(.spring(response: 0.45, dampingFraction: 0.58, blendDuration: 0.2)) {
-                                    manager.heldItems = current
-                                    selectedPaths = Set(current) // Default: Select All so user can immediately drag to Finder!
-                                    plungePulse = true
-                                }
-                                if current.count > 4 && !isExpanded {
-                                    toggleExpand()
-                                }
-                            } else {
-                                withAnimation(.spring(response: 0.45, dampingFraction: 0.58, blendDuration: 0.2)) {
-                                    selectedPaths = Set(loadedPaths)
-                                    plungePulse = true
-                                }
-                            }
+                            self.processIngestedPaths(loadedPaths)
                         }
                         return true
                     }
@@ -1300,6 +1220,74 @@ struct DropShelfView: View {
             } else {
                 selectedPaths = [itemPath]
                 lastClickedPath = itemPath
+            }
+        }
+    }
+    
+    private func extractFilePath(from item: Any?) -> String? {
+        if let url = item as? URL, url.isFileURL {
+            return url.path
+        }
+        if let nsURL = item as? NSURL, let url = nsURL as URL?, url.isFileURL {
+            return url.path
+        }
+        if let str = item as? String {
+            let trimmed = str.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.hasPrefix("file://"), let u = URL(string: trimmed), u.isFileURL {
+                return u.path
+            }
+            if FileManager.default.fileExists(atPath: trimmed) {
+                return trimmed
+            }
+        }
+        if let data = item as? Data {
+            if let str = String(data: data, encoding: .utf8) {
+                let trimmed = str.trimmingCharacters(in: .whitespacesAndNewlines)
+                if trimmed.hasPrefix("file://"), let u = URL(string: trimmed), u.isFileURL {
+                    return u.path
+                }
+                if FileManager.default.fileExists(atPath: trimmed) {
+                    return trimmed
+                }
+            }
+            if let u = URL(dataRepresentation: data, relativeTo: nil), u.isFileURL {
+                return u.path
+            }
+        }
+        return nil
+    }
+    
+    private func processIngestedPaths(_ paths: [String]) {
+        guard !paths.isEmpty else { return }
+        if let dir = currentDirectory {
+            var copiedPaths: [String] = []
+            for p in paths {
+                let srcURL = URL(fileURLWithPath: p)
+                let destURL = dir.appendingPathComponent(srcURL.lastPathComponent)
+                if srcURL.path != destURL.path {
+                    try? FileManager.default.copyItem(at: srcURL, to: destURL)
+                }
+                copiedPaths.append(destURL.path)
+            }
+            withAnimation(.spring(response: 0.45, dampingFraction: 0.58, blendDuration: 0.2)) {
+                selectedPaths = Set(copiedPaths)
+                plungePulse = true
+            }
+        } else {
+            // PURE TRANSIT: Memorize exact source paths directly without copying or renaming
+            var current = manager.heldItems
+            for p in paths {
+                if !current.contains(p) {
+                    current.append(p)
+                }
+            }
+            withAnimation(.spring(response: 0.45, dampingFraction: 0.58, blendDuration: 0.2)) {
+                manager.heldItems = current
+                selectedPaths = Set(current) // Select All so user can immediately drag to Finder
+                plungePulse = true
+            }
+            if current.count > 4 && !isExpanded {
+                toggleExpand()
             }
         }
     }
