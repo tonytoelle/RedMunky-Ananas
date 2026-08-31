@@ -2024,19 +2024,8 @@ class DraggableContainerNSView: NSView, NSDraggingSource {
             }
         }
         
-        // Give destination app (Finder) 0.6s to finish writing file, then delete original source files & temp staging
-        DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + 0.6) {
-            for p in originalFilesToDelete {
-                let url = URL(fileURLWithPath: p)
-                guard FileManager.default.fileExists(atPath: p) else {
-                    continue
-                }
-                do {
-                    try FileManager.default.removeItem(at: url)
-                } catch {
-                    try? FileManager.default.trashItem(at: url, resultingItemURL: nil)
-                }
-            }
+        // Clean temporary staging directories
+        DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + 1.0) {
             for dir in stagingDirs {
                 try? FileManager.default.removeItem(at: dir)
             }
