@@ -15,8 +15,9 @@ class DropShelfWindow: NSPanel {
             defer: false
         )
         self.isFloatingPanel = true
-        self.level = .floating
-        self.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        self.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.floatingWindow)) + 1)
+        self.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
+        self.hidesOnDeactivate = false
         self.backgroundColor = .clear
         self.isOpaque = false
         self.hasShadow = true
@@ -53,7 +54,22 @@ class DropShelfManager: ObservableObject {
     }
     
     @Published var shelfWindow: DropShelfWindow? = nil
-    @Published var heldItems: [String] = [] // Holds file paths
+    @Published var heldItems: [String] = [] {
+        didSet {
+            updateDockTile()
+        }
+    }
+    
+    func updateDockTile() {
+        DispatchQueue.main.async {
+            if self.heldItems.isEmpty {
+                NSApp.dockTile.badgeLabel = nil
+            } else {
+                NSApp.dockTile.badgeLabel = "\(self.heldItems.count)"
+            }
+            NSApp.dockTile.display()
+        }
+    }
     
     private var globalDragMonitor: Any? = nil
     private var localDragMonitor: Any? = nil

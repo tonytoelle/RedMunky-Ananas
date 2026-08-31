@@ -584,6 +584,49 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDele
         statusItem?.isVisible = show
     }
 
+    func applicationDockMenu(_ sender: NSApplication) -> NSMenu? {
+        let menu = NSMenu()
+        
+        let count = DropShelfManager.shared.heldItems.count
+        let shelfTitle = count > 0 ? "DropShelf (\(count) items)" : "DropShelf"
+        let shelfHeader = NSMenuItem(title: shelfTitle, action: nil, keyEquivalent: "")
+        shelfHeader.isEnabled = false
+        menu.addItem(shelfHeader)
+        
+        let openShelfItem = NSMenuItem(title: "Open DropShelf", action: #selector(bringDropShelfToFront), keyEquivalent: "")
+        openShelfItem.target = self
+        menu.addItem(openShelfItem)
+        
+        if count > 0 {
+            let clearItem = NSMenuItem(title: "Clear DropShelf Items", action: #selector(clearDropShelfItems), keyEquivalent: "")
+            clearItem.target = self
+            menu.addItem(clearItem)
+        }
+        
+        menu.addItem(NSMenuItem.separator())
+        
+        let showEditorItem = NSMenuItem(title: "ShortKing Macro Editor", action: #selector(showEditorWindow), keyEquivalent: "")
+        showEditorItem.target = self
+        menu.addItem(showEditorItem)
+        
+        return menu
+    }
+    
+    @objc func bringDropShelfToFront() {
+        if let win = DropShelfManager.shared.shelfWindow {
+            NSApp.activate(ignoringOtherApps: true)
+            win.makeKeyAndOrderFront(nil)
+        } else {
+            let mouseLoc = NSEvent.mouseLocation
+            DropShelfManager.shared.showShelf(near: mouseLoc)
+        }
+    }
+    
+    @objc func clearDropShelfItems() {
+        DropShelfManager.shared.heldItems.removeAll()
+        DropShelfManager.shared.closeShelf()
+    }
+
     @objc func showSettingsWindow() {
         NSApp.setActivationPolicy(.regular)
         if settingsWindow == nil {
