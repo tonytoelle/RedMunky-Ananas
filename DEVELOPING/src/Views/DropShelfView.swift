@@ -448,6 +448,10 @@ struct DropShelfView: View {
     @State private var renamingPath: String? = nil
     @State private var renamingText: String = ""
     
+    // Live Drag-over Folder Target State
+    @State private var hoveredFolder: String? = nil
+    @State private var directoryChangeToken = UUID()
+    
     // Freeform desktop canvas positions & live drag offsets
     @State private var itemPositions: [String: CGPoint] = [:]
     @State private var activeDragOffsets: [String: CGSize] = [:]
@@ -462,6 +466,7 @@ struct DropShelfView: View {
     @State private var keyMonitor: Any? = nil
     
     private var displayedItems: [String] {
+        _ = directoryChangeToken
         if let dir = currentDirectory {
             let items = (try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])) ?? []
             return items.map { $0.path }
@@ -792,43 +797,73 @@ struct DropShelfView: View {
                                                     let current = activeDragOffsets[t] ?? .zero
                                                     activeDragOffsets[t] = CGSize(width: current.width + delta.width, height: current.height + delta.height)
                                                 }
-                                            },
-                                            onEndMove: {
-                                                let targets = selectedPaths.contains(itemPath) && !selectedPaths.isEmpty ? Array(selectedPaths) : [itemPath]
                                                 
-                                                // Check if dragged onto any folder card
-                                                var targetFolder: String? = nil
-                                                if let myOffset = activeDragOffsets[itemPath] {
-                                                    let myOrigin = currentPosition(for: itemPath, in: outerGeo.size)
-                                                    let myFinalPos = CGPoint(
-                                                        x: max(38, min(outerGeo.size.width - 38, myOrigin.x + myOffset.width)),
-                                                        y: max(38, myOrigin.y + myOffset.height)
-                                                    )
-                                                    
-                                                    for other in displayedItems {
-                                                        guard !targets.contains(other) else { continue }
-                                                        var isDir: ObjCBool = false
-                                                        if FileManager.default.fileExists(atPath: other, isDirectory: &isDir), isDir.boolValue {
-                                                            let fPos = currentPosition(for: other, in: outerGeo.size)
-                                                            let dist = hypot(myFinalPos.x - fPos.x, myFinalPos.y - fPos.y)
-                                                            if dist < 48 {
-                                                                targetFolder = other
-                                                                break
-                                                            }
+                                                // Live calculate if hovering over any folder
+                                                let myOrigin = currentPosition(for: itemPath, in: outerGeo.size)
+                                                let curOffset = activeDragOffsets[itemPath] ?? .zero
+                                                let curPos = CGPoint(x: myOrigin.x + curOffset.width, y: myOrigin.y + curOffset.height)
+                                                
+                                                var foundHover: String? = nil
+                                                for other in displayedItems {
+                                                    guard !targets.contains(other) else { continue }
+                                                    var isDir: ObjCBool = false
+                                                    if FileManager.default.fileExists(atPath: other, isDirectory: &isDir), isDir.boolValue {
+                                                        let fPos = currentPosition(for: other, in: outerGeo.size)
+                                                        let dist = hypot(curPos.x - fPos.x, curPos.y - fPos.y)
+                                                        if dist < 65 {
+                                                            foundHover = other
+                                                            break
                                                         }
                                                     }
                                                 }
+                                                if hoveredFolder != foundHover {
+                                                    withAnimation(.easeInOut(duration: 0.15)) {
+                                                        hoveredFolder = foundHover
+                                                    }
+                                                }
+                                            },
+                                            onEndMove: {
+                                                let targets = selectedPaths.contains(itemPath) && !selectedPaths.isEmpty ? Array(selectedPaths) : [itemPath]
+                                                let destFolder = hoveredFolder
+                                                hoveredFolder = nil
                                                 
-                                                if let destFolder = targetFolder {
-                                                    moveItems(targets, intoFolder: destFolder)
+                                                if let folder = destFolder {
+                                                    moveItems(targets, intoFolder: folder)
                                                 } else {
-                                                    for t in targets {
-                                                        if let offset = activeDragOffsets[t] {
-                                                            let origin = currentPosition(for: t, in: outerGeo.size)
-                                                            itemPositions[t] = CGPoint(
-                                                                x: max(38, min(outerGeo.size.width - 38, origin.x + offset.width)),
-                                                                y: max(38, origin.y + offset.height)
-                                                            )
+                                                    // Fallback check distance in case onMoveDelta wasn't triggered at the last frame
+                                                    var fallbackFolder: String? = nil
+                                                    if let myOffset = activeDragOffsets[itemPath] {
+                                                        let myOrigin = currentPosition(for: itemPath, in: outerGeo.size)
+                                                        let myFinalPos = CGPoint(
+                                                            x: max(38, min(outerGeo.size.width - 38, myOrigin.x + myOffset.width)),
+                                                            y: max(38, myOrigin.y + myOffset.height)
+                                                        )
+                                                        
+                                                        for other in displayedItems {
+                                                            guard !targets.contains(other) else { continue }
+                                                            var isDir: ObjCBool = false
+                                                            if FileManager.default.fileExists(atPath: other, isDirectory: &isDir), isDir.boolValue {
+                                                                let fPos = currentPosition(for: other, in: outerGeo.size)
+                                                                let dist = hypot(myFinalPos.x - fPos.x, myFinalPos.y - fPos.y)
+                                                                if dist < 70 {
+                                                                    fallbackFolder = other
+                                                                    break
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                    
+                                                    if let fb = fallbackFolder {
+                                                        moveItems(targets, intoFolder: fb)
+                                                    } else {
+                                                        for t in targets {
+                                                            if let offset = activeDragOffsets[t] {
+                                                                let origin = currentPosition(for: t, in: outerGeo.size)
+                                                                itemPositions[t] = CGPoint(
+                                                                    x: max(38, min(outerGeo.size.width - 38, origin.x + offset.width)),
+                                                                    y: max(38, origin.y + offset.height)
+                                                                )
+                                                            }
                                                         }
                                                     }
                                                 }
@@ -840,6 +875,15 @@ struct DropShelfView: View {
                                         ) {
                                             VStack(spacing: 6) {
                                                 AsyncFileThumbnailView(path: itemPath, size: displayedItems.count == 1 ? 64 : 46)
+                                                    .overlay(
+                                                        Group {
+                                                            if isDirectory && hoveredFolder == itemPath {
+                                                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                                                    .stroke(Color.accentColor, lineWidth: 3)
+                                                                    .shadow(color: Color.accentColor.opacity(0.9), radius: 6)
+                                                            }
+                                                        }
+                                                    )
                                                 
                                                 if renamingPath == itemPath {
                                                     TextField("Name", text: $renamingText, onCommit: {
@@ -878,6 +922,7 @@ struct DropShelfView: View {
                                                 }
                                             }
                                             .padding(3)
+                                            .scaleEffect((isDirectory && hoveredFolder == itemPath) ? 1.15 : 1.0)
                                             .contentShape(Rectangle())
                                             .background(
                                                 GeometryReader { geo in
@@ -1296,6 +1341,7 @@ struct DropShelfView: View {
                     itemPositions.removeValue(forKey: oldPath)
                     itemPositions[newURL.path] = pos
                 }
+                directoryChangeToken = UUID()
             } catch {
                 // Ignore rename failure
             }
@@ -1309,20 +1355,35 @@ struct DropShelfView: View {
         for src in sourcePaths {
             guard src != folderPath else { continue }
             let srcURL = URL(fileURLWithPath: src)
-            let destURL = folderURL.appendingPathComponent(srcURL.lastPathComponent)
+            var destURL = folderURL.appendingPathComponent(srcURL.lastPathComponent)
+            
+            // Generate unique filename if already exists in destination
+            var counter = 1
+            let base = srcURL.deletingPathExtension().lastPathComponent
+            let ext = srcURL.pathExtension
+            while FileManager.default.fileExists(atPath: destURL.path) {
+                let name = ext.isEmpty ? "\(base) \(counter)" : "\(base) \(counter).\(ext)"
+                destURL = folderURL.appendingPathComponent(name)
+                counter += 1
+            }
+            
             do {
                 try FileManager.default.moveItem(at: srcURL, to: destURL)
                 movedAny = true
-                if currentDirectory == nil {
-                    manager.heldItems.removeAll { $0 == src }
-                }
+                manager.heldItems.removeAll { $0 == src }
                 itemPositions.removeValue(forKey: src)
             } catch {
-                // Ignore if move fails
+                if (try? FileManager.default.copyItem(at: srcURL, to: destURL)) != nil {
+                    try? FileManager.default.removeItem(at: srcURL)
+                    movedAny = true
+                    manager.heldItems.removeAll { $0 == src }
+                    itemPositions.removeValue(forKey: src)
+                }
             }
         }
         if movedAny {
             withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
+                directoryChangeToken = UUID()
                 selectedPaths.removeAll()
                 lastClickedPath = nil
             }
