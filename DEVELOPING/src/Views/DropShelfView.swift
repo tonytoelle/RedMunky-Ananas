@@ -2,6 +2,130 @@ import SwiftUI
 import UniformTypeIdentifiers
 import AVFoundation
 import PDFKit
+import ImageIO
+
+// ==========================================
+// MARK: - Image Export Formats & Conversion Manager
+// ==========================================
+
+enum ImageExportFormat: String, CaseIterable, Identifiable {
+    case jpg = "JPG"
+    case png = "PNG"
+    case webp = "WebP"
+    case original = "Original"
+    
+    var id: String { rawValue }
+    
+    var fileExtension: String {
+        switch self {
+        case .jpg: return "jpg"
+        case .png: return "png"
+        case .webp: return "webp"
+        case .original: return ""
+        }
+    }
+}
+
+class ImageExportManager {
+    static func convertAndSave(
+        sourceURL: URL,
+        format: ImageExportFormat,
+        destinationDirectory: URL,
+        quality: CGFloat = 0.92
+    ) -> URL? {
+        let fileManager = FileManager.default
+        let baseName = sourceURL.deletingPathExtension().lastPathComponent
+        
+        if format == .original {
+            var destURL = destinationDirectory.appendingPathComponent(sourceURL.lastPathComponent)
+            destURL = uniqueURL(for: destURL)
+            do {
+                try fileManager.copyItem(at: sourceURL, to: destURL)
+                return destURL
+            } catch {
+                return nil
+            }
+        }
+        
+        guard let source = CGImageSourceCreateWithURL(sourceURL as CFURL, nil),
+              let cgImage = CGImageSourceCreateImageAtIndex(source, 0, nil) else {
+            // Fallback via NSImage
+            if let nsImage = NSImage(contentsOf: sourceURL),
+               let tiffData = nsImage.tiffRepresentation,
+               let bitmap = NSBitmapImageRep(data: tiffData),
+               let cg = bitmap.cgImage {
+                return exportCGImage(cg, format: format, destinationDirectory: destinationDirectory, baseName: baseName, quality: quality)
+            }
+            return nil
+        }
+        
+        return exportCGImage(cgImage, format: format, destinationDirectory: destinationDirectory, baseName: baseName, quality: quality)
+    }
+    
+    static func exportCGImage(
+        _ cgImage: CGImage,
+        format: ImageExportFormat,
+        destinationDirectory: URL,
+        baseName: String,
+        quality: CGFloat = 0.92
+    ) -> URL? {
+        let ext = format.fileExtension
+        var destURL = destinationDirectory.appendingPathComponent("\(baseName).\(ext)")
+        destURL = uniqueURL(for: destURL)
+        
+        let uti: CFString
+        switch format {
+        case .jpg:
+            uti = UTType.jpeg.identifier as CFString
+        case .png:
+            uti = UTType.png.identifier as CFString
+        case .webp:
+            uti = (UTType(filenameExtension: "webp")?.identifier ?? "org.webmproject.webp") as CFString
+        case .original:
+            uti = UTType.png.identifier as CFString
+        }
+        
+        if let destination = CGImageDestinationCreateWithURL(destURL as CFURL, uti, 1, nil) {
+            let options: [CFString: Any] = [
+                kCGImageDestinationLossyCompressionQuality: quality
+            ]
+            CGImageDestinationAddImage(destination, cgImage, options as CFDictionary)
+            if CGImageDestinationFinalize(destination) {
+                return destURL
+            }
+        }
+        
+        // Fallback for JPEG / PNG via NSBitmapImageRep
+        let bitmapRep = NSBitmapImageRep(cgImage: cgImage)
+        if format == .jpg, let data = bitmapRep.representation(using: .jpeg, properties: [.compressionFactor: quality]) {
+            try? data.write(to: destURL)
+            return destURL
+        } else if format == .png, let data = bitmapRep.representation(using: .png, properties: [:]) {
+            try? data.write(to: destURL)
+            return destURL
+        }
+        return nil
+    }
+    
+    private static func uniqueURL(for url: URL) -> URL {
+        let fileManager = FileManager.default
+        guard fileManager.fileExists(atPath: url.path) else { return url }
+        
+        let dir = url.deletingLastPathComponent()
+        let name = url.deletingPathExtension().lastPathComponent
+        let ext = url.pathExtension
+        
+        var counter = 1
+        while true {
+            let newName = "\(name) (\(counter))"
+            let newURL = ext.isEmpty ? dir.appendingPathComponent(newName) : dir.appendingPathComponent(newName).appendingPathExtension(ext)
+            if !fileManager.fileExists(atPath: newURL.path) {
+                return newURL
+            }
+            counter += 1
+        }
+    }
+}
 
 // ==========================================
 // MARK: - QuickLook & Finder Thumbnail Cache
@@ -168,6 +292,13 @@ struct DropShelfView: View {
     @State private var marqueeCurrent: CGPoint? = nil
     @State private var initialSelectionBeforeMarquee: Set<String> = []
     
+    // Export / Save to Folder State
+    @State private var isShowingSaveSheet = false
+    @State private var exportFormat: ImageExportFormat = .jpg
+    @State private var exportFolderURL: URL = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first ?? FileManager.default.homeDirectoryForCurrentUser
+    @State private var exportTargetPaths: [String] = []
+    @State private var isSaving = false
+    
     private var marqueeRect: CGRect? {
         guard let s = marqueeStart, let c = marqueeCurrent else { return nil }
         let x = min(s.x, c.x)
@@ -242,6 +373,18 @@ struct DropShelfView: View {
                                         Button("Deselect All") {
                                             selectedPaths.removeAll()
                                             lastClickedPath = nil
+                                        }
+                                    }
+                                    
+                                    Divider()
+                                    
+                                    Button("Save All to Folder...") {
+                                        openSaveDialog()
+                                    }
+                                    
+                                    if !selectedPaths.isEmpty {
+                                        Button("Save Selected (\(selectedPaths.count)) to Folder...") {
+                                            openSaveDialog(for: Array(selectedPaths))
                                         }
                                     }
                                     
@@ -489,12 +632,17 @@ struct DropShelfView: View {
                         }
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .onDrop(of: [.plainText, .utf8PlainText, .fileURL], isTargeted: $isTargeted) { providers in
+                    .onDrop(of: [.fileURL, .url, .image, .png, .jpeg, .tiff, .gif, .plainText, .utf8PlainText], isTargeted: $isTargeted) { providers in
                         var loadedPaths: [String] = []
                         let group = DispatchGroup()
+                        let cacheDir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
+                            .appendingPathComponent("ShortKing/DropShelf", isDirectory: true)
+                        try? FileManager.default.createDirectory(at: cacheDir, withIntermediateDirectories: true)
                         
                         for provider in providers {
                             group.enter()
+                            
+                            // 1. Check local file URL first
                             if provider.hasItemConformingToTypeIdentifier("public.file-url") {
                                 _ = provider.loadItem(forTypeIdentifier: "public.file-url", options: nil) { (item, _) in
                                     if let data = item as? Data, let url = URL(dataRepresentation: data, relativeTo: nil) {
@@ -506,7 +654,89 @@ struct DropShelfView: View {
                                     }
                                     group.leave()
                                 }
-                            } else {
+                            }
+                            // 2. Check raw image data / Safari dragged image
+                            else if provider.hasItemConformingToTypeIdentifier("public.png") ||
+                                      provider.hasItemConformingToTypeIdentifier("public.jpeg") ||
+                                      provider.hasItemConformingToTypeIdentifier("public.tiff") ||
+                                      provider.hasItemConformingToTypeIdentifier("public.image") {
+                                
+                                let matchedType = provider.registeredTypeIdentifiers.first {
+                                    $0 == "public.png" || $0 == "public.jpeg" || $0 == "public.tiff" || $0 == "public.image"
+                                } ?? "public.image"
+                                
+                                _ = provider.loadDataRepresentation(forTypeIdentifier: matchedType) { data, _ in
+                                    if let data = data, let nsImage = NSImage(data: data) {
+                                        let formatter = DateFormatter()
+                                        formatter.dateFormat = "yyyyMMdd_HHmmss_SSS"
+                                        let timestamp = formatter.string(from: Date())
+                                        let isJpg = (matchedType == "public.jpeg")
+                                        let ext = isJpg ? "jpg" : "png"
+                                        let fileURL = cacheDir.appendingPathComponent("Safari_Image_\(timestamp).\(ext)")
+                                        
+                                        if let tiff = nsImage.tiffRepresentation,
+                                           let bitmap = NSBitmapImageRep(data: tiff) {
+                                            let outData = isJpg ?
+                                                bitmap.representation(using: .jpeg, properties: [.compressionFactor: 0.95]) :
+                                                bitmap.representation(using: .png, properties: [:])
+                                            try? (outData ?? data).write(to: fileURL)
+                                            loadedPaths.append(fileURL.path)
+                                        } else {
+                                            try? data.write(to: fileURL)
+                                            loadedPaths.append(fileURL.path)
+                                        }
+                                    } else if provider.canLoadObject(ofClass: NSImage.self) {
+                                        _ = provider.loadObject(ofClass: NSImage.self) { obj, _ in
+                                            if let nsImg = obj as? NSImage,
+                                               let tiff = nsImg.tiffRepresentation,
+                                               let bitmap = NSBitmapImageRep(data: tiff),
+                                               let pngData = bitmap.representation(using: .png, properties: [:]) {
+                                                let formatter = DateFormatter()
+                                                formatter.dateFormat = "yyyyMMdd_HHmmss_SSS"
+                                                let timestamp = formatter.string(from: Date())
+                                                let fileURL = cacheDir.appendingPathComponent("Safari_Image_\(timestamp).png")
+                                                try? pngData.write(to: fileURL)
+                                                loadedPaths.append(fileURL.path)
+                                            }
+                                        }
+                                    }
+                                    group.leave()
+                                }
+                            }
+                            // 3. Check web URL / public.url (HTTP/HTTPS image from web)
+                            else if provider.hasItemConformingToTypeIdentifier("public.url") {
+                                _ = provider.loadItem(forTypeIdentifier: "public.url", options: nil) { (item, _) in
+                                    if let url = item as? URL {
+                                        if url.isFileURL {
+                                            loadedPaths.append(url.path)
+                                            group.leave()
+                                        } else {
+                                            DispatchQueue.global(qos: .userInitiated).async {
+                                                if let data = try? Data(contentsOf: url), let _ = NSImage(data: data) {
+                                                    let formatter = DateFormatter()
+                                                    formatter.dateFormat = "yyyyMMdd_HHmmss_SSS"
+                                                    let timestamp = formatter.string(from: Date())
+                                                    let name = url.deletingPathExtension().lastPathComponent.isEmpty ? "Web_Image" : url.deletingPathExtension().lastPathComponent
+                                                    let ext = url.pathExtension.isEmpty ? "png" : url.pathExtension
+                                                    let fileURL = cacheDir.appendingPathComponent("\(name)_\(timestamp).\(ext)")
+                                                    try? data.write(to: fileURL)
+                                                    loadedPaths.append(fileURL.path)
+                                                }
+                                                group.leave()
+                                            }
+                                        }
+                                    } else if let data = item as? Data, let url = URL(dataRepresentation: data, relativeTo: nil) {
+                                        if url.isFileURL {
+                                            loadedPaths.append(url.path)
+                                        }
+                                        group.leave()
+                                    } else {
+                                        group.leave()
+                                    }
+                                }
+                            }
+                            // 4. Plain text / file path string
+                            else {
                                 _ = provider.loadObject(ofClass: NSString.self) { string, _ in
                                     if let str = string as? String {
                                         let lines = str.components(separatedBy: "\n").filter { !$0.isEmpty }
@@ -562,6 +792,36 @@ struct DropShelfView: View {
                         Spacer()
                             .frame(height: 6)
                     }
+                }
+                
+                // Save to Folder Modal Sheet Overlay
+                if isShowingSaveSheet {
+                    Color.black.opacity(0.5)
+                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                        .onTapGesture {
+                            if !isSaving {
+                                withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+                                    isShowingSaveSheet = false
+                                }
+                            }
+                        }
+                    
+                    SaveToFolderModalView(
+                        targetPaths: exportTargetPaths,
+                        selectedFormat: $exportFormat,
+                        selectedFolderURL: $exportFolderURL,
+                        isSaving: $isSaving,
+                        onCancel: {
+                            withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+                                isShowingSaveSheet = false
+                            }
+                        },
+                        onSave: {
+                            executeSave()
+                        }
+                    )
+                    .frame(width: min(290, outerGeo.size.width - 16))
+                    .transition(.scale(scale: 0.9).combined(with: .opacity))
                 }
             }
         }
@@ -642,6 +902,46 @@ struct DropShelfView: View {
         return manager.heldItems
     }
     
+    private func openSaveDialog(for paths: [String]? = nil) {
+        let targets = paths ?? activeTargetPaths()
+        self.exportTargetPaths = targets.isEmpty ? manager.heldItems : targets
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+            self.isShowingSaveSheet = true
+        }
+    }
+    
+    private func executeSave() {
+        guard !isSaving else { return }
+        isSaving = true
+        let destination = exportFolderURL
+        let format = exportFormat
+        let paths = exportTargetPaths
+        
+        DispatchQueue.global(qos: .userInitiated).async {
+            var savedURLs: [URL] = []
+            for path in paths {
+                let srcURL = URL(fileURLWithPath: path)
+                if let saved = ImageExportManager.convertAndSave(
+                    sourceURL: srcURL,
+                    format: format,
+                    destinationDirectory: destination
+                ) {
+                    savedURLs.append(saved)
+                }
+            }
+            
+            DispatchQueue.main.async {
+                self.isSaving = false
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+                    self.isShowingSaveSheet = false
+                }
+                if !savedURLs.isEmpty {
+                    NSWorkspace.shared.activateFileViewerSelecting(savedURLs)
+                }
+            }
+        }
+    }
+    
     private func shareSelectedOrAll() {
         let targets = activeTargetPaths()
         guard !targets.isEmpty else { return }
@@ -680,6 +980,14 @@ struct DropShelfView: View {
         Divider()
         
         Button {
+            openSaveDialog(for: paths)
+        } label: {
+            Label(paths.count > 1 ? "Save \(paths.count) Items to Folder..." : "Save to Folder As...", systemImage: "square.and.arrow.down")
+        }
+        
+        Divider()
+        
+        Button {
             shareSelectedOrAll()
         } label: {
             Label("AirDrop / Share...", systemImage: "square.and.arrow.up")
@@ -710,6 +1018,171 @@ struct DropShelfView: View {
         }
     }
     
+}
+
+// ==========================================
+// MARK: - Save To Folder Modal View
+// ==========================================
+
+struct SaveToFolderModalView: View {
+    let targetPaths: [String]
+    @Binding var selectedFormat: ImageExportFormat
+    @Binding var selectedFolderURL: URL
+    @Binding var isSaving: Bool
+    var onCancel: () -> Void
+    var onSave: () -> Void
+    
+    var body: some View {
+        VStack(spacing: 12) {
+            // Header
+            HStack(spacing: 8) {
+                Image(systemName: "square.and.arrow.down.fill")
+                    .foregroundColor(.accentColor)
+                    .font(.system(size: 13, weight: .bold))
+                Text("Save to Folder")
+                    .font(.system(size: 12.5, weight: .bold))
+                    .foregroundColor(.white)
+                Spacer()
+                Text("\(targetPaths.count) items")
+                    .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
+                    .foregroundColor(.white.opacity(0.6))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.white.opacity(0.08))
+                    .clipShape(Capsule())
+            }
+            .padding(.bottom, 2)
+            
+            // Format Selector
+            VStack(alignment: .leading, spacing: 5) {
+                Text("SAVE AS FORMAT")
+                    .font(.system(size: 8.5, weight: .bold))
+                    .foregroundColor(.white.opacity(0.5))
+                    .tracking(0.5)
+                
+                HStack(spacing: 4) {
+                    ForEach(ImageExportFormat.allCases) { fmt in
+                        Button {
+                            selectedFormat = fmt
+                        } label: {
+                            Text(fmt.rawValue)
+                                .font(.system(size: 10, weight: selectedFormat == fmt ? .bold : .medium))
+                                .foregroundColor(selectedFormat == fmt ? .white : .white.opacity(0.7))
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 4.5)
+                                .background(
+                                    selectedFormat == fmt ?
+                                    Color.accentColor :
+                                    Color.white.opacity(0.08)
+                                )
+                                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            
+            // Destination Folder Selector
+            VStack(alignment: .leading, spacing: 5) {
+                Text("DESTINATION FOLDER")
+                    .font(.system(size: 8.5, weight: .bold))
+                    .foregroundColor(.white.opacity(0.5))
+                    .tracking(0.5)
+                
+                HStack(spacing: 7) {
+                    Image(systemName: "folder.fill")
+                        .foregroundColor(Color(red: 0.3, green: 0.65, blue: 0.95))
+                        .font(.system(size: 13))
+                    
+                    Text(selectedFolderURL.lastPathComponent)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(.white)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    
+                    Spacer()
+                    
+                    Button("Browse…") {
+                        pickFolder()
+                    }
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundColor(.white.opacity(0.9))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(Color.white.opacity(0.12))
+                    .clipShape(Capsule())
+                    .buttonStyle(.plain)
+                }
+                .padding(7)
+                .background(Color.white.opacity(0.06))
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            }
+            
+            // Buttons
+            HStack(spacing: 8) {
+                Button("Cancel") {
+                    onCancel()
+                }
+                .font(.system(size: 11, weight: .medium))
+                .foregroundColor(.white.opacity(0.75))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 5)
+                .background(Color.white.opacity(0.1))
+                .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                .buttonStyle(.plain)
+                .disabled(isSaving)
+                
+                Button {
+                    onSave()
+                } label: {
+                    HStack(spacing: 4) {
+                        if isSaving {
+                            ProgressView()
+                                .scaleEffect(0.55)
+                                .frame(width: 12, height: 12)
+                        } else {
+                            Image(systemName: "arrow.down.doc.fill")
+                                .font(.system(size: 9.5, weight: .bold))
+                        }
+                        Text(isSaving ? "Saving..." : "Save")
+                            .font(.system(size: 11, weight: .bold))
+                    }
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 5)
+                    .background(Color.accentColor)
+                    .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .disabled(isSaving)
+            }
+            .padding(.top, 2)
+        }
+        .padding(13)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color(white: 0.15).opacity(0.97))
+                .background(.ultraThinMaterial)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Color.white.opacity(0.2), lineWidth: 0.75)
+        )
+        .shadow(color: Color.black.opacity(0.55), radius: 14, x: 0, y: 7)
+    }
+    
+    private func pickFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.canCreateDirectories = true
+        panel.prompt = "Choose Folder"
+        panel.directoryURL = selectedFolderURL
+        if panel.runModal() == .OK, let selected = panel.url {
+            selectedFolderURL = selected
+        }
+    }
 }
 
 // ==========================================

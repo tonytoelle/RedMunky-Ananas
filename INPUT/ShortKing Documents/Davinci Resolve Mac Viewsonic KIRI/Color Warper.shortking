@@ -3,6 +3,4 @@ TRIGGER: f3
 
 # Actions:
 ACTION: path 1424,962:click 1363,963:click
-ACTION: click current
-ACTION: right_click 1309 569
-ACTION: right_click 1361 592
+ACTION: current_position left
