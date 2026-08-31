@@ -961,6 +961,14 @@ struct DropShelfView: View {
                                                 for t in targets {
                                                     activeDragOffsets.removeValue(forKey: t)
                                                 }
+                                            },
+                                            onExternalDrop: { paths in
+                                                // True Move: file was dragged from DropShelf to Finder
+                                                // paths contains the original file paths
+                                                // Deletion happens in draggingSession, this just cleans up the shelf UI
+                                                for p in paths {
+                                                    manager.heldItems.removeAll { $0 == p }
+                                                }
                                             }
                                         ) {
                                             VStack(spacing: 6) {
@@ -1065,12 +1073,11 @@ struct DropShelfView: View {
                         for provider in providers {
                             group.enter()
                             
-                            // 1. Check local file URL first
+                            // 1. Check local file URL first (Direct file path memorization - Pure transit shelf)
                             if provider.hasItemConformingToTypeIdentifier("public.file-url") {
                                 _ = provider.loadItem(forTypeIdentifier: "public.file-url", options: nil) { (item, _) in
                                     if let data = item as? Data, let url = URL(dataRepresentation: data, relativeTo: nil) {
                                         if let dir = currentDirectory {
-                                            // Copy into current folder
                                             let destURL = dir.appendingPathComponent(url.lastPathComponent)
                                             try? FileManager.default.copyItem(at: url, to: destURL)
                                             loadedPaths.append(destURL.path)
@@ -1097,55 +1104,7 @@ struct DropShelfView: View {
                                     group.leave()
                                 }
                             }
-                            // 2. Check raw image data / Safari dragged image
-                            else if provider.hasItemConformingToTypeIdentifier("public.png") ||
-                                      provider.hasItemConformingToTypeIdentifier("public.jpeg") ||
-                                      provider.hasItemConformingToTypeIdentifier("public.tiff") ||
-                                      provider.hasItemConformingToTypeIdentifier("public.image") {
-                                
-                                let matchedType = provider.registeredTypeIdentifiers.first {
-                                    $0 == "public.png" || $0 == "public.jpeg" || $0 == "public.tiff" || $0 == "public.image"
-                                } ?? "public.image"
-                                
-                                _ = provider.loadDataRepresentation(forTypeIdentifier: matchedType) { data, _ in
-                                    if let data = data, let nsImage = NSImage(data: data) {
-                                        let formatter = DateFormatter()
-                                        formatter.dateFormat = "yyyyMMdd_HHmmss_SSS"
-                                        let timestamp = formatter.string(from: Date())
-                                        let isJpg = (matchedType == "public.jpeg")
-                                        let ext = isJpg ? "jpg" : "png"
-                                        let fileURL = cacheDir.appendingPathComponent("Safari_Image_\(timestamp).\(ext)")
-                                        
-                                        if let tiff = nsImage.tiffRepresentation,
-                                           let bitmap = NSBitmapImageRep(data: tiff) {
-                                            let outData = isJpg ?
-                                                bitmap.representation(using: .jpeg, properties: [.compressionFactor: 0.95]) :
-                                                bitmap.representation(using: .png, properties: [:])
-                                            try? (outData ?? data).write(to: fileURL)
-                                            loadedPaths.append(fileURL.path)
-                                        } else {
-                                            try? data.write(to: fileURL)
-                                            loadedPaths.append(fileURL.path)
-                                        }
-                                    } else if provider.canLoadObject(ofClass: NSImage.self) {
-                                        _ = provider.loadObject(ofClass: NSImage.self) { obj, _ in
-                                            if let nsImg = obj as? NSImage,
-                                               let tiff = nsImg.tiffRepresentation,
-                                               let bitmap = NSBitmapImageRep(data: tiff),
-                                               let pngData = bitmap.representation(using: .png, properties: [:]) {
-                                                let formatter = DateFormatter()
-                                                formatter.dateFormat = "yyyyMMdd_HHmmss_SSS"
-                                                let timestamp = formatter.string(from: Date())
-                                                let fileURL = cacheDir.appendingPathComponent("Safari_Image_\(timestamp).png")
-                                                try? pngData.write(to: fileURL)
-                                                loadedPaths.append(fileURL.path)
-                                            }
-                                        }
-                                    }
-                                    group.leave()
-                                }
-                            }
-                            // 3. Check web URL / public.url (HTTP/HTTPS image from web)
+                            // 2. Check web URL / public.url
                             else if provider.hasItemConformingToTypeIdentifier("public.url") {
                                 _ = provider.loadItem(forTypeIdentifier: "public.url", options: nil) { (item, _) in
                                     if let url = item as? URL {
@@ -1187,6 +1146,54 @@ struct DropShelfView: View {
                                     } else {
                                         group.leave()
                                     }
+                                }
+                            }
+                            // 3. Fallback: Raw image data (Only if dragging from Safari canvas/clipboard with no file URL)
+                            else if provider.hasItemConformingToTypeIdentifier("public.png") ||
+                                      provider.hasItemConformingToTypeIdentifier("public.jpeg") ||
+                                      provider.hasItemConformingToTypeIdentifier("public.tiff") ||
+                                      provider.hasItemConformingToTypeIdentifier("public.image") {
+                                
+                                let matchedType = provider.registeredTypeIdentifiers.first {
+                                    $0 == "public.png" || $0 == "public.jpeg" || $0 == "public.tiff" || $0 == "public.image"
+                                } ?? "public.image"
+                                
+                                _ = provider.loadDataRepresentation(forTypeIdentifier: matchedType) { data, _ in
+                                    if let data = data, let nsImage = NSImage(data: data) {
+                                        let formatter = DateFormatter()
+                                        formatter.dateFormat = "yyyyMMdd_HHmmss_SSS"
+                                        let timestamp = formatter.string(from: Date())
+                                        let isJpg = (matchedType == "public.jpeg")
+                                        let ext = isJpg ? "jpg" : "png"
+                                        let fileURL = cacheDir.appendingPathComponent("Image_\(timestamp).\(ext)")
+                                        
+                                        if let tiff = nsImage.tiffRepresentation,
+                                           let bitmap = NSBitmapImageRep(data: tiff) {
+                                            let outData = isJpg ?
+                                                bitmap.representation(using: .jpeg, properties: [.compressionFactor: 0.95]) :
+                                                bitmap.representation(using: .png, properties: [:])
+                                            try? (outData ?? data).write(to: fileURL)
+                                            loadedPaths.append(fileURL.path)
+                                        } else {
+                                            try? data.write(to: fileURL)
+                                            loadedPaths.append(fileURL.path)
+                                        }
+                                    } else if provider.canLoadObject(ofClass: NSImage.self) {
+                                        _ = provider.loadObject(ofClass: NSImage.self) { obj, _ in
+                                            if let nsImg = obj as? NSImage,
+                                               let tiff = nsImg.tiffRepresentation,
+                                               let bitmap = NSBitmapImageRep(data: tiff),
+                                               let pngData = bitmap.representation(using: .png, properties: [:]) {
+                                                let formatter = DateFormatter()
+                                                formatter.dateFormat = "yyyyMMdd_HHmmss_SSS"
+                                                let timestamp = formatter.string(from: Date())
+                                                let fileURL = cacheDir.appendingPathComponent("Image_\(timestamp).png")
+                                                try? pngData.write(to: fileURL)
+                                                loadedPaths.append(fileURL.path)
+                                            }
+                                        }
+                                    }
+                                    group.leave()
                                 }
                             }
                             // 4. Plain text / file path string
@@ -1835,6 +1842,7 @@ struct DraggableCardContainer<Content: View>: NSViewRepresentable {
     var onDoubleClick: (() -> Void)? = nil
     var onMoveDelta: ((CGSize) -> Void)? = nil
     var onEndMove: (() -> Void)? = nil
+    var onExternalDrop: (([String]) -> Void)? = nil
     let content: Content
     
     init(
@@ -1844,6 +1852,7 @@ struct DraggableCardContainer<Content: View>: NSViewRepresentable {
         onDoubleClick: (() -> Void)? = nil,
         onMoveDelta: ((CGSize) -> Void)? = nil,
         onEndMove: (() -> Void)? = nil,
+        onExternalDrop: (([String]) -> Void)? = nil,
         @ViewBuilder content: () -> Content
     ) {
         self.itemPath = itemPath
@@ -1852,6 +1861,7 @@ struct DraggableCardContainer<Content: View>: NSViewRepresentable {
         self.onDoubleClick = onDoubleClick
         self.onMoveDelta = onMoveDelta
         self.onEndMove = onEndMove
+        self.onExternalDrop = onExternalDrop
         self.content = content()
     }
     
@@ -1863,6 +1873,7 @@ struct DraggableCardContainer<Content: View>: NSViewRepresentable {
         view.onDoubleClick = onDoubleClick
         view.onMoveDelta = onMoveDelta
         view.onEndMove = onEndMove
+        view.onExternalDrop = onExternalDrop
         let hosting = NSHostingView(rootView: content)
         hosting.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(hosting)
@@ -1883,6 +1894,7 @@ struct DraggableCardContainer<Content: View>: NSViewRepresentable {
         nsView.onDoubleClick = onDoubleClick
         nsView.onMoveDelta = onMoveDelta
         nsView.onEndMove = onEndMove
+        nsView.onExternalDrop = onExternalDrop
         if let hosting = nsView.hostingView as? NSHostingView<Content> {
             hosting.rootView = content
         }
@@ -1896,6 +1908,7 @@ class DraggableContainerNSView: NSView, NSDraggingSource {
     var onDoubleClick: (() -> Void)?
     var onMoveDelta: ((CGSize) -> Void)?
     var onEndMove: (() -> Void)?
+    var onExternalDrop: (([String]) -> Void)?
     
     var hostingView: NSView?
     private var dragStartLocation: NSPoint?
@@ -1945,48 +1958,33 @@ class DraggableContainerNSView: NSView, NSDraggingSource {
         let totalDist = hypot(current.x - start.x, current.y - start.y)
         guard totalDist > 3 else { return }
         
-        guard let window = self.window, let contentView = window.contentView else { return }
-        let windowBounds = contentView.bounds
+        hasInitiatedSession = true
+        dragStartLocation = nil
+        isDraggingLocally = false
+        onEndMove?()
         
-        // If mouse is dragged outside window bounds -> Start Finder drag session!
-        let isOutside = !windowBounds.insetBy(dx: 4, dy: 4).contains(current)
+        let targets = getFilePaths?() ?? [itemPath]
+        guard !targets.isEmpty else { return }
+        self.activeSessionPaths = targets
         
-        if isOutside {
-            hasInitiatedSession = true
-            dragStartLocation = nil
-            isDraggingLocally = false
-            onEndMove?()
+        let urls = targets.map { URL(fileURLWithPath: $0) }
+        let draggingItems: [NSDraggingItem] = urls.enumerated().map { (index, url) in
+            let draggingItem = NSDraggingItem(pasteboardWriter: url as NSURL)
             
-            let targets = getFilePaths?() ?? [itemPath]
-            guard !targets.isEmpty else { return }
-            self.activeSessionPaths = targets
-            
-            let urls = targets.map { URL(fileURLWithPath: $0) }
-            let draggingItems: [NSDraggingItem] = urls.enumerated().map { (index, url) in
-                let draggingItem = NSDraggingItem(pasteboardWriter: url as NSURL)
-                
-                let img = NSWorkspace.shared.icon(forFile: url.path)
-                img.size = NSSize(width: 48, height: 48)
-                let offset = CGFloat(min(index, 4) * 3)
-                let dragRect = NSRect(
-                    x: (self.bounds.width - 48)/2 + offset,
-                    y: (self.bounds.height - 48)/2 - offset,
-                    width: 48,
-                    height: 48
-                )
-                draggingItem.setDraggingFrame(dragRect, contents: img)
-                return draggingItem
-            }
-            
-            beginDraggingSession(with: draggingItems, event: event, source: self)
-        } else {
-            // Inside window: move position locally on the canvas!
-            isDraggingLocally = true
-            let last = lastDragLocation ?? start
-            let delta = CGSize(width: current.x - last.x, height: -(current.y - last.y))
-            lastDragLocation = current
-            onMoveDelta?(delta)
+            let img = NSWorkspace.shared.icon(forFile: url.path)
+            img.size = NSSize(width: 48, height: 48)
+            let offset = CGFloat(min(index, 4) * 3)
+            let dragRect = NSRect(
+                x: (self.bounds.width - 48)/2 + offset,
+                y: (self.bounds.height - 48)/2 - offset,
+                width: 48,
+                height: 48
+            )
+            draggingItem.setDraggingFrame(dragRect, contents: img)
+            return draggingItem
         }
+        
+        beginDraggingSession(with: draggingItems, event: event, source: self)
     }
     
     override func mouseUp(with event: NSEvent) {
@@ -2004,24 +2002,43 @@ class DraggableContainerNSView: NSView, NSDraggingSource {
         wasAlreadySelected = false
     }
     
+    private func debugLog(_ msg: String) {
+        let logPath = NSHomeDirectory() + "/Desktop/dropshelf_debug.log"
+        let line = "[\(Date())] \(msg)\n"
+        if let data = line.data(using: .utf8) {
+            if FileManager.default.fileExists(atPath: logPath) {
+                if let handle = FileHandle(forWritingAtPath: logPath) {
+                    handle.seekToEndOfFile()
+                    handle.write(data)
+                    handle.closeFile()
+                }
+            } else {
+                try? data.write(to: URL(fileURLWithPath: logPath))
+            }
+        }
+    }
+    
     func draggingSession(_ session: NSDraggingSession, endedAt screenPoint: NSPoint, operation: NSDragOperation) {
         let shelfWindowFrame = DropShelfManager.shared.shelfWindow?.frame ?? .zero
-        let myWindowFrame = self.window?.frame ?? .zero
-        let isInside = shelfWindowFrame.contains(screenPoint) || myWindowFrame.contains(screenPoint)
+        let isInside = shelfWindowFrame.contains(screenPoint)
         
-        if isInside {
-            // User aborted or dragged back into the shelf window -> Keep files in shelf & untouched on disk!
-            DispatchQueue.main.async {
-                self.activeSessionPaths.removeAll()
-            }
+        debugLog("draggingSession ended: op=\(operation.rawValue) inside=\(isInside) paths=\(activeSessionPaths)")
+        
+        // If aborted or dropped back onto the shelf window itself, keep shelf state
+        if (isInside && operation == []) || activeSessionPaths.isEmpty {
+            debugLog("isInside=\(isInside) operation=none — cancelled, keeping items")
+            DispatchQueue.main.async { self.activeSessionPaths.removeAll() }
             return
         }
         
-        // Items were successfully dropped into an external Finder window / target outside
+        // Dropped outside onto Finder / other target -> Pure Move
         let pathsToRemove = self.activeSessionPaths
         self.activeSessionPaths.removeAll()
         
+        // Notify DropShelfView to remove from shelf UI
+        let externalDrop = self.onExternalDrop
         DispatchQueue.main.async {
+            externalDrop?(pathsToRemove)
             for p in pathsToRemove {
                 DropShelfManager.shared.heldItems.removeAll { $0 == p }
             }
@@ -2030,13 +2047,24 @@ class DraggableContainerNSView: NSView, NSDraggingSource {
             }
         }
         
-        // Complete the Move operation by removing original source files from disk
-        DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + 0.35) {
+        // Give destination app (Finder) 0.6s to finish writing file, then delete original source
+        DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + 0.6) {
             for p in pathsToRemove {
+                self.debugLog("Removing original source: \(p)")
                 let url = URL(fileURLWithPath: p)
-                if FileManager.default.fileExists(atPath: p) {
-                    if (try? FileManager.default.trashItem(at: url, resultingItemURL: nil)) == nil {
-                        try? FileManager.default.removeItem(at: url)
+                guard FileManager.default.fileExists(atPath: p) else {
+                    self.debugLog("Already moved/gone: \(p)")
+                    continue
+                }
+                do {
+                    try FileManager.default.removeItem(at: url)
+                    self.debugLog("Removed original OK: \(p)")
+                } catch {
+                    do {
+                        try FileManager.default.trashItem(at: url, resultingItemURL: nil)
+                        self.debugLog("Trashed original OK: \(p)")
+                    } catch let err {
+                        self.debugLog("FAILED removing \(p): \(err.localizedDescription)")
                     }
                 }
             }
