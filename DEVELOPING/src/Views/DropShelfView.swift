@@ -234,7 +234,15 @@ class DropShelfNativeSaveDialog: NSObject {
                             destinationDirectory: destDir,
                             customFileName: customName
                         ) {
+                            // Clean up temporary cache file if applicable
+                            if sourceURL.path.contains("ShortKing/DropShelf") && sourceURL.path != saved.path {
+                                try? FileManager.default.removeItem(at: sourceURL)
+                            }
                             DispatchQueue.main.async {
+                                DropShelfManager.shared.heldItems.removeAll { $0 == sourceURL.path }
+                                if DropShelfManager.shared.heldItems.isEmpty {
+                                    DropShelfManager.shared.closeShelf()
+                                }
                                 NSWorkspace.shared.activateFileViewerSelecting([saved])
                             }
                         }
@@ -287,10 +295,20 @@ class DropShelfNativeSaveDialog: NSObject {
                                 destinationDirectory: destDir
                             ) {
                                 savedURLs.append(saved)
+                                // Clean up temporary cache file if applicable
+                                if srcURL.path.contains("ShortKing/DropShelf") && srcURL.path != saved.path {
+                                    try? FileManager.default.removeItem(at: srcURL)
+                                }
                             }
                         }
                         if !savedURLs.isEmpty {
                             DispatchQueue.main.async {
+                                for p in paths {
+                                    DropShelfManager.shared.heldItems.removeAll { $0 == p }
+                                }
+                                if DropShelfManager.shared.heldItems.isEmpty {
+                                    DropShelfManager.shared.closeShelf()
+                                }
                                 NSWorkspace.shared.activateFileViewerSelecting(savedURLs)
                             }
                         }
