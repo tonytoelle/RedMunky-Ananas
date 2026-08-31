@@ -606,13 +606,13 @@ struct DropShelfView: View {
     var body: some View {
         GeometryReader { outerGeo in
             ZStack {
-                // Native macOS Glass Background
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                // Native macOS Glass Background with Modern Rounded Corners
+                RoundedRectangle(cornerRadius: 26, style: .continuous)
                     .fill(Color(white: 0.12).opacity(0.88))
                     .background(.ultraThinMaterial)
-                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
                     .overlay(
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        RoundedRectangle(cornerRadius: 26, style: .continuous)
                             .stroke(isTargeted ? Color.accentColor : Color.white.opacity(0.15), lineWidth: isTargeted ? 1.5 : 0.5)
                     )
                     .animation(.easeInOut(duration: 0.2), value: isTargeted)
@@ -795,30 +795,13 @@ struct DropShelfView: View {
                     // Drop Content Area / Freeform Desktop Canvas with Marquee Selection
                     Group {
                         if displayedItems.isEmpty {
-                            // Empty State (Waiting for Drop)
-                            VStack(spacing: 8) {
-                                ZStack {
-                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                        .strokeBorder(
-                                            isTargeted ? Color.accentColor : Color.white.opacity(0.25),
-                                            style: StrokeStyle(lineWidth: 1.5, dash: [5, 4])
-                                        )
-                                        .frame(width: 140, height: 110)
-                                        .background(isTargeted ? Color.accentColor.opacity(0.1) : Color.clear)
-                                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                                    
-                                    VStack(spacing: 6) {
-                                        Image(systemName: isTargeted ? "arrow.down.circle.fill" : (currentVirtualFolderId != nil ? "folder.badge.plus" : "plus.rectangle.on.folder"))
-                                            .font(.system(size: 30, weight: .light))
-                                            .foregroundColor(isTargeted ? .accentColor : .white.opacity(0.6))
-                                            .scaleEffect(isTargeted ? 1.2 : 1.0)
-                                        
-                                        Text(isTargeted ? "Drop to Hold" : (currentVirtualFolderId != nil ? "Folder is empty" : "Drop files here"))
-                                            .font(.system(size: 11, weight: .medium))
-                                            .foregroundColor(isTargeted ? .accentColor : .white.opacity(0.6))
-                                    }
-                                }
-                                .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isTargeted)
+                            // Ultra-clean Minimalist Empty State (No Box, No Icon)
+                            VStack {
+                                Text(isTargeted ? "Drop to Hold" : (currentVirtualFolderId != nil ? "Folder is empty" : "Drop files here"))
+                                    .font(.system(size: 13, weight: .medium))
+                                    .foregroundColor(isTargeted ? .accentColor : .white.opacity(0.45))
+                                    .scaleEffect(isTargeted ? 1.08 : 1.0)
+                                    .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isTargeted)
                             }
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                             .contentShape(Rectangle())
