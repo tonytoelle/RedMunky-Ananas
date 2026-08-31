@@ -137,69 +137,75 @@ class NativeSaveDialogHelper {
     static func showSaveDialog(for paths: [String]) {
         guard !paths.isEmpty else { return }
         
-        if paths.count == 1, let singlePath = paths.first {
-            let sourceURL = URL(fileURLWithPath: singlePath)
-            let panel = NSSavePanel()
-            panel.canCreateDirectories = true
-            panel.showsTagField = true
-            panel.prompt = "Save"
-            panel.title = "Save Image"
+        DispatchQueue.main.async {
+            NSApp.activate(ignoringOtherApps: true)
             
-            let baseName = sourceURL.deletingPathExtension().lastPathComponent
-            var chosenFormat: ImageExportFormat = .jpg
-            panel.nameFieldStringValue = "\(baseName).jpg"
-            
-            let accessoryView = NSView(frame: NSRect(x: 0, y: 0, width: 260, height: 38))
-            let label = NSTextField(labelWithString: "Format:")
-            label.frame = NSRect(x: 10, y: 9, width: 60, height: 20)
-            label.alignment = .right
-            label.font = NSFont.systemFont(ofSize: 13)
-            
-            let popUp = NSPopUpButton(frame: NSRect(x: 75, y: 6, width: 140, height: 26), pullsDown: false)
-            popUp.addItems(withTitles: ["JPEG", "PNG", "WebP", "Original"])
-            popUp.selectItem(withTitle: "JPEG")
-            
-            final class SingleSaveDelegate: NSObject {
-                let panel: NSSavePanel
-                var onFormatChange: (ImageExportFormat) -> Void
-                init(panel: NSSavePanel, onFormatChange: @escaping (ImageExportFormat) -> Void) {
-                    self.panel = panel
-                    self.onFormatChange = onFormatChange
-                }
-                @objc func formatChanged(_ sender: NSPopUpButton) {
-                    let title = sender.titleOfSelectedItem ?? "JPEG"
-                    let fmt: ImageExportFormat
-                    switch title {
-                    case "PNG": fmt = .png
-                    case "WebP": fmt = .webp
-                    case "Original": fmt = .original
-                    default: fmt = .jpg
+            if paths.count == 1, let singlePath = paths.first {
+                let sourceURL = URL(fileURLWithPath: singlePath)
+                let panel = NSSavePanel()
+                panel.canCreateDirectories = true
+                panel.showsTagField = true
+                panel.prompt = "Save"
+                panel.title = "Save Image"
+                panel.level = .floating
+                
+                let baseName = sourceURL.deletingPathExtension().lastPathComponent
+                var chosenFormat: ImageExportFormat = .jpg
+                panel.nameFieldStringValue = "\(baseName).jpg"
+                
+                let accessoryView = NSView(frame: NSRect(x: 0, y: 0, width: 260, height: 38))
+                let label = NSTextField(labelWithString: "Format:")
+                label.frame = NSRect(x: 10, y: 9, width: 60, height: 20)
+                label.alignment = .right
+                label.font = NSFont.systemFont(ofSize: 13)
+                
+                let popUp = NSPopUpButton(frame: NSRect(x: 75, y: 6, width: 140, height: 26), pullsDown: false)
+                popUp.addItems(withTitles: ["JPEG", "PNG", "WebP", "Original"])
+                popUp.selectItem(withTitle: "JPEG")
+                
+                final class SingleSaveDelegate: NSObject {
+                    weak var panel: NSSavePanel?
+                    var onFormatChange: (ImageExportFormat) -> Void
+                    init(panel: NSSavePanel, onFormatChange: @escaping (ImageExportFormat) -> Void) {
+                        self.panel = panel
+                        self.onFormatChange = onFormatChange
                     }
-                    onFormatChange(fmt)
-                    
-                    let currentName = self.panel.nameFieldStringValue
-                    let nameWithoutExt = URL(fileURLWithPath: currentName).deletingPathExtension().lastPathComponent
-                    if fmt == .original {
-                        let origExt = URL(fileURLWithPath: currentName).pathExtension
-                        self.panel.nameFieldStringValue = origExt.isEmpty ? nameWithoutExt : "\(nameWithoutExt).\(origExt)"
-                    } else {
-                        self.panel.nameFieldStringValue = "\(nameWithoutExt).\(fmt.fileExtension)"
+                    @objc func formatChanged(_ sender: NSPopUpButton) {
+                        let title = sender.titleOfSelectedItem ?? "JPEG"
+                        let fmt: ImageExportFormat
+                        switch title {
+                        case "PNG": fmt = .png
+                        case "WebP": fmt = .webp
+                        case "Original": fmt = .original
+                        default: fmt = .jpg
+                        }
+                        onFormatChange(fmt)
+                        
+                        guard let panel = self.panel else { return }
+                        let currentName = panel.nameFieldStringValue
+                        let nameWithoutExt = URL(fileURLWithPath: currentName).deletingPathExtension().lastPathComponent
+                        if fmt == .original {
+                            let origExt = URL(fileURLWithPath: currentName).pathExtension
+                            panel.nameFieldStringValue = origExt.isEmpty ? nameWithoutExt : "\(nameWithoutExt).\(origExt)"
+                        } else {
+                            panel.nameFieldStringValue = "\(nameWithoutExt).\(fmt.fileExtension)"
+                        }
                     }
                 }
-            }
-            
-            let delegate = SingleSaveDelegate(panel: panel) { fmt in
-                chosenFormat = fmt
-            }
-            popUp.target = delegate
-            popUp.action = #selector(SingleSaveDelegate.formatChanged(_:))
-            
-            accessoryView.addSubview(label)
-            accessoryView.addSubview(popUp)
-            panel.accessoryView = accessoryView
-            
-            panel.begin { response in
+                
+                let delegate = SingleSaveDelegate(panel: panel) { fmt in
+                    chosenFormat = fmt
+                }
+                popUp.target = delegate
+                popUp.action = #selector(SingleSaveDelegate.formatChanged(_:))
+                
+                accessoryView.addSubview(label)
+                accessoryView.addSubview(popUp)
+                panel.accessoryView = accessoryView
+                
+                let response = panel.runModal()
                 _ = delegate
+                
                 if response == .OK, let targetURL = panel.url {
                     let destDir = targetURL.deletingLastPathComponent()
                     let customName = targetURL.deletingPathExtension().lastPathComponent
@@ -216,59 +222,60 @@ class NativeSaveDialogHelper {
                         }
                     }
                 }
-            }
-        } else {
-            let panel = NSOpenPanel()
-            panel.canChooseFiles = false
-            panel.canChooseDirectories = true
-            panel.allowsMultipleSelection = false
-            panel.canCreateDirectories = true
-            panel.prompt = "Save"
-            panel.title = "Save \(paths.count) Items"
-            panel.message = "Choose destination folder to save \(paths.count) items"
-            
-            var chosenFormat: ImageExportFormat = .jpg
-            
-            let accessoryView = NSView(frame: NSRect(x: 0, y: 0, width: 280, height: 38))
-            let label = NSTextField(labelWithString: "Format:")
-            label.frame = NSRect(x: 10, y: 9, width: 60, height: 20)
-            label.alignment = .right
-            label.font = NSFont.systemFont(ofSize: 13)
-            
-            let popUp = NSPopUpButton(frame: NSRect(x: 75, y: 6, width: 150, height: 26), pullsDown: false)
-            popUp.addItems(withTitles: ["JPEG", "PNG", "WebP", "Original"])
-            popUp.selectItem(withTitle: "JPEG")
-            
-            final class MultiSaveDelegate: NSObject {
-                var onFormatChange: (ImageExportFormat) -> Void
-                init(onFormatChange: @escaping (ImageExportFormat) -> Void) {
-                    self.onFormatChange = onFormatChange
-                }
-                @objc func formatChanged(_ sender: NSPopUpButton) {
-                    let title = sender.titleOfSelectedItem ?? "JPEG"
-                    let fmt: ImageExportFormat
-                    switch title {
-                    case "PNG": fmt = .png
-                    case "WebP": fmt = .webp
-                    case "Original": fmt = .original
-                    default: fmt = .jpg
+            } else {
+                let panel = NSOpenPanel()
+                panel.canChooseFiles = false
+                panel.canChooseDirectories = true
+                panel.allowsMultipleSelection = false
+                panel.canCreateDirectories = true
+                panel.prompt = "Save"
+                panel.title = "Save \(paths.count) Items"
+                panel.message = "Choose destination folder to save \(paths.count) items"
+                panel.level = .floating
+                
+                var chosenFormat: ImageExportFormat = .jpg
+                
+                let accessoryView = NSView(frame: NSRect(x: 0, y: 0, width: 280, height: 38))
+                let label = NSTextField(labelWithString: "Format:")
+                label.frame = NSRect(x: 10, y: 9, width: 60, height: 20)
+                label.alignment = .right
+                label.font = NSFont.systemFont(ofSize: 13)
+                
+                let popUp = NSPopUpButton(frame: NSRect(x: 75, y: 6, width: 150, height: 26), pullsDown: false)
+                popUp.addItems(withTitles: ["JPEG", "PNG", "WebP", "Original"])
+                popUp.selectItem(withTitle: "JPEG")
+                
+                final class MultiSaveDelegate: NSObject {
+                    var onFormatChange: (ImageExportFormat) -> Void
+                    init(onFormatChange: @escaping (ImageExportFormat) -> Void) {
+                        self.onFormatChange = onFormatChange
                     }
-                    onFormatChange(fmt)
+                    @objc func formatChanged(_ sender: NSPopUpButton) {
+                        let title = sender.titleOfSelectedItem ?? "JPEG"
+                        let fmt: ImageExportFormat
+                        switch title {
+                        case "PNG": fmt = .png
+                        case "WebP": fmt = .webp
+                        case "Original": fmt = .original
+                        default: fmt = .jpg
+                        }
+                        onFormatChange(fmt)
+                    }
                 }
-            }
-            
-            let delegate = MultiSaveDelegate { fmt in
-                chosenFormat = fmt
-            }
-            popUp.target = delegate
-            popUp.action = #selector(MultiSaveDelegate.formatChanged(_:))
-            
-            accessoryView.addSubview(label)
-            accessoryView.addSubview(popUp)
-            panel.accessoryView = accessoryView
-            
-            panel.begin { response in
+                
+                let delegate = MultiSaveDelegate { fmt in
+                    chosenFormat = fmt
+                }
+                popUp.target = delegate
+                popUp.action = #selector(MultiSaveDelegate.formatChanged(_:))
+                
+                accessoryView.addSubview(label)
+                accessoryView.addSubview(popUp)
+                panel.accessoryView = accessoryView
+                
+                let response = panel.runModal()
                 _ = delegate
+                
                 if response == .OK, let destDir = panel.url {
                     DispatchQueue.global(qos: .userInitiated).async {
                         var savedURLs: [URL] = []
