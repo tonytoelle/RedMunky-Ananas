@@ -148,6 +148,8 @@ class NativeSaveDialogHelper {
                 panel.prompt = "Save"
                 panel.title = "Save Image"
                 panel.level = .floating
+                panel.isExtensionHidden = false
+                panel.setValue(true, forKey: "isAccessoryViewDisclosed")
                 
                 let baseName = sourceURL.deletingPathExtension().lastPathComponent
                 var chosenFormat: ImageExportFormat = .jpg
@@ -232,6 +234,7 @@ class NativeSaveDialogHelper {
                 panel.title = "Save \(paths.count) Items"
                 panel.message = "Choose destination folder to save \(paths.count) items"
                 panel.level = .floating
+                panel.setValue(true, forKey: "isAccessoryViewDisclosed")
                 
                 var chosenFormat: ImageExportFormat = .jpg
                 
