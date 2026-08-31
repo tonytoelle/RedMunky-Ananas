@@ -481,6 +481,7 @@ struct AsyncFileThumbnailView: View {
                 Image(nsImage: img)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
+                    .clipShape(RoundedRectangle(cornerRadius: size > 50 ? 9 : 6, style: .continuous))
             } else {
                 Image(nsImage: NSWorkspace.shared.icon(forFile: path))
                     .resizable()
