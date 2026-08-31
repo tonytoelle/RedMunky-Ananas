@@ -37,12 +37,23 @@ class ImageExportManager {
         let fileManager = FileManager.default
         let baseName = customFileName ?? sourceURL.deletingPathExtension().lastPathComponent
         
-        // 1. Directory / Folder Export (Recursive folder structure)
+        // 1. Directory / Folder Transit (Move folder structure)
         var isDir: ObjCBool = false
         if fileManager.fileExists(atPath: sourceURL.path, isDirectory: &isDir), isDir.boolValue {
             let folderName = customFileName ?? sourceURL.lastPathComponent
             var destFolderURL = destinationDirectory.appendingPathComponent(folderName, isDirectory: true)
             destFolderURL = uniqueURL(for: destFolderURL)
+            
+            // If original format, try direct folder move
+            if format == .original && customFileName == nil {
+                do {
+                    try fileManager.moveItem(at: sourceURL, to: destFolderURL)
+                    return destFolderURL
+                } catch {
+                    // Fallback to recursive copy & remove below
+                }
+            }
+            
             do {
                 try fileManager.createDirectory(at: destFolderURL, withIntermediateDirectories: true)
                 if let childURLs = try? fileManager.contentsOfDirectory(at: sourceURL, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]) {
@@ -55,26 +66,35 @@ class ImageExportManager {
                         )
                     }
                 }
+                // Clean up original source directory after moving all contents
+                try? fileManager.removeItem(at: sourceURL)
                 return destFolderURL
             } catch {
                 return nil
             }
         }
         
-        // 2. Original format export
+        // 2. Original format file move
         if format == .original {
             let originalName = (customFileName != nil && !sourceURL.pathExtension.isEmpty) ? "\(baseName).\(sourceURL.pathExtension)" : (customFileName ?? sourceURL.lastPathComponent)
             var destURL = destinationDirectory.appendingPathComponent(originalName)
             destURL = uniqueURL(for: destURL)
+            
+            if sourceURL == destURL { return destURL }
             do {
-                try fileManager.copyItem(at: sourceURL, to: destURL)
+                try fileManager.moveItem(at: sourceURL, to: destURL)
                 return destURL
             } catch {
+                // Across volumes fallback: copy + remove original
+                if (try? fileManager.copyItem(at: sourceURL, to: destURL)) != nil {
+                    try? fileManager.removeItem(at: sourceURL)
+                    return destURL
+                }
                 return nil
             }
         }
         
-        // 3. Image conversion format export
+        // 3. Image conversion format export & remove source original
         guard let source = CGImageSourceCreateWithURL(sourceURL as CFURL, nil),
               let cgImage = CGImageSourceCreateImageAtIndex(source, 0, nil) else {
             // Fallback via NSImage
@@ -82,22 +102,38 @@ class ImageExportManager {
                let tiffData = nsImage.tiffRepresentation,
                let bitmap = NSBitmapImageRep(data: tiffData),
                let cg = bitmap.cgImage {
-                return exportCGImage(cg, format: format, destinationDirectory: destinationDirectory, baseName: baseName, quality: quality)
+                if let exported = exportCGImage(cg, format: format, destinationDirectory: destinationDirectory, baseName: baseName, quality: quality) {
+                    if sourceURL.path != exported.path {
+                        try? fileManager.removeItem(at: sourceURL)
+                    }
+                    return exported
+                }
             }
             
-            // Fallback for non-image files: copy original file
+            // Fallback for non-image files: move original file
             let originalName = (customFileName != nil && !sourceURL.pathExtension.isEmpty) ? "\(baseName).\(sourceURL.pathExtension)" : (customFileName ?? sourceURL.lastPathComponent)
             var destURL = destinationDirectory.appendingPathComponent(originalName)
             destURL = uniqueURL(for: destURL)
+            if sourceURL == destURL { return destURL }
             do {
-                try fileManager.copyItem(at: sourceURL, to: destURL)
+                try fileManager.moveItem(at: sourceURL, to: destURL)
                 return destURL
             } catch {
+                if (try? fileManager.copyItem(at: sourceURL, to: destURL)) != nil {
+                    try? fileManager.removeItem(at: sourceURL)
+                    return destURL
+                }
                 return nil
             }
         }
         
-        return exportCGImage(cgImage, format: format, destinationDirectory: destinationDirectory, baseName: baseName, quality: quality)
+        if let exported = exportCGImage(cgImage, format: format, destinationDirectory: destinationDirectory, baseName: baseName, quality: quality) {
+            if sourceURL.path != exported.path {
+                try? fileManager.removeItem(at: sourceURL)
+            }
+            return exported
+        }
+        return nil
     }
     
     static func exportCGImage(
