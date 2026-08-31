@@ -606,15 +606,18 @@ struct DropShelfView: View {
     var body: some View {
         GeometryReader { outerGeo in
             ZStack {
-                // Pure Native macOS Transparent Material
-                RoundedRectangle(cornerRadius: 26, style: .continuous)
+                // Pure Native macOS Window Surface (macOS Native Shadow & Clean Rounded Corner)
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
                     .fill(.ultraThinMaterial)
-                    .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
                     .overlay(
-                        RoundedRectangle(cornerRadius: 26, style: .continuous)
-                            .stroke(isTargeted ? Color.accentColor : Color.white.opacity(0.18), lineWidth: isTargeted ? 2 : 0.5)
+                        Group {
+                            if isTargeted {
+                                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                                    .stroke(Color.accentColor, lineWidth: 2)
+                            }
+                        }
                     )
-                    .shadow(color: isTargeted ? Color.accentColor.opacity(0.3) : Color.black.opacity(0.25), radius: isTargeted ? 24 : 18, x: 0, y: 8)
                     .animation(.easeInOut(duration: 0.2), value: isTargeted)
                 
                 VStack(spacing: 0) {
