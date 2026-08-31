@@ -444,6 +444,10 @@ struct DropShelfView: View {
     @State private var currentDirectory: URL? = nil
     @State private var folderHistory: [URL] = []
     
+    // Inline Renaming State
+    @State private var renamingPath: String? = nil
+    @State private var renamingText: String = ""
+    
     // Freeform desktop canvas positions & live drag offsets
     @State private var itemPositions: [String: CGPoint] = [:]
     @State private var activeDragOffsets: [String: CGSize] = [:]
@@ -514,16 +518,16 @@ struct DropShelfView: View {
                             .buttonStyle(.plain)
                             .help(currentDirectory != nil ? "Close Folder / Shelf" : "Close Shelf")
                             
-                            // Up Arrow Button (Back to Parent Folder)
+                            // Up Arrow Button (Back to Parent Folder) - same style & color as X
                             if currentDirectory != nil {
                                 Button {
                                     navigateUp()
                                 } label: {
-                                    Image(systemName: "arrow.up")
+                                    Image(systemName: "chevron.up")
                                         .font(.system(size: 11, weight: .bold))
-                                        .foregroundColor(.white.opacity(0.95))
+                                        .foregroundColor(.white.opacity(0.8))
                                         .frame(width: 26, height: 26)
-                                        .background(Color.accentColor.opacity(0.35))
+                                        .background(Color.white.opacity(0.1))
                                         .clipShape(Circle())
                                 }
                                 .buttonStyle(.plain)
@@ -531,22 +535,14 @@ struct DropShelfView: View {
                                 .transition(.scale.combined(with: .opacity))
                             }
                             
-                            // Breadcrumb / Current Folder Name Badge
+                            // Current Folder Title (no icon, no capsule background)
                             if let dir = currentDirectory {
-                                HStack(spacing: 4) {
-                                    Image(systemName: "folder.fill")
-                                        .font(.system(size: 10))
-                                        .foregroundColor(.accentColor)
-                                    Text(dir.lastPathComponent)
-                                        .font(.system(size: 10.5, weight: .semibold))
-                                        .foregroundColor(.white.opacity(0.9))
-                                        .lineLimit(1)
-                                        .truncationMode(.middle)
-                                }
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 3.5)
-                                .background(Color.white.opacity(0.12))
-                                .clipShape(Capsule())
+                                Text(dir.lastPathComponent)
+                                    .font(.system(size: 11.5, weight: .semibold))
+                                    .foregroundColor(.white.opacity(0.85))
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+                                    .padding(.leading, 2)
                             }
                             
                             Spacer()
@@ -791,43 +787,95 @@ struct DropShelfView: View {
                                                 }
                                             },
                                             onMoveDelta: { delta in
-                                                let targets = selectedPaths.contains(itemPath) && !selectedPaths.isEmpty ? selectedPaths : [itemPath]
+                                                let targets = selectedPaths.contains(itemPath) && !selectedPaths.isEmpty ? Array(selectedPaths) : [itemPath]
                                                 for t in targets {
                                                     let current = activeDragOffsets[t] ?? .zero
                                                     activeDragOffsets[t] = CGSize(width: current.width + delta.width, height: current.height + delta.height)
                                                 }
                                             },
                                             onEndMove: {
-                                                let targets = selectedPaths.contains(itemPath) && !selectedPaths.isEmpty ? selectedPaths : [itemPath]
-                                                for t in targets {
-                                                    if let offset = activeDragOffsets[t] {
-                                                        let origin = currentPosition(for: t, in: outerGeo.size)
-                                                        itemPositions[t] = CGPoint(
-                                                            x: max(38, min(outerGeo.size.width - 38, origin.x + offset.width)),
-                                                            y: max(38, origin.y + offset.height)
-                                                        )
-                                                        activeDragOffsets.removeValue(forKey: t)
+                                                let targets = selectedPaths.contains(itemPath) && !selectedPaths.isEmpty ? Array(selectedPaths) : [itemPath]
+                                                
+                                                // Check if dragged onto any folder card
+                                                var targetFolder: String? = nil
+                                                if let myOffset = activeDragOffsets[itemPath] {
+                                                    let myOrigin = currentPosition(for: itemPath, in: outerGeo.size)
+                                                    let myFinalPos = CGPoint(
+                                                        x: max(38, min(outerGeo.size.width - 38, myOrigin.x + myOffset.width)),
+                                                        y: max(38, myOrigin.y + myOffset.height)
+                                                    )
+                                                    
+                                                    for other in displayedItems {
+                                                        guard !targets.contains(other) else { continue }
+                                                        var isDir: ObjCBool = false
+                                                        if FileManager.default.fileExists(atPath: other, isDirectory: &isDir), isDir.boolValue {
+                                                            let fPos = currentPosition(for: other, in: outerGeo.size)
+                                                            let dist = hypot(myFinalPos.x - fPos.x, myFinalPos.y - fPos.y)
+                                                            if dist < 48 {
+                                                                targetFolder = other
+                                                                break
+                                                            }
+                                                        }
                                                     }
+                                                }
+                                                
+                                                if let destFolder = targetFolder {
+                                                    moveItems(targets, intoFolder: destFolder)
+                                                } else {
+                                                    for t in targets {
+                                                        if let offset = activeDragOffsets[t] {
+                                                            let origin = currentPosition(for: t, in: outerGeo.size)
+                                                            itemPositions[t] = CGPoint(
+                                                                x: max(38, min(outerGeo.size.width - 38, origin.x + offset.width)),
+                                                                y: max(38, origin.y + offset.height)
+                                                            )
+                                                        }
+                                                    }
+                                                }
+                                                
+                                                for t in targets {
+                                                    activeDragOffsets.removeValue(forKey: t)
                                                 }
                                             }
                                         ) {
                                             VStack(spacing: 6) {
                                                 AsyncFileThumbnailView(path: itemPath, size: displayedItems.count == 1 ? 64 : 46)
                                                 
-                                                Text(itemURL.lastPathComponent)
+                                                if renamingPath == itemPath {
+                                                    TextField("Name", text: $renamingText, onCommit: {
+                                                        commitRename()
+                                                    })
+                                                    .textFieldStyle(.plain)
                                                     .font(.system(size: 9.5, weight: .medium))
                                                     .foregroundColor(.white)
                                                     .multilineTextAlignment(.center)
-                                                    .lineLimit(2)
-                                                    .truncationMode(.middle)
-                                                    .frame(width: 66, height: 26, alignment: .top)
                                                     .padding(.horizontal, 4)
-                                                    .padding(.vertical, 1.5)
+                                                    .padding(.vertical, 2)
                                                     .background(
-                                                        isSelected ?
-                                                        RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color.accentColor) :
-                                                        RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color.clear)
+                                                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                                            .fill(Color.black.opacity(0.75))
+                                                            .overlay(
+                                                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                                                    .stroke(Color.accentColor, lineWidth: 1)
+                                                            )
                                                     )
+                                                    .frame(width: 72)
+                                                } else {
+                                                    Text(itemURL.lastPathComponent)
+                                                        .font(.system(size: 9.5, weight: .medium))
+                                                        .foregroundColor(.white)
+                                                        .multilineTextAlignment(.center)
+                                                        .lineLimit(2)
+                                                        .truncationMode(.middle)
+                                                        .frame(width: 66, height: 26, alignment: .top)
+                                                        .padding(.horizontal, 4)
+                                                        .padding(.vertical, 1.5)
+                                                        .background(
+                                                            isSelected ?
+                                                            RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color.accentColor) :
+                                                            RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color.clear)
+                                                        )
+                                                }
                                             }
                                             .padding(3)
                                             .contentShape(Rectangle())
@@ -1215,6 +1263,72 @@ struct DropShelfView: View {
         lastClickedPath = nil
     }
     
+    // MARK: - Renaming & Moving Items
+    
+    private func startRenaming(_ path: String) {
+        let url = URL(fileURLWithPath: path)
+        renamingText = url.lastPathComponent
+        renamingPath = path
+    }
+    
+    private func commitRename() {
+        guard let oldPath = renamingPath else { return }
+        let cleanName = renamingText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanName.isEmpty else {
+            renamingPath = nil
+            return
+        }
+        
+        let oldURL = URL(fileURLWithPath: oldPath)
+        let newURL = oldURL.deletingLastPathComponent().appendingPathComponent(cleanName)
+        
+        if oldURL.path != newURL.path {
+            do {
+                try FileManager.default.moveItem(at: oldURL, to: newURL)
+                if let idx = manager.heldItems.firstIndex(of: oldPath) {
+                    manager.heldItems[idx] = newURL.path
+                }
+                if selectedPaths.contains(oldPath) {
+                    selectedPaths.remove(oldPath)
+                    selectedPaths.insert(newURL.path)
+                }
+                if let pos = itemPositions[oldPath] {
+                    itemPositions.removeValue(forKey: oldPath)
+                    itemPositions[newURL.path] = pos
+                }
+            } catch {
+                // Ignore rename failure
+            }
+        }
+        renamingPath = nil
+    }
+    
+    private func moveItems(_ sourcePaths: [String], intoFolder folderPath: String) {
+        let folderURL = URL(fileURLWithPath: folderPath)
+        var movedAny = false
+        for src in sourcePaths {
+            guard src != folderPath else { continue }
+            let srcURL = URL(fileURLWithPath: src)
+            let destURL = folderURL.appendingPathComponent(srcURL.lastPathComponent)
+            do {
+                try FileManager.default.moveItem(at: srcURL, to: destURL)
+                movedAny = true
+                if currentDirectory == nil {
+                    manager.heldItems.removeAll { $0 == src }
+                }
+                itemPositions.removeValue(forKey: src)
+            } catch {
+                // Ignore if move fails
+            }
+        }
+        if movedAny {
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
+                selectedPaths.removeAll()
+                lastClickedPath = nil
+            }
+        }
+    }
+    
     // MARK: - Keyboard Event Monitoring & Actions
     
     private func setupKeyMonitor() {
@@ -1469,7 +1583,8 @@ struct DropShelfView: View {
         
         if paths.count == 1, let single = paths.first {
             var isDir: ObjCBool = false
-            if FileManager.default.fileExists(atPath: single, isDirectory: &isDir), isDir.boolValue {
+            let isDirectory = FileManager.default.fileExists(atPath: single, isDirectory: &isDir) && isDir.boolValue
+            if isDirectory {
                 Button {
                     if let cur = currentDirectory {
                         folderHistory.append(cur)
@@ -1482,6 +1597,12 @@ struct DropShelfView: View {
                 } label: {
                     Label("Open Folder", systemImage: "folder")
                 }
+            }
+            
+            Button {
+                startRenaming(single)
+            } label: {
+                Label("Rename...", systemImage: "pencil")
             }
         }
         
