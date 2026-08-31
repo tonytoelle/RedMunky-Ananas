@@ -440,6 +440,10 @@ struct DropShelfView: View {
     @State private var isExpanded = false
     @State private var plungePulse = false
     
+    // Directory / Folder Navigation inside DropShelf
+    @State private var currentDirectory: URL? = nil
+    @State private var folderHistory: [URL] = []
+    
     // Freeform desktop canvas positions & live drag offsets
     @State private var itemPositions: [String: CGPoint] = [:]
     @State private var activeDragOffsets: [String: CGSize] = [:]
@@ -452,6 +456,14 @@ struct DropShelfView: View {
     
     // Keyboard Event Monitor
     @State private var keyMonitor: Any? = nil
+    
+    private var displayedItems: [String] {
+        if let dir = currentDirectory {
+            let items = (try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])) ?? []
+            return items.map { $0.path }
+        }
+        return manager.heldItems
+    }
     
     private var marqueeRect: CGRect? {
         guard let s = marqueeStart, let c = marqueeCurrent else { return nil }
@@ -486,7 +498,11 @@ struct DropShelfView: View {
                         HStack(spacing: 6) {
                             // Close Button (X)
                             Button {
-                                manager.closeShelf()
+                                if currentDirectory != nil {
+                                    navigateUp()
+                                } else {
+                                    manager.closeShelf()
+                                }
                             } label: {
                                 Image(systemName: "xmark")
                                     .font(.system(size: 11, weight: .bold))
@@ -496,12 +512,48 @@ struct DropShelfView: View {
                                     .clipShape(Circle())
                             }
                             .buttonStyle(.plain)
+                            .help(currentDirectory != nil ? "Close Folder / Shelf" : "Close Shelf")
+                            
+                            // Up Arrow Button (Back to Parent Folder)
+                            if currentDirectory != nil {
+                                Button {
+                                    navigateUp()
+                                } label: {
+                                    Image(systemName: "arrow.up")
+                                        .font(.system(size: 11, weight: .bold))
+                                        .foregroundColor(.white.opacity(0.95))
+                                        .frame(width: 26, height: 26)
+                                        .background(Color.accentColor.opacity(0.35))
+                                        .clipShape(Circle())
+                                }
+                                .buttonStyle(.plain)
+                                .help("Back to Parent Folder")
+                                .transition(.scale.combined(with: .opacity))
+                            }
+                            
+                            // Breadcrumb / Current Folder Name Badge
+                            if let dir = currentDirectory {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "folder.fill")
+                                        .font(.system(size: 10))
+                                        .foregroundColor(.accentColor)
+                                    Text(dir.lastPathComponent)
+                                        .font(.system(size: 10.5, weight: .semibold))
+                                        .foregroundColor(.white.opacity(0.9))
+                                        .lineLimit(1)
+                                        .truncationMode(.middle)
+                                }
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 3.5)
+                                .background(Color.white.opacity(0.12))
+                                .clipShape(Capsule())
+                            }
                             
                             Spacer()
                                 .allowsHitTesting(false)
                             
                             // Expand / Compact Toggle Icon Button
-                            if !manager.heldItems.isEmpty {
+                            if !displayedItems.isEmpty {
                                 Button {
                                     toggleExpand()
                                 } label: {
@@ -518,9 +570,17 @@ struct DropShelfView: View {
                             
                             // Options Menu (...)
                             Menu {
-                                if !manager.heldItems.isEmpty {
+                                Button {
+                                    createNewFolder()
+                                } label: {
+                                    Label("New Folder", systemImage: "folder.badge.plus")
+                                }
+                                
+                                Divider()
+                                
+                                if !displayedItems.isEmpty {
                                     Button("Select All (⌘A)") {
-                                        selectedPaths = Set(manager.heldItems)
+                                        selectedPaths = Set(displayedItems)
                                     }
                                     
                                     if !selectedPaths.isEmpty {
@@ -556,7 +616,7 @@ struct DropShelfView: View {
                                     
                                     Divider()
                                     
-                                    if let first = selectedPaths.first ?? manager.heldItems.first {
+                                    if let first = selectedPaths.first ?? displayedItems.first {
                                         let url = URL(fileURLWithPath: first)
                                         Button("Open with Default App") {
                                             let targetUrls = activeTargetPaths().map { URL(fileURLWithPath: $0) }
@@ -587,8 +647,14 @@ struct DropShelfView: View {
                                     
                                     Divider()
                                     
-                                    Button("Clear Shelf") {
-                                        manager.closeShelf()
+                                    Button(role: .destructive) {
+                                        if currentDirectory != nil {
+                                            navigateUp()
+                                        } else {
+                                            manager.closeShelf()
+                                        }
+                                    } label: {
+                                        Text(currentDirectory != nil ? "Back to Parent Folder" : "Clear Shelf")
                                     }
                                 }
                             } label: {
@@ -608,7 +674,7 @@ struct DropShelfView: View {
                     
                     // Drop Content Area / Freeform Desktop Canvas with Marquee Selection
                     Group {
-                        if manager.heldItems.isEmpty {
+                        if displayedItems.isEmpty {
                             // Empty State (Waiting for Drop)
                             VStack(spacing: 8) {
                                 ZStack {
@@ -622,12 +688,12 @@ struct DropShelfView: View {
                                         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                                     
                                     VStack(spacing: 6) {
-                                        Image(systemName: isTargeted ? "arrow.down.circle.fill" : "plus.rectangle.on.folder")
+                                        Image(systemName: isTargeted ? "arrow.down.circle.fill" : (currentDirectory != nil ? "folder.badge.plus" : "plus.rectangle.on.folder"))
                                             .font(.system(size: 30, weight: .light))
                                             .foregroundColor(isTargeted ? .accentColor : .white.opacity(0.6))
                                             .scaleEffect(isTargeted ? 1.2 : 1.0)
                                         
-                                        Text(isTargeted ? "Drop to Hold" : "Drop files here")
+                                        Text(isTargeted ? "Drop to Hold" : (currentDirectory != nil ? "Folder is empty" : "Drop files here"))
                                             .font(.system(size: 11, weight: .medium))
                                             .foregroundColor(isTargeted ? .accentColor : .white.opacity(0.6))
                                     }
@@ -635,20 +701,27 @@ struct DropShelfView: View {
                                 .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isTargeted)
                             }
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .contentShape(Rectangle())
+                            .contextMenu {
+                                canvasContextMenu
+                            }
                         } else {
                             // Freeform Desktop Canvas with Native macOS ProMotion Scrolling
                             ScrollView(.vertical, showsIndicators: false) {
-                                let itemsMaxY = manager.heldItems.map { (itemPositions[$0]?.y ?? currentPosition(for: $0, in: CGSize(width: 200, height: outerGeo.size.height)).y) }.max() ?? 0
+                                let itemsMaxY = displayedItems.map { (itemPositions[$0]?.y ?? currentPosition(for: $0, in: CGSize(width: 200, height: outerGeo.size.height)).y) }.max() ?? 0
                                 let canvasHeight = max(outerGeo.size.height - 40, itemsMaxY + 55)
                                 
                                 ZStack(alignment: .topLeading) {
-                                    // Background Canvas Area for Marquee Drag & Tap Deselect
+                                    // Background Canvas Area for Marquee Drag & Tap Deselect & Right Click Menu
                                     Color.clear
                                         .frame(width: outerGeo.size.width, height: canvasHeight)
                                         .contentShape(Rectangle())
                                         .onTapGesture {
                                             selectedPaths.removeAll()
                                             lastClickedPath = nil
+                                        }
+                                        .contextMenu {
+                                            canvasContextMenu
                                         }
                                         .gesture(
                                             DragGesture(minimumDistance: 4, coordinateSpace: .named("DropShelfCanvasSpace"))
@@ -682,11 +755,14 @@ struct DropShelfView: View {
                                         )
                                     
                                     // Freeform Icons on Canvas
-                                    ForEach(manager.heldItems, id: \.self) { itemPath in
+                                    ForEach(displayedItems, id: \.self) { itemPath in
                                         let itemURL = URL(fileURLWithPath: itemPath)
                                         let isSelected = selectedPaths.contains(itemPath)
                                         let pos = currentPosition(for: itemPath, in: outerGeo.size)
                                         let dragOffset = activeDragOffsets[itemPath] ?? .zero
+                                        
+                                        var isDir: ObjCBool = false
+                                        let isDirectory = FileManager.default.fileExists(atPath: itemPath, isDirectory: &isDir) && isDir.boolValue
                                         
                                         DraggableCardContainer(
                                             itemPath: itemPath,
@@ -701,7 +777,18 @@ struct DropShelfView: View {
                                                 handleItemClick(itemPath)
                                             },
                                             onDoubleClick: {
-                                                NSWorkspace.shared.open(itemURL)
+                                                if isDirectory {
+                                                    if let cur = currentDirectory {
+                                                        folderHistory.append(cur)
+                                                    }
+                                                    withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+                                                        currentDirectory = itemURL
+                                                        selectedPaths.removeAll()
+                                                        lastClickedPath = nil
+                                                    }
+                                                } else {
+                                                    NSWorkspace.shared.open(itemURL)
+                                                }
                                             },
                                             onMoveDelta: { delta in
                                                 let targets = selectedPaths.contains(itemPath) && !selectedPaths.isEmpty ? selectedPaths : [itemPath]
@@ -725,7 +812,7 @@ struct DropShelfView: View {
                                             }
                                         ) {
                                             VStack(spacing: 6) {
-                                                AsyncFileThumbnailView(path: itemPath, size: manager.heldItems.count == 1 ? 64 : 46)
+                                                AsyncFileThumbnailView(path: itemPath, size: displayedItems.count == 1 ? 64 : 46)
                                                 
                                                 Text(itemURL.lastPathComponent)
                                                     .font(.system(size: 9.5, weight: .medium))
@@ -789,8 +876,7 @@ struct DropShelfView: View {
                     .onDrop(of: [.fileURL, .url, .image, .png, .jpeg, .tiff, .gif, .plainText, .utf8PlainText], isTargeted: $isTargeted) { providers in
                         var loadedPaths: [String] = []
                         let group = DispatchGroup()
-                        let cacheDir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
-                            .appendingPathComponent("ShortKing/DropShelf", isDirectory: true)
+                        let cacheDir = currentDirectory ?? defaultDropShelfCacheDir()
                         try? FileManager.default.createDirectory(at: cacheDir, withIntermediateDirectories: true)
                         
                         for provider in providers {
@@ -800,11 +886,30 @@ struct DropShelfView: View {
                             if provider.hasItemConformingToTypeIdentifier("public.file-url") {
                                 _ = provider.loadItem(forTypeIdentifier: "public.file-url", options: nil) { (item, _) in
                                     if let data = item as? Data, let url = URL(dataRepresentation: data, relativeTo: nil) {
-                                        loadedPaths.append(url.path)
+                                        if let dir = currentDirectory {
+                                            // Copy into current folder
+                                            let destURL = dir.appendingPathComponent(url.lastPathComponent)
+                                            try? FileManager.default.copyItem(at: url, to: destURL)
+                                            loadedPaths.append(destURL.path)
+                                        } else {
+                                            loadedPaths.append(url.path)
+                                        }
                                     } else if let url = item as? URL {
-                                        loadedPaths.append(url.path)
+                                        if let dir = currentDirectory {
+                                            let destURL = dir.appendingPathComponent(url.lastPathComponent)
+                                            try? FileManager.default.copyItem(at: url, to: destURL)
+                                            loadedPaths.append(destURL.path)
+                                        } else {
+                                            loadedPaths.append(url.path)
+                                        }
                                     } else if let str = item as? String, let url = URL(string: str) {
-                                        loadedPaths.append(url.path)
+                                        if let dir = currentDirectory {
+                                            let destURL = dir.appendingPathComponent(url.lastPathComponent)
+                                            try? FileManager.default.copyItem(at: url, to: destURL)
+                                            loadedPaths.append(destURL.path)
+                                        } else {
+                                            loadedPaths.append(url.path)
+                                        }
                                     }
                                     group.leave()
                                 }
@@ -862,7 +967,13 @@ struct DropShelfView: View {
                                 _ = provider.loadItem(forTypeIdentifier: "public.url", options: nil) { (item, _) in
                                     if let url = item as? URL {
                                         if url.isFileURL {
-                                            loadedPaths.append(url.path)
+                                            if let dir = currentDirectory {
+                                                let destURL = dir.appendingPathComponent(url.lastPathComponent)
+                                                try? FileManager.default.copyItem(at: url, to: destURL)
+                                                loadedPaths.append(destURL.path)
+                                            } else {
+                                                loadedPaths.append(url.path)
+                                            }
                                             group.leave()
                                         } else {
                                             DispatchQueue.global(qos: .userInitiated).async {
@@ -881,7 +992,13 @@ struct DropShelfView: View {
                                         }
                                     } else if let data = item as? Data, let url = URL(dataRepresentation: data, relativeTo: nil) {
                                         if url.isFileURL {
-                                            loadedPaths.append(url.path)
+                                            if let dir = currentDirectory {
+                                                let destURL = dir.appendingPathComponent(url.lastPathComponent)
+                                                try? FileManager.default.copyItem(at: url, to: destURL)
+                                                loadedPaths.append(destURL.path)
+                                            } else {
+                                                loadedPaths.append(url.path)
+                                            }
                                         }
                                         group.leave()
                                     } else {
@@ -896,9 +1013,22 @@ struct DropShelfView: View {
                                         let lines = str.components(separatedBy: "\n").filter { !$0.isEmpty }
                                         for line in lines {
                                             if line.hasPrefix("file://"), let u = URL(string: line) {
-                                                loadedPaths.append(u.path)
+                                                if let dir = currentDirectory {
+                                                    let destURL = dir.appendingPathComponent(u.lastPathComponent)
+                                                    try? FileManager.default.copyItem(at: u, to: destURL)
+                                                    loadedPaths.append(destURL.path)
+                                                } else {
+                                                    loadedPaths.append(u.path)
+                                                }
                                             } else if FileManager.default.fileExists(atPath: line) {
-                                                loadedPaths.append(line)
+                                                let u = URL(fileURLWithPath: line)
+                                                if let dir = currentDirectory {
+                                                    let destURL = dir.appendingPathComponent(u.lastPathComponent)
+                                                    try? FileManager.default.copyItem(at: u, to: destURL)
+                                                    loadedPaths.append(destURL.path)
+                                                } else {
+                                                    loadedPaths.append(line)
+                                                }
                                             }
                                         }
                                     }
@@ -909,33 +1039,36 @@ struct DropShelfView: View {
                         
                         group.notify(queue: .main) {
                             guard !loadedPaths.isEmpty else { return }
-                            var current = manager.heldItems
-                            for p in loadedPaths {
-                                if !current.contains(p) {
-                                    current.append(p)
+                            if currentDirectory == nil {
+                                var current = manager.heldItems
+                                for p in loadedPaths {
+                                    if !current.contains(p) {
+                                        current.append(p)
+                                    }
                                 }
-                            }
-                            
-                            // Trigger "Nyemplung" Plunge Bounce Animation & DEFAULT SELECT ALL!
-                            withAnimation(.spring(response: 0.45, dampingFraction: 0.58, blendDuration: 0.2)) {
-                                manager.heldItems = current
-                                selectedPaths = Set(current) // Default: Select All so user can immediately drag to Finder!
-                                plungePulse = true
-                            }
-                            
-                            // Auto expand to 4x4 if more than 4 items dropped
-                            if current.count > 4 && !isExpanded {
-                                toggleExpand()
+                                withAnimation(.spring(response: 0.45, dampingFraction: 0.58, blendDuration: 0.2)) {
+                                    manager.heldItems = current
+                                    selectedPaths = Set(current) // Default: Select All so user can immediately drag to Finder!
+                                    plungePulse = true
+                                }
+                                if current.count > 4 && !isExpanded {
+                                    toggleExpand()
+                                }
+                            } else {
+                                withAnimation(.spring(response: 0.45, dampingFraction: 0.58, blendDuration: 0.2)) {
+                                    selectedPaths = Set(loadedPaths)
+                                    plungePulse = true
+                                }
                             }
                         }
                         return true
                     }
                     
                     // Bottom Status Info (Centered at bottom)
-                    if !manager.heldItems.isEmpty {
+                    if !displayedItems.isEmpty {
                         HStack {
                             Spacer()
-                            Text(selectedPaths.count == manager.heldItems.count ? "\(manager.heldItems.count) items (all selected)" : "\(selectedPaths.count) of \(manager.heldItems.count) selected")
+                            Text(selectedPaths.count == displayedItems.count ? "\(displayedItems.count) items (all selected)" : "\(selectedPaths.count) of \(displayedItems.count) selected")
                                 .font(.system(size: 9.5, weight: .medium))
                                 .foregroundColor(.white.opacity(0.6))
                                 .padding(.bottom, 8)
@@ -966,7 +1099,8 @@ struct DropShelfView: View {
         if let pos = itemPositions[path] {
             return pos
         }
-        guard let idx = manager.heldItems.firstIndex(of: path) else {
+        let items = displayedItems
+        guard let idx = items.firstIndex(of: path) else {
             return CGPoint(x: 56, y: 58)
         }
         
@@ -984,7 +1118,7 @@ struct DropShelfView: View {
         let spacingX: CGFloat = 88
         let spacingY: CGFloat = 96
         let cols = max(2, Int((canvasWidth - 16) / spacingX))
-        for (idx, path) in manager.heldItems.enumerated() {
+        for (idx, path) in displayedItems.enumerated() {
             let col = idx % cols
             let row = idx / cols
             let startX: CGFloat = 56
@@ -996,11 +1130,12 @@ struct DropShelfView: View {
     private func handleItemClick(_ itemPath: String) {
         let isShift = NSEvent.modifierFlags.contains(.shift)
         let isCmd = NSEvent.modifierFlags.contains(.command)
+        let items = displayedItems
         
-        if isShift, let last = lastClickedPath, let lastIdx = manager.heldItems.firstIndex(of: last), let currentIdx = manager.heldItems.firstIndex(of: itemPath) {
+        if isShift, let last = lastClickedPath, let lastIdx = items.firstIndex(of: last), let currentIdx = items.firstIndex(of: itemPath) {
             let lower = min(lastIdx, currentIdx)
             let upper = max(lastIdx, currentIdx)
-            let rangeItems = manager.heldItems[lower...upper]
+            let rangeItems = items[lower...upper]
             selectedPaths.formUnion(rangeItems)
         } else if isCmd {
             if selectedPaths.contains(itemPath) {
@@ -1033,7 +1168,51 @@ struct DropShelfView: View {
         if !selectedPaths.isEmpty {
             return Array(selectedPaths)
         }
-        return manager.heldItems
+        return displayedItems
+    }
+    
+    // MARK: - Folder & Directory Navigation
+    
+    private func defaultDropShelfCacheDir() -> URL {
+        let cacheDir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
+            .appendingPathComponent("ShortKing/DropShelf", isDirectory: true)
+        try? FileManager.default.createDirectory(at: cacheDir, withIntermediateDirectories: true)
+        return cacheDir
+    }
+    
+    private func createNewFolder() {
+        let targetDir: URL = currentDirectory ?? defaultDropShelfCacheDir()
+        var folderName = "New Folder"
+        var targetURL = targetDir.appendingPathComponent(folderName, isDirectory: true)
+        var counter = 1
+        while FileManager.default.fileExists(atPath: targetURL.path) {
+            folderName = "New Folder \(counter)"
+            targetURL = targetDir.appendingPathComponent(folderName, isDirectory: true)
+            counter += 1
+        }
+        
+        try? FileManager.default.createDirectory(at: targetURL, withIntermediateDirectories: true)
+        
+        if currentDirectory == nil {
+            if !manager.heldItems.contains(targetURL.path) {
+                manager.heldItems.append(targetURL.path)
+            }
+        }
+        
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
+            selectedPaths = [targetURL.path]
+            lastClickedPath = targetURL.path
+        }
+    }
+    
+    private func navigateUp() {
+        if !folderHistory.isEmpty {
+            currentDirectory = folderHistory.removeLast()
+        } else {
+            currentDirectory = nil
+        }
+        selectedPaths.removeAll()
+        lastClickedPath = nil
     }
     
     // MARK: - Keyboard Event Monitoring & Actions
@@ -1057,7 +1236,7 @@ struct DropShelfView: View {
             
             // 2. Cmd + A (Select All)
             if isCmd && (event.charactersIgnoringModifiers?.lowercased() == "a" || keyCode == 0) {
-                selectedPaths = Set(manager.heldItems)
+                selectedPaths = Set(displayedItems)
                 return nil
             }
             
@@ -1066,6 +1245,8 @@ struct DropShelfView: View {
                 if !selectedPaths.isEmpty {
                     selectedPaths.removeAll()
                     lastClickedPath = nil
+                } else if currentDirectory != nil {
+                    navigateUp()
                 } else {
                     manager.closeShelf()
                 }
@@ -1074,7 +1255,7 @@ struct DropShelfView: View {
             
             // 4. Spacebar (49) -> Quick Look / Open Preview
             if keyCode == 49 {
-                if let first = selectedPaths.first ?? manager.heldItems.first {
+                if let first = selectedPaths.first ?? displayedItems.first {
                     NSWorkspace.shared.open(URL(fileURLWithPath: first))
                 }
                 return nil
@@ -1098,22 +1279,30 @@ struct DropShelfView: View {
     }
     
     private func deleteSelectedItems() {
-        let targets = selectedPaths.isEmpty ? (manager.heldItems.isEmpty ? [] : [manager.heldItems.last!]) : Array(selectedPaths)
+        let items = displayedItems
+        let targets = selectedPaths.isEmpty ? (items.isEmpty ? [] : [items.last!]) : Array(selectedPaths)
         guard !targets.isEmpty else { return }
         
         withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
             for p in targets {
-                manager.heldItems.removeAll { $0 == p }
+                if currentDirectory != nil {
+                    try? FileManager.default.removeItem(atPath: p)
+                } else {
+                    manager.heldItems.removeAll { $0 == p }
+                }
                 itemPositions.removeValue(forKey: p)
             }
             selectedPaths.removeAll()
             lastClickedPath = nil
         }
         
-        if manager.heldItems.isEmpty {
-            manager.closeShelf()
+        let remaining = displayedItems
+        if remaining.isEmpty {
+            if currentDirectory == nil {
+                manager.closeShelf()
+            }
         } else {
-            if let nextItem = manager.heldItems.last {
+            if let nextItem = remaining.last {
                 selectedPaths = [nextItem]
                 lastClickedPath = nextItem
             }
@@ -1121,12 +1310,13 @@ struct DropShelfView: View {
     }
     
     private func handleArrowKey(keyCode: UInt16, isShift: Bool) {
-        guard !manager.heldItems.isEmpty else { return }
+        let items = displayedItems
+        guard !items.isEmpty else { return }
         
         let currentIdx: Int
-        if let last = lastClickedPath, let idx = manager.heldItems.firstIndex(of: last) {
+        if let last = lastClickedPath, let idx = items.firstIndex(of: last) {
             currentIdx = idx
-        } else if let firstSelected = selectedPaths.first, let idx = manager.heldItems.firstIndex(of: firstSelected) {
+        } else if let firstSelected = selectedPaths.first, let idx = items.firstIndex(of: firstSelected) {
             currentIdx = idx
         } else {
             currentIdx = 0
@@ -1140,23 +1330,23 @@ struct DropShelfView: View {
         case 123: // Left Arrow
             newIdx = max(0, currentIdx - 1)
         case 124: // Right Arrow
-            newIdx = min(manager.heldItems.count - 1, currentIdx + 1)
+            newIdx = min(items.count - 1, currentIdx + 1)
         case 126: // Up Arrow
             newIdx = max(0, currentIdx - cols)
         case 125: // Down Arrow
-            newIdx = min(manager.heldItems.count - 1, currentIdx + cols)
+            newIdx = min(items.count - 1, currentIdx + cols)
         default:
             break
         }
         
-        guard newIdx >= 0 && newIdx < manager.heldItems.count else { return }
-        let targetPath = manager.heldItems[newIdx]
+        guard newIdx >= 0 && newIdx < items.count else { return }
+        let targetPath = items[newIdx]
         
         if isShift {
             let lower = min(currentIdx, newIdx)
             let upper = max(currentIdx, newIdx)
             for i in lower...upper {
-                selectedPaths.insert(manager.heldItems[i])
+                selectedPaths.insert(items[i])
             }
             lastClickedPath = targetPath
         } else {
@@ -1167,7 +1357,7 @@ struct DropShelfView: View {
     
     private func openSaveDialog(for paths: [String]? = nil) {
         let targets = paths ?? activeTargetPaths()
-        let finalTargets = targets.isEmpty ? manager.heldItems : targets
+        let finalTargets = targets.isEmpty ? displayedItems : targets
         guard !finalTargets.isEmpty else { return }
         DropShelfNativeSaveDialog.shared.showSaveDialog(for: finalTargets)
     }
@@ -1183,9 +1373,117 @@ struct DropShelfView: View {
         }
     }
     
+    // MARK: - Canvas & File Context Menus
+    
+    @ViewBuilder
+    private var canvasContextMenu: some View {
+        Button {
+            createNewFolder()
+        } label: {
+            Label("New Folder", systemImage: "folder.badge.plus")
+        }
+        
+        Divider()
+        
+        if !displayedItems.isEmpty {
+            Button {
+                selectedPaths = Set(displayedItems)
+            } label: {
+                Label("Select All (⌘A)", systemImage: "checkmark.circle")
+            }
+            
+            if !selectedPaths.isEmpty {
+                Button {
+                    selectedPaths.removeAll()
+                    lastClickedPath = nil
+                } label: {
+                    Label("Deselect All", systemImage: "xmark.circle")
+                }
+            }
+            
+            Divider()
+            
+            Button {
+                openSaveDialog()
+            } label: {
+                Label("Save All to Folder...", systemImage: "square.and.arrow.down")
+            }
+            
+            if !selectedPaths.isEmpty {
+                Button {
+                    openSaveDialog(for: Array(selectedPaths))
+                } label: {
+                    Label("Save Selected (\(selectedPaths.count)) to Folder...", systemImage: "square.and.arrow.down.fill")
+                }
+            }
+            
+            Divider()
+            
+            Button {
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                    realignToGrid(canvasWidth: 200)
+                }
+            } label: {
+                Label("Clean Up / Align to Grid", systemImage: "square.grid.2x2")
+            }
+            
+            Button {
+                toggleExpand()
+            } label: {
+                Label(isExpanded ? "Compact View" : "Expand View", systemImage: isExpanded ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
+            }
+            
+            Divider()
+            
+            Button {
+                let pasteboard = NSPasteboard.general
+                pasteboard.clearContents()
+                pasteboard.writeObjects(activeTargetPaths().map { URL(fileURLWithPath: $0) as NSURL })
+            } label: {
+                Label("Copy to Clipboard (⌘C)", systemImage: "doc.on.doc")
+            }
+            
+            Button {
+                shareSelectedOrAll()
+            } label: {
+                Label("AirDrop / Share...", systemImage: "square.and.arrow.up")
+            }
+            
+            Divider()
+            
+            Button(role: .destructive) {
+                if currentDirectory != nil {
+                    navigateUp()
+                } else {
+                    manager.closeShelf()
+                }
+            } label: {
+                Label(currentDirectory != nil ? "Back to Parent Folder" : "Clear Shelf", systemImage: currentDirectory != nil ? "arrow.up" : "trash")
+            }
+        }
+    }
+    
     @ViewBuilder
     private func fileContextMenu(for paths: [String]) -> some View {
         let urls = paths.map { URL(fileURLWithPath: $0) }
+        
+        if paths.count == 1, let single = paths.first {
+            var isDir: ObjCBool = false
+            if FileManager.default.fileExists(atPath: single, isDirectory: &isDir), isDir.boolValue {
+                Button {
+                    if let cur = currentDirectory {
+                        folderHistory.append(cur)
+                    }
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+                        currentDirectory = URL(fileURLWithPath: single)
+                        selectedPaths.removeAll()
+                        lastClickedPath = nil
+                    }
+                } label: {
+                    Label("Open Folder", systemImage: "folder")
+                }
+            }
+        }
         
         Button {
             for u in urls { NSWorkspace.shared.open(u) }
@@ -1237,10 +1535,14 @@ struct DropShelfView: View {
             for p in paths {
                 let fileURL = URL(fileURLWithPath: p)
                 try? FileManager.default.trashItem(at: fileURL, resultingItemURL: nil)
-                manager.heldItems.removeAll { $0 == p }
+                if currentDirectory != nil {
+                    try? FileManager.default.removeItem(at: fileURL)
+                } else {
+                    manager.heldItems.removeAll { $0 == p }
+                }
             }
             selectedPaths.removeAll()
-            if manager.heldItems.isEmpty {
+            if displayedItems.isEmpty && currentDirectory == nil {
                 manager.closeShelf()
             }
         } label: {
