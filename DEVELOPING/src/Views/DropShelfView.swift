@@ -928,13 +928,13 @@ struct DropShelfView: View {
                                                 
                                                 var foundHover: String? = nil
                                                 for other in displayedItems {
-                                                    guard !targets.contains(other) else { continue }
+                                                    guard other != itemPath else { continue }
                                                     var isDir: ObjCBool = false
                                                     let isOtherDir = manager.isVirtualFolder(other) || (FileManager.default.fileExists(atPath: other, isDirectory: &isDir) && isDir.boolValue)
                                                     if isOtherDir {
                                                         let fPos = currentPosition(for: other, in: outerGeo.size)
                                                         let dist = hypot(curPos.x - fPos.x, curPos.y - fPos.y)
-                                                        if dist < 65 {
+                                                        if dist < 75 {
                                                             foundHover = other
                                                             break
                                                         }
@@ -947,12 +947,15 @@ struct DropShelfView: View {
                                                 }
                                             },
                                             onEndMove: {
-                                                let targets = selectedPaths.contains(itemPath) && !selectedPaths.isEmpty ? Array(selectedPaths) : [itemPath]
+                                                let rawTargets = selectedPaths.contains(itemPath) && !selectedPaths.isEmpty ? Array(selectedPaths) : [itemPath]
                                                 let destFolder = hoveredFolder
                                                 hoveredFolder = nil
                                                 
                                                 if let folder = destFolder {
-                                                    moveItems(targets, intoFolder: folder)
+                                                    let actualTargets = rawTargets.filter { $0 != folder }
+                                                    if !actualTargets.isEmpty {
+                                                        moveItems(actualTargets, intoFolder: folder)
+                                                    }
                                                 } else {
                                                     // Fallback check distance in case onMoveDelta wasn't triggered at the last frame
                                                     var fallbackFolder: String? = nil
@@ -964,13 +967,13 @@ struct DropShelfView: View {
                                                         )
                                                         
                                                         for other in displayedItems {
-                                                            guard !targets.contains(other) else { continue }
+                                                            guard other != itemPath else { continue }
                                                             var isDir: ObjCBool = false
                                                             let isOtherDir = manager.isVirtualFolder(other) || (FileManager.default.fileExists(atPath: other, isDirectory: &isDir) && isDir.boolValue)
                                                             if isOtherDir {
                                                                 let fPos = currentPosition(for: other, in: outerGeo.size)
                                                                 let dist = hypot(myFinalPos.x - fPos.x, myFinalPos.y - fPos.y)
-                                                                if dist < 70 {
+                                                                if dist < 85 {
                                                                     fallbackFolder = other
                                                                     break
                                                                 }
@@ -979,9 +982,12 @@ struct DropShelfView: View {
                                                     }
                                                     
                                                     if let fb = fallbackFolder {
-                                                        moveItems(targets, intoFolder: fb)
+                                                        let actualTargets = rawTargets.filter { $0 != fb }
+                                                        if !actualTargets.isEmpty {
+                                                            moveItems(actualTargets, intoFolder: fb)
+                                                        }
                                                     } else {
-                                                        for t in targets {
+                                                        for t in rawTargets {
                                                             if let offset = activeDragOffsets[t] {
                                                                 let origin = currentPosition(for: t, in: outerGeo.size)
                                                                 itemPositions[t] = CGPoint(
@@ -993,7 +999,7 @@ struct DropShelfView: View {
                                                     }
                                                 }
                                                 
-                                                for t in targets {
+                                                for t in rawTargets {
                                                     activeDragOffsets.removeValue(forKey: t)
                                                 }
                                             },
@@ -1006,15 +1012,17 @@ struct DropShelfView: View {
                                         ) {
                                             VStack(spacing: 6) {
                                                 AsyncFileThumbnailView(path: itemPath, size: displayedItems.count == 1 ? 64 : 46)
+                                                    .scaleEffect(isDirectory && hoveredFolder == itemPath ? 1.15 : 1.0)
                                                     .overlay(
                                                         Group {
                                                             if isDirectory && hoveredFolder == itemPath {
                                                                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                                                                     .stroke(Color.accentColor, lineWidth: 3)
-                                                                    .shadow(color: Color.accentColor.opacity(0.9), radius: 6)
+                                                                    .shadow(color: Color.accentColor.opacity(0.9), radius: 8)
                                                             }
                                                         }
                                                     )
+                                                    .animation(.spring(response: 0.25, dampingFraction: 0.65), value: hoveredFolder == itemPath)
                                                 
                                                 if renamingPath == itemPath {
                                                     TextField("Name", text: $renamingText, onCommit: {
@@ -1953,7 +1961,7 @@ class DraggableContainerNSView: NSView, NSDraggingSource {
             let prev = lastDragLocation ?? start
             let delta = CGSize(
                 width: currentInWindow.x - prev.x,
-                height: currentInWindow.y - prev.y
+                height: -(currentInWindow.y - prev.y)
             )
             lastDragLocation = currentInWindow
             isDraggingLocally = true
