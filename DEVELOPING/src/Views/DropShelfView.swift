@@ -1910,7 +1910,10 @@ class DraggableContainerNSView: NSView, NSDraggingSource {
     }
     
     func draggingSession(_ session: NSDraggingSession, sourceOperationMaskFor context: NSDraggingContext) -> NSDragOperation {
-        return [.copy, .move, .generic, .every]
+        if context == .outsideApplication {
+            return .move
+        }
+        return [.copy, .move, .generic]
     }
     
     override func mouseDown(with event: NSEvent) {
