@@ -392,6 +392,9 @@ struct DropShelfView: View {
     @State private var folderExportDoc: ExportableFolderDocument? = nil
     @State private var folderExportDefaultName: String = "DropShelf Export"
     
+    // Keyboard Event Monitor
+    @State private var keyMonitor: Any? = nil
+    
     private var marqueeRect: CGRect? {
         guard let s = marqueeStart, let c = marqueeCurrent else { return nil }
         let x = min(s.x, c.x)
@@ -889,6 +892,16 @@ struct DropShelfView: View {
             }
         }
         .frame(minWidth: 200, maxWidth: .infinity, minHeight: 264, maxHeight: .infinity)
+        .onAppear {
+            setupKeyMonitor()
+            DispatchQueue.main.async {
+                NSApp.activate(ignoringOtherApps: true)
+                manager.shelfWindow?.makeKeyAndOrderFront(nil)
+            }
+        }
+        .onDisappear {
+            removeKeyMonitor()
+        }
         .fileExporter(
             isPresented: $isExportingSingle,
             document: singleExportDoc,
@@ -983,6 +996,135 @@ struct DropShelfView: View {
             return Array(selectedPaths)
         }
         return manager.heldItems
+    }
+    
+    // MARK: - Keyboard Event Monitoring & Actions
+    
+    private func setupKeyMonitor() {
+        removeKeyMonitor()
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            guard let win = manager.shelfWindow, win.isKeyWindow || NSApp.keyWindow == win else {
+                return event
+            }
+            
+            let keyCode = event.keyCode
+            let isShift = event.modifierFlags.contains(.shift)
+            let isCmd = event.modifierFlags.contains(.command)
+            
+            // 1. Delete / Backspace (51) or Forward Delete (117)
+            if keyCode == 51 || keyCode == 117 {
+                deleteSelectedItems()
+                return nil
+            }
+            
+            // 2. Cmd + A (Select All)
+            if isCmd && (event.charactersIgnoringModifiers?.lowercased() == "a" || keyCode == 0) {
+                selectedPaths = Set(manager.heldItems)
+                return nil
+            }
+            
+            // 3. Escape (53)
+            if keyCode == 53 {
+                if !selectedPaths.isEmpty {
+                    selectedPaths.removeAll()
+                    lastClickedPath = nil
+                } else {
+                    manager.closeShelf()
+                }
+                return nil
+            }
+            
+            // 4. Spacebar (49) -> Quick Look / Open Preview
+            if keyCode == 49 {
+                if let first = selectedPaths.first ?? manager.heldItems.first {
+                    NSWorkspace.shared.open(URL(fileURLWithPath: first))
+                }
+                return nil
+            }
+            
+            // 5. Arrow Keys (Left: 123, Right: 124, Down: 125, Up: 126)
+            if [123, 124, 125, 126].contains(keyCode) {
+                handleArrowKey(keyCode: keyCode, isShift: isShift)
+                return nil
+            }
+            
+            return event
+        }
+    }
+    
+    private func removeKeyMonitor() {
+        if let mon = keyMonitor {
+            NSEvent.removeMonitor(mon)
+            keyMonitor = nil
+        }
+    }
+    
+    private func deleteSelectedItems() {
+        let targets = selectedPaths.isEmpty ? (manager.heldItems.isEmpty ? [] : [manager.heldItems.last!]) : Array(selectedPaths)
+        guard !targets.isEmpty else { return }
+        
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
+            for p in targets {
+                manager.heldItems.removeAll { $0 == p }
+                itemPositions.removeValue(forKey: p)
+            }
+            selectedPaths.removeAll()
+            lastClickedPath = nil
+        }
+        
+        if manager.heldItems.isEmpty {
+            manager.closeShelf()
+        } else {
+            if let nextItem = manager.heldItems.last {
+                selectedPaths = [nextItem]
+                lastClickedPath = nextItem
+            }
+        }
+    }
+    
+    private func handleArrowKey(keyCode: UInt16, isShift: Bool) {
+        guard !manager.heldItems.isEmpty else { return }
+        
+        let currentIdx: Int
+        if let last = lastClickedPath, let idx = manager.heldItems.firstIndex(of: last) {
+            currentIdx = idx
+        } else if let firstSelected = selectedPaths.first, let idx = manager.heldItems.firstIndex(of: firstSelected) {
+            currentIdx = idx
+        } else {
+            currentIdx = 0
+        }
+        
+        let width = manager.shelfWindow?.frame.width ?? 200
+        let cols = max(2, Int((width - 16) / 88))
+        var newIdx = currentIdx
+        
+        switch keyCode {
+        case 123: // Left Arrow
+            newIdx = max(0, currentIdx - 1)
+        case 124: // Right Arrow
+            newIdx = min(manager.heldItems.count - 1, currentIdx + 1)
+        case 126: // Up Arrow
+            newIdx = max(0, currentIdx - cols)
+        case 125: // Down Arrow
+            newIdx = min(manager.heldItems.count - 1, currentIdx + cols)
+        default:
+            break
+        }
+        
+        guard newIdx >= 0 && newIdx < manager.heldItems.count else { return }
+        let targetPath = manager.heldItems[newIdx]
+        
+        if isShift {
+            let lower = min(currentIdx, newIdx)
+            let upper = max(currentIdx, newIdx)
+            for i in lower...upper {
+                selectedPaths.insert(manager.heldItems[i])
+            }
+            lastClickedPath = targetPath
+        } else {
+            selectedPaths = [targetPath]
+            lastClickedPath = targetPath
+        }
     }
     
     private func openSaveDialog(for paths: [String]? = nil) {

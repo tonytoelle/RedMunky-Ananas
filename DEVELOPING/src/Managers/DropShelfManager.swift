@@ -4,10 +4,13 @@ import SwiftUI
 import Combine
 
 class DropShelfWindow: NSPanel {
+    override var canBecomeKey: Bool { return true }
+    override var canBecomeMain: Bool { return true }
+    
     init(contentView: NSView, size: NSSize) {
         super.init(
             contentRect: NSRect(origin: .zero, size: size),
-            styleMask: [.borderless, .resizable, .nonactivatingPanel],
+            styleMask: [.borderless, .resizable, .utilityWindow],
             backing: .buffered,
             defer: false
         )
@@ -23,6 +26,14 @@ class DropShelfWindow: NSPanel {
         self.maxSize = NSSize(width: 800, height: 800)
         self.contentView = contentView
         self.invalidateShadow()
+    }
+    
+    override func mouseDown(with event: NSEvent) {
+        super.mouseDown(with: event)
+        if !self.isKeyWindow {
+            NSApp.activate(ignoringOtherApps: true)
+            self.makeKeyAndOrderFront(nil)
+        }
     }
 }
 
@@ -137,6 +148,7 @@ class DropShelfManager: ObservableObject {
             let win = DropShelfWindow(contentView: hostView, size: initialSize)
             win.setFrameOrigin(origin)
             win.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
             
             self.shelfWindow = win
         }
