@@ -606,16 +606,71 @@ struct DropShelfView: View {
     var body: some View {
         GeometryReader { outerGeo in
             ZStack {
-                // Native macOS Glass Background with Modern Rounded Corners
-                RoundedRectangle(cornerRadius: 26, style: .continuous)
-                    .fill(Color(white: 0.12).opacity(0.88))
-                    .background(.ultraThinMaterial)
-                    .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 26, style: .continuous)
-                            .stroke(isTargeted ? Color.accentColor : Color.white.opacity(0.15), lineWidth: isTargeted ? 1.5 : 0.5)
-                    )
-                    .animation(.easeInOut(duration: 0.2), value: isTargeted)
+                // macOS Tahoe Liquid Glass Material with Light Sheen & Specular Refraction
+                ZStack {
+                    VisualEffectView(material: .hudWindow, blendingMode: .behindWindow, state: .active)
+                        .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+                    
+                    RoundedRectangle(cornerRadius: 26, style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    Color(white: 0.16).opacity(isTargeted ? 0.85 : 0.72),
+                                    Color(white: 0.08).opacity(isTargeted ? 0.88 : 0.78)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                    
+                    RoundedRectangle(cornerRadius: 26, style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                stops: [
+                                    .init(color: Color.white.opacity(isTargeted ? 0.30 : 0.18), location: 0.0),
+                                    .init(color: Color.white.opacity(0.03), location: 0.28),
+                                    .init(color: Color.clear, location: 0.6),
+                                    .init(color: Color.white.opacity(0.07), location: 1.0)
+                                ],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
+                    
+                    RoundedRectangle(cornerRadius: 26, style: .continuous)
+                        .strokeBorder(
+                            isTargeted ?
+                                LinearGradient(
+                                    colors: [Color.accentColor, Color.accentColor.opacity(0.6)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ) :
+                                LinearGradient(
+                                    stops: [
+                                        .init(color: Color.white.opacity(0.55), location: 0.0),
+                                        .init(color: Color.white.opacity(0.20), location: 0.35),
+                                        .init(color: Color.white.opacity(0.08), location: 0.70),
+                                        .init(color: Color.white.opacity(0.35), location: 1.0)
+                                    ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ),
+                            lineWidth: isTargeted ? 1.8 : 1.0
+                        )
+                    
+                    RoundedRectangle(cornerRadius: 25, style: .continuous)
+                        .stroke(
+                            LinearGradient(
+                                colors: [Color.white.opacity(isTargeted ? 0.35 : 0.22), Color.clear],
+                                startPoint: .top,
+                                endPoint: .center
+                            ),
+                            lineWidth: 0.75
+                        )
+                        .padding(1)
+                }
+                .shadow(color: isTargeted ? Color.accentColor.opacity(0.35) : Color.black.opacity(0.35), radius: isTargeted ? 28 : 22, x: 0, y: 10)
+                .animation(.spring(response: 0.35, dampingFraction: 0.75), value: isTargeted)
                 
                 VStack(spacing: 0) {
                     // Header Area (Draggable Window Area)
@@ -634,24 +689,34 @@ struct DropShelfView: View {
                             } label: {
                                 Image(systemName: "xmark")
                                     .font(.system(size: 11, weight: .bold))
-                                    .foregroundColor(.white.opacity(0.8))
+                                    .foregroundColor(.white.opacity(0.85))
                                     .frame(width: 26, height: 26)
-                                    .background(Color.white.opacity(0.1))
+                                    .background(
+                                        ZStack {
+                                            Circle().fill(Color.white.opacity(0.12))
+                                            Circle().strokeBorder(LinearGradient(colors: [Color.white.opacity(0.4), Color.white.opacity(0.08)], startPoint: .top, endPoint: .bottom), lineWidth: 0.75)
+                                        }
+                                    )
                                     .clipShape(Circle())
                             }
                             .buttonStyle(.plain)
                             .help(currentVirtualFolderId != nil ? "Close Folder / Shelf" : "Close Shelf")
                             
-                            // Up Arrow Button (Back to Parent Folder) - same style & color as X
+                            // Up Arrow Button (Back to Parent Folder)
                             if currentVirtualFolderId != nil {
                                 Button {
                                     navigateUp()
                                 } label: {
                                     Image(systemName: "chevron.up")
                                         .font(.system(size: 11, weight: .bold))
-                                        .foregroundColor(.white.opacity(0.8))
+                                        .foregroundColor(.white.opacity(0.85))
                                         .frame(width: 26, height: 26)
-                                        .background(Color.white.opacity(0.1))
+                                        .background(
+                                            ZStack {
+                                                Circle().fill(Color.white.opacity(0.12))
+                                                Circle().strokeBorder(LinearGradient(colors: [Color.white.opacity(0.4), Color.white.opacity(0.08)], startPoint: .top, endPoint: .bottom), lineWidth: 0.75)
+                                            }
+                                        )
                                         .clipShape(Circle())
                                 }
                                 .buttonStyle(.plain)
@@ -659,11 +724,11 @@ struct DropShelfView: View {
                                 .transition(.scale.combined(with: .opacity))
                             }
                             
-                            // Current Folder Title (no icon, no capsule background)
+                            // Current Folder Title
                             if let curFolder = currentVirtualFolderId {
                                 Text(manager.displayName(for: curFolder))
                                     .font(.system(size: 11.5, weight: .semibold))
-                                    .foregroundColor(.white.opacity(0.85))
+                                    .foregroundColor(.white.opacity(0.9))
                                     .lineLimit(1)
                                     .truncationMode(.middle)
                                     .padding(.leading, 2)
@@ -681,7 +746,12 @@ struct DropShelfView: View {
                                         .font(.system(size: 10, weight: .semibold))
                                         .foregroundColor(.white.opacity(0.85))
                                         .frame(width: 26, height: 26)
-                                        .background(Color.white.opacity(0.1))
+                                        .background(
+                                            ZStack {
+                                                Circle().fill(Color.white.opacity(0.12))
+                                                Circle().strokeBorder(LinearGradient(colors: [Color.white.opacity(0.4), Color.white.opacity(0.08)], startPoint: .top, endPoint: .bottom), lineWidth: 0.75)
+                                            }
+                                        )
                                         .clipShape(Circle())
                                 }
                                 .buttonStyle(.plain)
