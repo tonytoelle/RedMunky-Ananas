@@ -130,91 +130,158 @@ class ImageExportManager {
 }
 
 // ==========================================
-// MARK: - Modern SwiftUI File Documents for .fileExporter()
+// MARK: - Native macOS Save & Open Dialog with Format Accessory
 // ==========================================
 
-struct ExportableImageDocument: FileDocument {
-    static var readableContentTypes: [UTType] { [.jpeg, .png, .webP, .image] }
-    static var writableContentTypes: [UTType] { [.jpeg, .png, .webP] }
+class DropShelfNativeSaveDialog: NSObject {
+    static let shared = DropShelfNativeSaveDialog()
     
-    var imageURL: URL?
-    var cgImage: CGImage?
+    private var currentPanel: NSSavePanel?
     
-    init(url: URL) {
-        self.imageURL = url
-        if let src = CGImageSourceCreateWithURL(url as CFURL, nil) {
-            self.cgImage = CGImageSourceCreateImageAtIndex(src, 0, nil)
-        } else if let nsImg = NSImage(contentsOf: url),
-                  let tiff = nsImg.tiffRepresentation,
-                  let rep = NSBitmapImageRep(data: tiff) {
-            self.cgImage = rep.cgImage
+    func showSaveDialog(for paths: [String]) {
+        guard !paths.isEmpty else { return }
+        
+        DispatchQueue.main.async {
+            NSApp.activate(ignoringOtherApps: true)
+            
+            if paths.count == 1, let singlePath = paths.first {
+                let sourceURL = URL(fileURLWithPath: singlePath)
+                let panel = NSSavePanel()
+                panel.canCreateDirectories = true
+                panel.showsTagField = true
+                panel.prompt = "Save"
+                panel.title = "Save Image"
+                panel.level = .floating
+                
+                let baseName = sourceURL.deletingPathExtension().lastPathComponent
+                panel.nameFieldStringValue = "\(baseName).jpg"
+                
+                // Native macOS Format Accessory View
+                let accessoryView = NSView(frame: NSRect(x: 0, y: 0, width: 260, height: 36))
+                
+                let label = NSTextField(labelWithString: "Format:")
+                label.frame = NSRect(x: 10, y: 8, width: 60, height: 20)
+                label.alignment = .right
+                label.font = NSFont.systemFont(ofSize: 13)
+                
+                let popUp = NSPopUpButton(frame: NSRect(x: 75, y: 5, width: 140, height: 26), pullsDown: false)
+                popUp.addItems(withTitles: ["JPEG", "PNG", "WebP", "Original"])
+                popUp.selectItem(withTitle: "JPEG")
+                
+                popUp.target = self
+                popUp.action = #selector(self.singleFormatChanged(_:))
+                
+                accessoryView.addSubview(label)
+                accessoryView.addSubview(popUp)
+                panel.accessoryView = accessoryView
+                
+                self.currentPanel = panel
+                
+                let response = panel.runModal()
+                
+                if response == .OK, let targetURL = panel.url {
+                    let selectedTitle = popUp.titleOfSelectedItem ?? "JPEG"
+                    let fmt: ImageExportFormat
+                    switch selectedTitle {
+                    case "PNG": fmt = .png
+                    case "WebP": fmt = .webp
+                    case "Original": fmt = .original
+                    default: fmt = .jpg
+                    }
+                    
+                    let destDir = targetURL.deletingLastPathComponent()
+                    let customName = targetURL.deletingPathExtension().lastPathComponent
+                    DispatchQueue.global(qos: .userInitiated).async {
+                        if let saved = ImageExportManager.convertAndSave(
+                            sourceURL: sourceURL,
+                            format: fmt,
+                            destinationDirectory: destDir,
+                            customFileName: customName
+                        ) {
+                            DispatchQueue.main.async {
+                                NSWorkspace.shared.activateFileViewerSelecting([saved])
+                            }
+                        }
+                    }
+                }
+            } else {
+                let panel = NSOpenPanel()
+                panel.canChooseFiles = false
+                panel.canChooseDirectories = true
+                panel.allowsMultipleSelection = false
+                panel.canCreateDirectories = true
+                panel.prompt = "Save"
+                panel.title = "Save \(paths.count) Items"
+                panel.message = "Choose destination folder to save \(paths.count) items"
+                panel.level = .floating
+                
+                let accessoryView = NSView(frame: NSRect(x: 0, y: 0, width: 280, height: 36))
+                let label = NSTextField(labelWithString: "Format:")
+                label.frame = NSRect(x: 10, y: 8, width: 60, height: 20)
+                label.alignment = .right
+                label.font = NSFont.systemFont(ofSize: 13)
+                
+                let popUp = NSPopUpButton(frame: NSRect(x: 75, y: 5, width: 150, height: 26), pullsDown: false)
+                popUp.addItems(withTitles: ["JPEG", "PNG", "WebP", "Original"])
+                popUp.selectItem(withTitle: "JPEG")
+                
+                accessoryView.addSubview(label)
+                accessoryView.addSubview(popUp)
+                panel.accessoryView = accessoryView
+                
+                let response = panel.runModal()
+                
+                if response == .OK, let destDir = panel.url {
+                    let selectedTitle = popUp.titleOfSelectedItem ?? "JPEG"
+                    let fmt: ImageExportFormat
+                    switch selectedTitle {
+                    case "PNG": fmt = .png
+                    case "WebP": fmt = .webp
+                    case "Original": fmt = .original
+                    default: fmt = .jpg
+                    }
+                    
+                    DispatchQueue.global(qos: .userInitiated).async {
+                        var savedURLs: [URL] = []
+                        for p in paths {
+                            let srcURL = URL(fileURLWithPath: p)
+                            if let saved = ImageExportManager.convertAndSave(
+                                sourceURL: srcURL,
+                                format: fmt,
+                                destinationDirectory: destDir
+                            ) {
+                                savedURLs.append(saved)
+                            }
+                        }
+                        if !savedURLs.isEmpty {
+                            DispatchQueue.main.async {
+                                NSWorkspace.shared.activateFileViewerSelecting(savedURLs)
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
     
-    init(configuration: ReadConfiguration) throws {}
-    
-    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
-        guard let cgImage = self.cgImage else {
-            if let url = imageURL, let data = try? Data(contentsOf: url) {
-                return FileWrapper(regularFileWithContents: data)
-            }
-            throw CocoaError(.fileWriteUnknown)
+    @objc private func singleFormatChanged(_ sender: NSPopUpButton) {
+        guard let panel = currentPanel else { return }
+        let title = sender.titleOfSelectedItem ?? "JPEG"
+        let ext: String
+        switch title {
+        case "PNG": ext = "png"
+        case "WebP": ext = "webp"
+        case "Original": ext = ""
+        default: ext = "jpg"
         }
         
-        let targetType = configuration.contentType
-        let uti: CFString
-        if targetType == .png {
-            uti = UTType.png.identifier as CFString
-        } else if targetType == .webP || targetType.identifier.lowercased().contains("webp") {
-            uti = (UTType(filenameExtension: "webp")?.identifier ?? "org.webmproject.webp") as CFString
+        let currentName = panel.nameFieldStringValue
+        let baseName = URL(fileURLWithPath: currentName).deletingPathExtension().lastPathComponent
+        if ext.isEmpty {
+            panel.nameFieldStringValue = baseName
         } else {
-            uti = UTType.jpeg.identifier as CFString
+            panel.nameFieldStringValue = "\(baseName).\(ext)"
         }
-        
-        let mutableData = NSMutableData()
-        if let destination = CGImageDestinationCreateWithData(mutableData as CFMutableData, uti, 1, nil) {
-            let options: [CFString: Any] = [
-                kCGImageDestinationLossyCompressionQuality: 0.92
-            ]
-            CGImageDestinationAddImage(destination, cgImage, options as CFDictionary)
-            if CGImageDestinationFinalize(destination) {
-                return FileWrapper(regularFileWithContents: mutableData as Data)
-            }
-        }
-        
-        // Fallback using NSBitmapImageRep
-        let rep = NSBitmapImageRep(cgImage: cgImage)
-        if targetType == .png, let data = rep.representation(using: .png, properties: [:]) {
-            return FileWrapper(regularFileWithContents: data)
-        } else if let data = rep.representation(using: .jpeg, properties: [.compressionFactor: 0.92]) {
-            return FileWrapper(regularFileWithContents: data)
-        }
-        
-        throw CocoaError(.fileWriteUnknown)
-    }
-}
-
-struct ExportableFolderDocument: FileDocument {
-    static var readableContentTypes: [UTType] { [.folder] }
-    static var writableContentTypes: [UTType] { [.folder] }
-    
-    var filePaths: [String] = []
-    
-    init(filePaths: [String]) {
-        self.filePaths = filePaths
-    }
-    
-    init(configuration: ReadConfiguration) throws {}
-    
-    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
-        var fileWrappers: [String: FileWrapper] = [:]
-        for path in filePaths {
-            let u = URL(fileURLWithPath: path)
-            if let data = try? Data(contentsOf: u) {
-                fileWrappers[u.lastPathComponent] = FileWrapper(regularFileWithContents: data)
-            }
-        }
-        return FileWrapper(directoryWithFileWrappers: fileWrappers)
     }
 }
 
@@ -382,15 +449,6 @@ struct DropShelfView: View {
     @State private var marqueeStart: CGPoint? = nil
     @State private var marqueeCurrent: CGPoint? = nil
     @State private var initialSelectionBeforeMarquee: Set<String> = []
-    
-    // Modern SwiftUI File Exporter State
-    @State private var isExportingSingle = false
-    @State private var singleExportDoc: ExportableImageDocument? = nil
-    @State private var singleExportDefaultName: String = "Image.jpg"
-    
-    @State private var isExportingFolder = false
-    @State private var folderExportDoc: ExportableFolderDocument? = nil
-    @State private var folderExportDefaultName: String = "DropShelf Export"
     
     // Keyboard Event Monitor
     @State private var keyMonitor: Any? = nil
@@ -902,26 +960,6 @@ struct DropShelfView: View {
         .onDisappear {
             removeKeyMonitor()
         }
-        .fileExporter(
-            isPresented: $isExportingSingle,
-            document: singleExportDoc,
-            contentType: .jpeg,
-            defaultFilename: singleExportDefaultName
-        ) { result in
-            if case .success(let url) = result {
-                NSWorkspace.shared.activateFileViewerSelecting([url])
-            }
-        }
-        .fileExporter(
-            isPresented: $isExportingFolder,
-            document: folderExportDoc,
-            contentType: .folder,
-            defaultFilename: folderExportDefaultName
-        ) { result in
-            if case .success(let url) = result {
-                NSWorkspace.shared.activateFileViewerSelecting([url])
-            }
-        }
     }
     
     private func currentPosition(for path: String, in size: CGSize = CGSize(width: 200, height: 264)) -> CGPoint {
@@ -1131,17 +1169,7 @@ struct DropShelfView: View {
         let targets = paths ?? activeTargetPaths()
         let finalTargets = targets.isEmpty ? manager.heldItems : targets
         guard !finalTargets.isEmpty else { return }
-        
-        if finalTargets.count == 1, let single = finalTargets.first {
-            let url = URL(fileURLWithPath: single)
-            self.singleExportDoc = ExportableImageDocument(url: url)
-            self.singleExportDefaultName = "\(url.deletingPathExtension().lastPathComponent).jpg"
-            self.isExportingSingle = true
-        } else {
-            self.folderExportDoc = ExportableFolderDocument(filePaths: finalTargets)
-            self.folderExportDefaultName = "DropShelf_Export"
-            self.isExportingFolder = true
-        }
+        DropShelfNativeSaveDialog.shared.showSaveDialog(for: finalTargets)
     }
     
     private func shareSelectedOrAll() {
