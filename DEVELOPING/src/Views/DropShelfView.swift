@@ -2011,19 +2011,31 @@ class DraggableContainerNSView: NSView, NSDraggingSource {
         let isInsideWindow = (self.window?.frame.contains(screenPoint) ?? false) || (DropShelfManager.shared.shelfWindow?.frame.contains(screenPoint) ?? false)
         
         if isInsideWindow || operation == [] {
-            // User aborted or dragged back into the shelf window -> Keep files in shelf!
+            // User aborted or dragged back into the shelf window -> Keep files in shelf & untouched on disk!
             DispatchQueue.main.async {
                 self.activeSessionPaths.removeAll()
             }
         } else {
             // Items were successfully dropped into an external Finder window / target outside
+            let pathsToRemove = self.activeSessionPaths
+            self.activeSessionPaths.removeAll()
+            
             DispatchQueue.main.async {
-                for p in self.activeSessionPaths {
+                for p in pathsToRemove {
                     DropShelfManager.shared.heldItems.removeAll { $0 == p }
                 }
-                self.activeSessionPaths.removeAll()
                 if DropShelfManager.shared.heldItems.isEmpty {
                     DropShelfManager.shared.closeShelf()
+                }
+            }
+            
+            // Complete the Move operation by removing original source files from disk
+            DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + 0.35) {
+                for p in pathsToRemove {
+                    let url = URL(fileURLWithPath: p)
+                    if FileManager.default.fileExists(atPath: p) {
+                        try? FileManager.default.removeItem(at: url)
+                    }
                 }
             }
         }
