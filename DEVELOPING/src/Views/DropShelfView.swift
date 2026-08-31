@@ -902,10 +902,13 @@ struct DropShelfView: View {
                                                     if let cur = currentVirtualFolderId {
                                                         folderHistory.append(cur)
                                                     }
+                                                    itemPositions.removeAll()
+                                                    activeDragOffsets.removeAll()
                                                     withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
                                                         currentVirtualFolderId = itemPath
                                                         selectedPaths.removeAll()
                                                         lastClickedPath = nil
+                                                        directoryChangeToken = UUID()
                                                     }
                                                 } else {
                                                     NSWorkspace.shared.open(URL(fileURLWithPath: itemPath))
@@ -1350,6 +1353,8 @@ struct DropShelfView: View {
     }
     
     private func navigateUp() {
+        itemPositions.removeAll()
+        activeDragOffsets.removeAll()
         if !folderHistory.isEmpty {
             currentVirtualFolderId = folderHistory.removeLast()
         } else {
@@ -1357,6 +1362,7 @@ struct DropShelfView: View {
         }
         selectedPaths.removeAll()
         lastClickedPath = nil
+        directoryChangeToken = UUID()
     }
     
     // MARK: - Renaming & Moving Items
@@ -1410,6 +1416,10 @@ struct DropShelfView: View {
     private func moveItems(_ sourcePaths: [String], intoFolder folderPath: String) {
         if manager.isVirtualFolder(folderPath) {
             manager.moveItems(sourcePaths, into: folderPath, currentFolderId: currentVirtualFolderId)
+            for src in sourcePaths {
+                itemPositions.removeValue(forKey: src)
+                activeDragOffsets.removeValue(forKey: src)
+            }
             withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
                 directoryChangeToken = UUID()
                 selectedPaths.removeAll()
@@ -1883,54 +1893,72 @@ class DraggableContainerNSView: NSView, NSDraggingSource {
     
     override func mouseDragged(with event: NSEvent) {
         guard let start = dragStartLocation, !hasInitiatedSession else { return }
-        let current = event.locationInWindow
-        let totalDist = hypot(current.x - start.x, current.y - start.y)
+        let currentInWindow = event.locationInWindow
+        let currentScreen = NSEvent.mouseLocation
+        
+        let windowFrame = self.window?.frame ?? .zero
+        let isInsideWindow = windowFrame.contains(currentScreen)
+        
+        let totalDist = hypot(currentInWindow.x - start.x, currentInWindow.y - start.y)
         guard totalDist > 3 else { return }
         
-        hasInitiatedSession = true
-        dragStartLocation = nil
-        isDraggingLocally = false
-        onEndMove?()
-        
-        let targets = getFilePaths?() ?? [itemPath]
-        guard !targets.isEmpty else { return }
-        
-        self.activeSessionTargets = targets
-        self.activeSessionOriginalFiles.removeAll()
-        self.activeSessionStagingDirs.removeAll()
-        
-        var draggingItems: [NSDraggingItem] = []
-        
-        for (index, target) in targets.enumerated() {
-            let url: URL
-            let img: NSImage
+        if !isInsideWindow {
+            // Dragged outside window -> Start native Finder Dragging Session!
+            hasInitiatedSession = true
+            isDraggingLocally = false
+            dragStartLocation = nil
+            onEndMove?()
             
-            if DropShelfManager.shared.isVirtualFolder(target) {
-                let (stagingURL, originalFiles) = DropShelfManager.shared.stageVirtualFolderForDrag(virtualFolderId: target)
-                url = stagingURL
-                activeSessionOriginalFiles.append(contentsOf: originalFiles)
-                activeSessionStagingDirs.append(stagingURL.deletingLastPathComponent())
-                img = NSWorkspace.shared.icon(forFile: stagingURL.path)
-            } else {
-                url = URL(fileURLWithPath: target)
-                activeSessionOriginalFiles.append(target)
-                img = NSWorkspace.shared.icon(forFile: target)
+            let targets = getFilePaths?() ?? [itemPath]
+            guard !targets.isEmpty else { return }
+            
+            self.activeSessionTargets = targets
+            self.activeSessionOriginalFiles.removeAll()
+            self.activeSessionStagingDirs.removeAll()
+            
+            var draggingItems: [NSDraggingItem] = []
+            
+            for (index, target) in targets.enumerated() {
+                let url: URL
+                let img: NSImage
+                
+                if DropShelfManager.shared.isVirtualFolder(target) {
+                    let (stagingURL, originalFiles) = DropShelfManager.shared.stageVirtualFolderForDrag(virtualFolderId: target)
+                    url = stagingURL
+                    activeSessionOriginalFiles.append(contentsOf: originalFiles)
+                    activeSessionStagingDirs.append(stagingURL.deletingLastPathComponent())
+                    img = NSWorkspace.shared.icon(forFile: stagingURL.path)
+                } else {
+                    url = URL(fileURLWithPath: target)
+                    activeSessionOriginalFiles.append(target)
+                    img = NSWorkspace.shared.icon(forFile: target)
+                }
+                
+                img.size = NSSize(width: 48, height: 48)
+                let draggingItem = NSDraggingItem(pasteboardWriter: url as NSURL)
+                let offset = CGFloat(min(index, 4) * 3)
+                let dragRect = NSRect(
+                    x: (self.bounds.width - 48)/2 + offset,
+                    y: (self.bounds.height - 48)/2 - offset,
+                    width: 48,
+                    height: 48
+                )
+                draggingItem.setDraggingFrame(dragRect, contents: img)
+                draggingItems.append(draggingItem)
             }
             
-            img.size = NSSize(width: 48, height: 48)
-            let draggingItem = NSDraggingItem(pasteboardWriter: url as NSURL)
-            let offset = CGFloat(min(index, 4) * 3)
-            let dragRect = NSRect(
-                x: (self.bounds.width - 48)/2 + offset,
-                y: (self.bounds.height - 48)/2 - offset,
-                width: 48,
-                height: 48
+            beginDraggingSession(with: draggingItems, event: event, source: self)
+        } else {
+            // Inside window -> Smooth local drag to move card or plunge into folder
+            let prev = lastDragLocation ?? start
+            let delta = CGSize(
+                width: currentInWindow.x - prev.x,
+                height: currentInWindow.y - prev.y
             )
-            draggingItem.setDraggingFrame(dragRect, contents: img)
-            draggingItems.append(draggingItem)
+            lastDragLocation = currentInWindow
+            isDraggingLocally = true
+            onMoveDelta?(delta)
         }
-        
-        beginDraggingSession(with: draggingItems, event: event, source: self)
     }
     
     override func mouseUp(with event: NSEvent) {

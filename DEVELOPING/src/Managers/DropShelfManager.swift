@@ -76,6 +76,7 @@ class DropShelfManager: ObservableObject {
     }
     
     func createVirtualFolder(name: String = "New Folder", inside parentId: String? = nil) -> String {
+        objectWillChange.send()
         let uniqueId = "virtual://\(UUID().uuidString)"
         
         // Find non-conflicting name
@@ -103,6 +104,7 @@ class DropShelfManager: ObservableObject {
     
     func moveItems(_ items: [String], into targetFolderId: String, currentFolderId: String?) {
         guard isVirtualFolder(targetFolderId) else { return }
+        objectWillChange.send()
         var targetChildren = virtualFolderChildren[targetFolderId] ?? []
         
         for item in items {
@@ -122,6 +124,7 @@ class DropShelfManager: ObservableObject {
     }
     
     func removeItems(_ paths: [String], currentFolderId: String?) {
+        objectWillChange.send()
         for path in paths {
             if let current = currentFolderId {
                 virtualFolderChildren[current]?.removeAll { $0 == path }
