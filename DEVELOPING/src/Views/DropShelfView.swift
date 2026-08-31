@@ -37,6 +37,27 @@ class ImageExportManager {
         let fileManager = FileManager.default
         let baseName = customFileName ?? sourceURL.deletingPathExtension().lastPathComponent
         
+        // 0. Virtual Folder Transit (Pure In-Memory hierarchy export)
+        if DropShelfManager.shared.isVirtualFolder(sourceURL.path) {
+            let folderName = customFileName ?? DropShelfManager.shared.displayName(for: sourceURL.path)
+            var destFolderURL = destinationDirectory.appendingPathComponent(folderName, isDirectory: true)
+            destFolderURL = uniqueURL(for: destFolderURL)
+            
+            try? fileManager.createDirectory(at: destFolderURL, withIntermediateDirectories: true)
+            
+            let children = DropShelfManager.shared.virtualFolderChildren[sourceURL.path] ?? []
+            for child in children {
+                let childURL = URL(fileURLWithPath: child)
+                _ = convertAndSave(
+                    sourceURL: childURL,
+                    format: format,
+                    destinationDirectory: destFolderURL,
+                    quality: quality
+                )
+            }
+            return destFolderURL
+        }
+        
         // 1. Directory / Folder Transit (Move folder structure)
         var isDir: ObjCBool = false
         if fileManager.fileExists(atPath: sourceURL.path, isDirectory: &isDir), isDir.boolValue {
@@ -456,7 +477,12 @@ struct AsyncFileThumbnailView: View {
                 .fill(Color(white: 0.16).opacity(0.7))
             
             Group {
-                if let img = image {
+                if DropShelfManager.shared.isVirtualFolder(path) {
+                    Image(nsImage: NSWorkspace.shared.icon(forFileType: "public.folder"))
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .padding(size > 50 ? 6 : 4)
+                } else if let img = image {
                     Image(nsImage: img)
                         .resizable()
                         .aspectRatio(contentMode: .fit)
@@ -475,10 +501,14 @@ struct AsyncFileThumbnailView: View {
         )
         .shadow(color: Color.black.opacity(0.35), radius: 4, x: 0, y: 2)
         .onAppear {
-            loadImage()
+            if !DropShelfManager.shared.isVirtualFolder(path) {
+                loadImage()
+            }
         }
         .onChange(of: path) { _, _ in
-            loadImage()
+            if !DropShelfManager.shared.isVirtualFolder(path) {
+                loadImage()
+            }
         }
     }
     
@@ -530,9 +560,9 @@ struct DropShelfView: View {
     @State private var isExpanded = false
     @State private var plungePulse = false
     
-    // Directory / Folder Navigation inside DropShelf
-    @State private var currentDirectory: URL? = nil
-    @State private var folderHistory: [URL] = []
+    // Virtual Folder Navigation inside DropShelf (Pure Transit, Zero premature disk writes)
+    @State private var currentVirtualFolderId: String? = nil
+    @State private var folderHistory: [String] = []
     
     // Inline Renaming State
     @State private var renamingPath: String? = nil
@@ -557,9 +587,8 @@ struct DropShelfView: View {
     
     private var displayedItems: [String] {
         _ = directoryChangeToken
-        if let dir = currentDirectory {
-            let items = (try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])) ?? []
-            return items.map { $0.path }
+        if let folderId = currentVirtualFolderId {
+            return manager.virtualFolderChildren[folderId] ?? []
         }
         return manager.heldItems
     }
@@ -597,7 +626,7 @@ struct DropShelfView: View {
                         HStack(spacing: 6) {
                             // Close Button (X)
                             Button {
-                                if currentDirectory != nil {
+                                if currentVirtualFolderId != nil {
                                     navigateUp()
                                 } else {
                                     manager.closeShelf()
@@ -611,10 +640,10 @@ struct DropShelfView: View {
                                     .clipShape(Circle())
                             }
                             .buttonStyle(.plain)
-                            .help(currentDirectory != nil ? "Close Folder / Shelf" : "Close Shelf")
+                            .help(currentVirtualFolderId != nil ? "Close Folder / Shelf" : "Close Shelf")
                             
                             // Up Arrow Button (Back to Parent Folder) - same style & color as X
-                            if currentDirectory != nil {
+                            if currentVirtualFolderId != nil {
                                 Button {
                                     navigateUp()
                                 } label: {
@@ -631,8 +660,8 @@ struct DropShelfView: View {
                             }
                             
                             // Current Folder Title (no icon, no capsule background)
-                            if let dir = currentDirectory {
-                                Text(dir.lastPathComponent)
+                            if let curFolder = currentVirtualFolderId {
+                                Text(manager.displayName(for: curFolder))
                                     .font(.system(size: 11.5, weight: .semibold))
                                     .foregroundColor(.white.opacity(0.85))
                                     .lineLimit(1)
@@ -739,13 +768,13 @@ struct DropShelfView: View {
                                     Divider()
                                     
                                     Button(role: .destructive) {
-                                        if currentDirectory != nil {
+                                        if currentVirtualFolderId != nil {
                                             navigateUp()
                                         } else {
                                             manager.closeShelf()
                                         }
                                     } label: {
-                                        Text(currentDirectory != nil ? "Back to Parent Folder" : "Clear Shelf")
+                                        Text(currentVirtualFolderId != nil ? "Back to Parent Folder" : "Clear Shelf")
                                     }
                                 }
                             } label: {
@@ -779,12 +808,12 @@ struct DropShelfView: View {
                                         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                                     
                                     VStack(spacing: 6) {
-                                        Image(systemName: isTargeted ? "arrow.down.circle.fill" : (currentDirectory != nil ? "folder.badge.plus" : "plus.rectangle.on.folder"))
+                                        Image(systemName: isTargeted ? "arrow.down.circle.fill" : (currentVirtualFolderId != nil ? "folder.badge.plus" : "plus.rectangle.on.folder"))
                                             .font(.system(size: 30, weight: .light))
                                             .foregroundColor(isTargeted ? .accentColor : .white.opacity(0.6))
                                             .scaleEffect(isTargeted ? 1.2 : 1.0)
                                         
-                                        Text(isTargeted ? "Drop to Hold" : (currentDirectory != nil ? "Folder is empty" : "Drop files here"))
+                                        Text(isTargeted ? "Drop to Hold" : (currentVirtualFolderId != nil ? "Folder is empty" : "Drop files here"))
                                             .font(.system(size: 11, weight: .medium))
                                             .foregroundColor(isTargeted ? .accentColor : .white.opacity(0.6))
                                     }
@@ -847,13 +876,14 @@ struct DropShelfView: View {
                                     
                                     // Freeform Icons on Canvas
                                     ForEach(displayedItems, id: \.self) { itemPath in
-                                        let itemURL = URL(fileURLWithPath: itemPath)
                                         let isSelected = selectedPaths.contains(itemPath)
                                         let pos = currentPosition(for: itemPath, in: outerGeo.size)
                                         let dragOffset = activeDragOffsets[itemPath] ?? .zero
+                                        let isVirtual = manager.isVirtualFolder(itemPath)
                                         
                                         var isDir: ObjCBool = false
-                                        let isDirectory = FileManager.default.fileExists(atPath: itemPath, isDirectory: &isDir) && isDir.boolValue
+                                        let isDirectory = isVirtual || (FileManager.default.fileExists(atPath: itemPath, isDirectory: &isDir) && isDir.boolValue)
+                                        let itemDisplayName = manager.displayName(for: itemPath)
                                         
                                         DraggableCardContainer(
                                             itemPath: itemPath,
@@ -868,17 +898,17 @@ struct DropShelfView: View {
                                                 handleItemClick(itemPath)
                                             },
                                             onDoubleClick: {
-                                                if isDirectory {
-                                                    if let cur = currentDirectory {
+                                                if isVirtual {
+                                                    if let cur = currentVirtualFolderId {
                                                         folderHistory.append(cur)
                                                     }
                                                     withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
-                                                        currentDirectory = itemURL
+                                                        currentVirtualFolderId = itemPath
                                                         selectedPaths.removeAll()
                                                         lastClickedPath = nil
                                                     }
                                                 } else {
-                                                    NSWorkspace.shared.open(itemURL)
+                                                    NSWorkspace.shared.open(URL(fileURLWithPath: itemPath))
                                                 }
                                             },
                                             onMoveDelta: { delta in
@@ -897,7 +927,8 @@ struct DropShelfView: View {
                                                 for other in displayedItems {
                                                     guard !targets.contains(other) else { continue }
                                                     var isDir: ObjCBool = false
-                                                    if FileManager.default.fileExists(atPath: other, isDirectory: &isDir), isDir.boolValue {
+                                                    let isOtherDir = manager.isVirtualFolder(other) || (FileManager.default.fileExists(atPath: other, isDirectory: &isDir) && isDir.boolValue)
+                                                    if isOtherDir {
                                                         let fPos = currentPosition(for: other, in: outerGeo.size)
                                                         let dist = hypot(curPos.x - fPos.x, curPos.y - fPos.y)
                                                         if dist < 65 {
@@ -932,7 +963,8 @@ struct DropShelfView: View {
                                                         for other in displayedItems {
                                                             guard !targets.contains(other) else { continue }
                                                             var isDir: ObjCBool = false
-                                                            if FileManager.default.fileExists(atPath: other, isDirectory: &isDir), isDir.boolValue {
+                                                            let isOtherDir = manager.isVirtualFolder(other) || (FileManager.default.fileExists(atPath: other, isDirectory: &isDir) && isDir.boolValue)
+                                                            if isOtherDir {
                                                                 let fPos = currentPosition(for: other, in: outerGeo.size)
                                                                 let dist = hypot(myFinalPos.x - fPos.x, myFinalPos.y - fPos.y)
                                                                 if dist < 70 {
@@ -964,8 +996,6 @@ struct DropShelfView: View {
                                             },
                                             onExternalDrop: { paths in
                                                 // True Move: file was dragged from DropShelf to Finder
-                                                // paths contains the original file paths
-                                                // Deletion happens in draggingSession, this just cleans up the shelf UI
                                                 for p in paths {
                                                     manager.heldItems.removeAll { $0 == p }
                                                 }
@@ -1003,7 +1033,7 @@ struct DropShelfView: View {
                                                     )
                                                     .frame(width: 72)
                                                 } else {
-                                                    Text(itemURL.lastPathComponent)
+                                                    Text(itemDisplayName)
                                                         .font(.system(size: 9.5, weight: .medium))
                                                         .foregroundColor(.white)
                                                         .multilineTextAlignment(.center)
@@ -1259,19 +1289,18 @@ struct DropShelfView: View {
     
     private func processIngestedPaths(_ paths: [String]) {
         guard !paths.isEmpty else { return }
-        if let dir = currentDirectory {
-            var copiedPaths: [String] = []
+        if let cur = currentVirtualFolderId {
+            var current = manager.virtualFolderChildren[cur] ?? []
             for p in paths {
-                let srcURL = URL(fileURLWithPath: p)
-                let destURL = dir.appendingPathComponent(srcURL.lastPathComponent)
-                if srcURL.path != destURL.path {
-                    try? FileManager.default.copyItem(at: srcURL, to: destURL)
+                if !current.contains(p) {
+                    current.append(p)
                 }
-                copiedPaths.append(destURL.path)
             }
+            manager.virtualFolderChildren[cur] = current
             withAnimation(.spring(response: 0.45, dampingFraction: 0.58, blendDuration: 0.2)) {
-                selectedPaths = Set(copiedPaths)
+                selectedPaths = Set(paths)
                 plungePulse = true
+                directoryChangeToken = UUID()
             }
         } else {
             // PURE TRANSIT: Memorize exact source paths directly without copying or renaming
@@ -1285,6 +1314,7 @@ struct DropShelfView: View {
                 manager.heldItems = current
                 selectedPaths = Set(current) // Select All so user can immediately drag to Finder
                 plungePulse = true
+                directoryChangeToken = UUID()
             }
             if current.count > 4 && !isExpanded {
                 toggleExpand()
@@ -1308,45 +1338,22 @@ struct DropShelfView: View {
         return displayedItems
     }
     
-    // MARK: - Folder & Directory Navigation
-    
-    private func defaultDropShelfCacheDir() -> URL {
-        let cacheDir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
-            .appendingPathComponent("ShortKing/DropShelf", isDirectory: true)
-        try? FileManager.default.createDirectory(at: cacheDir, withIntermediateDirectories: true)
-        return cacheDir
-    }
+    // MARK: - Virtual Folder Navigation & Creation (Pure In-Memory)
     
     private func createNewFolder() {
-        let targetDir: URL = currentDirectory ?? defaultDropShelfCacheDir()
-        var folderName = "New Folder"
-        var targetURL = targetDir.appendingPathComponent(folderName, isDirectory: true)
-        var counter = 1
-        while FileManager.default.fileExists(atPath: targetURL.path) {
-            folderName = "New Folder \(counter)"
-            targetURL = targetDir.appendingPathComponent(folderName, isDirectory: true)
-            counter += 1
-        }
-        
-        try? FileManager.default.createDirectory(at: targetURL, withIntermediateDirectories: true)
-        
-        if currentDirectory == nil {
-            if !manager.heldItems.contains(targetURL.path) {
-                manager.heldItems.append(targetURL.path)
-            }
-        }
-        
+        let newFolderId = manager.createVirtualFolder(name: "New Folder", inside: currentVirtualFolderId)
         withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
-            selectedPaths = [targetURL.path]
-            lastClickedPath = targetURL.path
+            selectedPaths = [newFolderId]
+            lastClickedPath = newFolderId
+            directoryChangeToken = UUID()
         }
     }
     
     private func navigateUp() {
         if !folderHistory.isEmpty {
-            currentDirectory = folderHistory.removeLast()
+            currentVirtualFolderId = folderHistory.removeLast()
         } else {
-            currentDirectory = nil
+            currentVirtualFolderId = nil
         }
         selectedPaths.removeAll()
         lastClickedPath = nil
@@ -1355,8 +1362,7 @@ struct DropShelfView: View {
     // MARK: - Renaming & Moving Items
     
     private func startRenaming(_ path: String) {
-        let url = URL(fileURLWithPath: path)
-        renamingText = url.lastPathComponent
+        renamingText = manager.displayName(for: path)
         renamingPath = path
     }
     
@@ -1368,64 +1374,42 @@ struct DropShelfView: View {
             return
         }
         
-        let oldURL = URL(fileURLWithPath: oldPath)
-        let newURL = oldURL.deletingLastPathComponent().appendingPathComponent(cleanName)
-        
-        if oldURL.path != newURL.path {
-            do {
-                try FileManager.default.moveItem(at: oldURL, to: newURL)
-                if let idx = manager.heldItems.firstIndex(of: oldPath) {
-                    manager.heldItems[idx] = newURL.path
+        if manager.isVirtualFolder(oldPath) {
+            manager.virtualFolderNames[oldPath] = cleanName
+            directoryChangeToken = UUID()
+        } else {
+            let oldURL = URL(fileURLWithPath: oldPath)
+            let newURL = oldURL.deletingLastPathComponent().appendingPathComponent(cleanName)
+            
+            if oldURL.path != newURL.path {
+                do {
+                    try FileManager.default.moveItem(at: oldURL, to: newURL)
+                    if let idx = manager.heldItems.firstIndex(of: oldPath) {
+                        manager.heldItems[idx] = newURL.path
+                    }
+                    if let cur = currentVirtualFolderId, let idx = manager.virtualFolderChildren[cur]?.firstIndex(of: oldPath) {
+                        manager.virtualFolderChildren[cur]?[idx] = newURL.path
+                    }
+                    if selectedPaths.contains(oldPath) {
+                        selectedPaths.remove(oldPath)
+                        selectedPaths.insert(newURL.path)
+                    }
+                    if let pos = itemPositions[oldPath] {
+                        itemPositions.removeValue(forKey: oldPath)
+                        itemPositions[newURL.path] = pos
+                    }
+                    directoryChangeToken = UUID()
+                } catch {
+                    // Ignore rename failure
                 }
-                if selectedPaths.contains(oldPath) {
-                    selectedPaths.remove(oldPath)
-                    selectedPaths.insert(newURL.path)
-                }
-                if let pos = itemPositions[oldPath] {
-                    itemPositions.removeValue(forKey: oldPath)
-                    itemPositions[newURL.path] = pos
-                }
-                directoryChangeToken = UUID()
-            } catch {
-                // Ignore rename failure
             }
         }
         renamingPath = nil
     }
     
     private func moveItems(_ sourcePaths: [String], intoFolder folderPath: String) {
-        let folderURL = URL(fileURLWithPath: folderPath)
-        var movedAny = false
-        for src in sourcePaths {
-            guard src != folderPath else { continue }
-            let srcURL = URL(fileURLWithPath: src)
-            var destURL = folderURL.appendingPathComponent(srcURL.lastPathComponent)
-            
-            // Generate unique filename if already exists in destination
-            var counter = 1
-            let base = srcURL.deletingPathExtension().lastPathComponent
-            let ext = srcURL.pathExtension
-            while FileManager.default.fileExists(atPath: destURL.path) {
-                let name = ext.isEmpty ? "\(base) \(counter)" : "\(base) \(counter).\(ext)"
-                destURL = folderURL.appendingPathComponent(name)
-                counter += 1
-            }
-            
-            do {
-                try FileManager.default.moveItem(at: srcURL, to: destURL)
-                movedAny = true
-                manager.heldItems.removeAll { $0 == src }
-                itemPositions.removeValue(forKey: src)
-            } catch {
-                if (try? FileManager.default.copyItem(at: srcURL, to: destURL)) != nil {
-                    try? FileManager.default.removeItem(at: srcURL)
-                    movedAny = true
-                    manager.heldItems.removeAll { $0 == src }
-                    itemPositions.removeValue(forKey: src)
-                }
-            }
-        }
-        if movedAny {
+        if manager.isVirtualFolder(folderPath) {
+            manager.moveItems(sourcePaths, into: folderPath, currentFolderId: currentVirtualFolderId)
             withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
                 directoryChangeToken = UUID()
                 selectedPaths.removeAll()
@@ -1464,7 +1448,7 @@ struct DropShelfView: View {
                 if !selectedPaths.isEmpty {
                     selectedPaths.removeAll()
                     lastClickedPath = nil
-                } else if currentDirectory != nil {
+                } else if currentVirtualFolderId != nil {
                     navigateUp()
                 } else {
                     manager.closeShelf()
@@ -1474,7 +1458,7 @@ struct DropShelfView: View {
             
             // 4. Spacebar (49) -> Quick Look / Open Preview
             if keyCode == 49 {
-                if let first = selectedPaths.first ?? displayedItems.first {
+                if let first = selectedPaths.first ?? displayedItems.first, !manager.isVirtualFolder(first) {
                     NSWorkspace.shared.open(URL(fileURLWithPath: first))
                 }
                 return nil
@@ -1503,21 +1487,18 @@ struct DropShelfView: View {
         guard !targets.isEmpty else { return }
         
         withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
+            manager.removeItems(targets, currentFolderId: currentVirtualFolderId)
             for p in targets {
-                if currentDirectory != nil {
-                    try? FileManager.default.removeItem(atPath: p)
-                } else {
-                    manager.heldItems.removeAll { $0 == p }
-                }
                 itemPositions.removeValue(forKey: p)
             }
             selectedPaths.removeAll()
             lastClickedPath = nil
+            directoryChangeToken = UUID()
         }
         
         let remaining = displayedItems
         if remaining.isEmpty {
-            if currentDirectory == nil {
+            if currentVirtualFolderId == nil {
                 manager.closeShelf()
             }
         } else {
@@ -1671,13 +1652,13 @@ struct DropShelfView: View {
             Divider()
             
             Button(role: .destructive) {
-                if currentDirectory != nil {
+                if currentVirtualFolderId != nil {
                     navigateUp()
                 } else {
                     manager.closeShelf()
                 }
             } label: {
-                Label(currentDirectory != nil ? "Back to Parent Folder" : "Clear Shelf", systemImage: currentDirectory != nil ? "arrow.up" : "trash")
+                Label(currentVirtualFolderId != nil ? "Back to Parent Folder" : "Clear Shelf", systemImage: currentVirtualFolderId != nil ? "arrow.up" : "trash")
             }
         }
     }
@@ -1687,15 +1668,14 @@ struct DropShelfView: View {
         let urls = paths.map { URL(fileURLWithPath: $0) }
         
         if paths.count == 1, let single = paths.first {
-            var isDir: ObjCBool = false
-            let isDirectory = FileManager.default.fileExists(atPath: single, isDirectory: &isDir) && isDir.boolValue
-            if isDirectory {
+            let isVirtual = manager.isVirtualFolder(single)
+            if isVirtual {
                 Button {
-                    if let cur = currentDirectory {
+                    if let cur = currentVirtualFolderId {
                         folderHistory.append(cur)
                     }
                     withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
-                        currentDirectory = URL(fileURLWithPath: single)
+                        currentVirtualFolderId = single
                         selectedPaths.removeAll()
                         lastClickedPath = nil
                     }
@@ -1723,7 +1703,7 @@ struct DropShelfView: View {
             Label("Show in Finder", systemImage: "folder")
         }
         
-        if let first = urls.first {
+        if let first = urls.first, !manager.isVirtualFolder(first.path) {
             Button {
                 NSWorkspace.shared.open(first)
             } label: {
@@ -1758,21 +1738,20 @@ struct DropShelfView: View {
         Divider()
         
         Button(role: .destructive) {
-            for p in paths {
-                let fileURL = URL(fileURLWithPath: p)
-                try? FileManager.default.trashItem(at: fileURL, resultingItemURL: nil)
-                if currentDirectory != nil {
-                    try? FileManager.default.removeItem(at: fileURL)
-                } else {
-                    manager.heldItems.removeAll { $0 == p }
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
+                manager.removeItems(paths, currentFolderId: currentVirtualFolderId)
+                for p in paths {
+                    itemPositions.removeValue(forKey: p)
                 }
+                selectedPaths.removeAll()
+                lastClickedPath = nil
+                directoryChangeToken = UUID()
             }
-            selectedPaths.removeAll()
-            if displayedItems.isEmpty && currentDirectory == nil {
+            if displayedItems.isEmpty && currentVirtualFolderId == nil {
                 manager.closeShelf()
             }
         } label: {
-            Label(paths.count > 1 ? "Move \(paths.count) to Trash" : "Move to Trash", systemImage: "trash")
+            Label(paths.count > 1 ? "Remove \(paths.count) from Shelf" : "Remove from Shelf", systemImage: "trash")
         }
     }
     
@@ -1863,7 +1842,10 @@ class DraggableContainerNSView: NSView, NSDraggingSource {
     private var hasInitiatedSession = false
     private var isDraggingLocally = false
     private var wasAlreadySelected = false
-    private var activeSessionPaths: [String] = []
+    
+    private var activeSessionTargets: [String] = []
+    private var activeSessionOriginalFiles: [String] = []
+    private var activeSessionStagingDirs: [URL] = []
     
     override var mouseDownCanMoveWindow: Bool {
         return false // Prevents the OS from dragging the window when clicking/dragging the card!
@@ -1912,14 +1894,31 @@ class DraggableContainerNSView: NSView, NSDraggingSource {
         
         let targets = getFilePaths?() ?? [itemPath]
         guard !targets.isEmpty else { return }
-        self.activeSessionPaths = targets
         
-        let urls = targets.map { URL(fileURLWithPath: $0) }
-        let draggingItems: [NSDraggingItem] = urls.enumerated().map { (index, url) in
-            let draggingItem = NSDraggingItem(pasteboardWriter: url as NSURL)
+        self.activeSessionTargets = targets
+        self.activeSessionOriginalFiles.removeAll()
+        self.activeSessionStagingDirs.removeAll()
+        
+        var draggingItems: [NSDraggingItem] = []
+        
+        for (index, target) in targets.enumerated() {
+            let url: URL
+            let img: NSImage
             
-            let img = NSWorkspace.shared.icon(forFile: url.path)
+            if DropShelfManager.shared.isVirtualFolder(target) {
+                let (stagingURL, originalFiles) = DropShelfManager.shared.stageVirtualFolderForDrag(virtualFolderId: target)
+                url = stagingURL
+                activeSessionOriginalFiles.append(contentsOf: originalFiles)
+                activeSessionStagingDirs.append(stagingURL.deletingLastPathComponent())
+                img = NSWorkspace.shared.icon(forFile: stagingURL.path)
+            } else {
+                url = URL(fileURLWithPath: target)
+                activeSessionOriginalFiles.append(target)
+                img = NSWorkspace.shared.icon(forFile: target)
+            }
+            
             img.size = NSSize(width: 48, height: 48)
+            let draggingItem = NSDraggingItem(pasteboardWriter: url as NSURL)
             let offset = CGFloat(min(index, 4) * 3)
             let dragRect = NSRect(
                 x: (self.bounds.width - 48)/2 + offset,
@@ -1928,7 +1927,7 @@ class DraggableContainerNSView: NSView, NSDraggingSource {
                 height: 48
             )
             draggingItem.setDraggingFrame(dragRect, contents: img)
-            return draggingItem
+            draggingItems.append(draggingItem)
         }
         
         beginDraggingSession(with: draggingItems, event: event, source: self)
@@ -1949,71 +1948,60 @@ class DraggableContainerNSView: NSView, NSDraggingSource {
         wasAlreadySelected = false
     }
     
-    private func debugLog(_ msg: String) {
-        let logPath = NSHomeDirectory() + "/Desktop/dropshelf_debug.log"
-        let line = "[\(Date())] \(msg)\n"
-        if let data = line.data(using: .utf8) {
-            if FileManager.default.fileExists(atPath: logPath) {
-                if let handle = FileHandle(forWritingAtPath: logPath) {
-                    handle.seekToEndOfFile()
-                    handle.write(data)
-                    handle.closeFile()
-                }
-            } else {
-                try? data.write(to: URL(fileURLWithPath: logPath))
-            }
-        }
-    }
-    
     func draggingSession(_ session: NSDraggingSession, endedAt screenPoint: NSPoint, operation: NSDragOperation) {
         let shelfWindowFrame = DropShelfManager.shared.shelfWindow?.frame ?? .zero
         let isInside = shelfWindowFrame.contains(screenPoint)
         
-        debugLog("draggingSession ended: op=\(operation.rawValue) inside=\(isInside) paths=\(activeSessionPaths)")
+        let targetsToRemove = self.activeSessionTargets
+        let originalFilesToDelete = self.activeSessionOriginalFiles
+        let stagingDirs = self.activeSessionStagingDirs
         
-        // If aborted or dropped back onto the shelf window itself, keep shelf state
-        if (isInside && operation == []) || activeSessionPaths.isEmpty {
-            debugLog("isInside=\(isInside) operation=none — cancelled, keeping items")
-            DispatchQueue.main.async { self.activeSessionPaths.removeAll() }
+        self.activeSessionTargets.removeAll()
+        self.activeSessionOriginalFiles.removeAll()
+        self.activeSessionStagingDirs.removeAll()
+        
+        // If aborted or dropped back onto the shelf window itself, keep shelf state & clean temporary staging
+        if (isInside && operation == []) || targetsToRemove.isEmpty {
+            for dir in stagingDirs {
+                try? FileManager.default.removeItem(at: dir)
+            }
             return
         }
         
         // Dropped outside onto Finder / other target -> Pure Move
-        let pathsToRemove = self.activeSessionPaths
-        self.activeSessionPaths.removeAll()
-        
-        // Notify DropShelfView to remove from shelf UI
         let externalDrop = self.onExternalDrop
         DispatchQueue.main.async {
-            externalDrop?(pathsToRemove)
-            for p in pathsToRemove {
-                DropShelfManager.shared.heldItems.removeAll { $0 == p }
+            externalDrop?(targetsToRemove)
+            for t in targetsToRemove {
+                DropShelfManager.shared.heldItems.removeAll { $0 == t }
+                for (k, _) in DropShelfManager.shared.virtualFolderChildren {
+                    DropShelfManager.shared.virtualFolderChildren[k]?.removeAll { $0 == t }
+                }
+                if DropShelfManager.shared.isVirtualFolder(t) {
+                    DropShelfManager.shared.virtualFolderNames.removeValue(forKey: t)
+                    DropShelfManager.shared.virtualFolderChildren.removeValue(forKey: t)
+                }
             }
             if DropShelfManager.shared.heldItems.isEmpty {
                 DropShelfManager.shared.closeShelf()
             }
         }
         
-        // Give destination app (Finder) 0.6s to finish writing file, then delete original source
+        // Give destination app (Finder) 0.6s to finish writing file, then delete original source files & temp staging
         DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + 0.6) {
-            for p in pathsToRemove {
-                self.debugLog("Removing original source: \(p)")
+            for p in originalFilesToDelete {
                 let url = URL(fileURLWithPath: p)
                 guard FileManager.default.fileExists(atPath: p) else {
-                    self.debugLog("Already moved/gone: \(p)")
                     continue
                 }
                 do {
                     try FileManager.default.removeItem(at: url)
-                    self.debugLog("Removed original OK: \(p)")
                 } catch {
-                    do {
-                        try FileManager.default.trashItem(at: url, resultingItemURL: nil)
-                        self.debugLog("Trashed original OK: \(p)")
-                    } catch let err {
-                        self.debugLog("FAILED removing \(p): \(err.localizedDescription)")
-                    }
+                    try? FileManager.default.trashItem(at: url, resultingItemURL: nil)
                 }
+            }
+            for dir in stagingDirs {
+                try? FileManager.default.removeItem(at: dir)
             }
         }
     }

@@ -60,6 +60,138 @@ class DropShelfManager: ObservableObject {
         }
     }
     
+    // Virtual folder hierarchy mapping
+    @Published var virtualFolderNames: [String: String] = [:]       // "virtual://UUID" -> "My Folder"
+    @Published var virtualFolderChildren: [String: [String]] = [:]   // "virtual://UUID" -> [item paths or sub-folder IDs]
+    
+    func isVirtualFolder(_ path: String) -> Bool {
+        return path.hasPrefix("virtual://")
+    }
+    
+    func displayName(for path: String) -> String {
+        if isVirtualFolder(path) {
+            return virtualFolderNames[path] ?? "New Folder"
+        }
+        return URL(fileURLWithPath: path).lastPathComponent
+    }
+    
+    func createVirtualFolder(name: String = "New Folder", inside parentId: String? = nil) -> String {
+        let uniqueId = "virtual://\(UUID().uuidString)"
+        
+        // Find non-conflicting name
+        let existingChildren = parentId != nil ? (virtualFolderChildren[parentId!] ?? []) : heldItems
+        var folderName = name
+        var counter = 1
+        let existingNames = existingChildren.map { displayName(for: $0) }
+        while existingNames.contains(folderName) {
+            folderName = "\(name) \(counter)"
+            counter += 1
+        }
+        
+        virtualFolderNames[uniqueId] = folderName
+        virtualFolderChildren[uniqueId] = []
+        
+        if let parent = parentId {
+            var children = virtualFolderChildren[parent] ?? []
+            children.append(uniqueId)
+            virtualFolderChildren[parent] = children
+        } else {
+            heldItems.append(uniqueId)
+        }
+        return uniqueId
+    }
+    
+    func moveItems(_ items: [String], into targetFolderId: String, currentFolderId: String?) {
+        guard isVirtualFolder(targetFolderId) else { return }
+        var targetChildren = virtualFolderChildren[targetFolderId] ?? []
+        
+        for item in items {
+            guard item != targetFolderId else { continue }
+            if !targetChildren.contains(item) {
+                targetChildren.append(item)
+            }
+            
+            // Remove from current level
+            if let current = currentFolderId {
+                virtualFolderChildren[current]?.removeAll { $0 == item }
+            } else {
+                heldItems.removeAll { $0 == item }
+            }
+        }
+        virtualFolderChildren[targetFolderId] = targetChildren
+    }
+    
+    func removeItems(_ paths: [String], currentFolderId: String?) {
+        for path in paths {
+            if let current = currentFolderId {
+                virtualFolderChildren[current]?.removeAll { $0 == path }
+            } else {
+                heldItems.removeAll { $0 == path }
+            }
+            if isVirtualFolder(path) {
+                virtualFolderNames.removeValue(forKey: path)
+                virtualFolderChildren.removeValue(forKey: path)
+            }
+        }
+    }
+    
+    func allContainedRealFilePaths(in path: String) -> [String] {
+        if isVirtualFolder(path) {
+            var result: [String] = []
+            let children = virtualFolderChildren[path] ?? []
+            for child in children {
+                result.append(contentsOf: allContainedRealFilePaths(in: child))
+            }
+            return result
+        } else {
+            return [path]
+        }
+    }
+    
+    func stageVirtualFolderForDrag(virtualFolderId: String) -> (stagingURL: URL, originalFiles: [String]) {
+        let folderName = displayName(for: virtualFolderId)
+        let sessionUUID = UUID().uuidString
+        let baseStagingDir = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("ShortKingTransit_\(sessionUUID)", isDirectory: true)
+        let folderURL = baseStagingDir.appendingPathComponent(folderName, isDirectory: true)
+        
+        try? FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
+        
+        var originalFiles: [String] = []
+        
+        func populate(folderId: String, targetDir: URL) {
+            let children = virtualFolderChildren[folderId] ?? []
+            for child in children {
+                if isVirtualFolder(child) {
+                    let subName = displayName(for: child)
+                    let subDir = targetDir.appendingPathComponent(subName, isDirectory: true)
+                    try? FileManager.default.createDirectory(at: subDir, withIntermediateDirectories: true)
+                    populate(folderId: child, targetDir: subDir)
+                } else {
+                    originalFiles.append(child)
+                    let srcURL = URL(fileURLWithPath: child)
+                    var destURL = targetDir.appendingPathComponent(srcURL.lastPathComponent)
+                    
+                    var counter = 1
+                    let base = srcURL.deletingPathExtension().lastPathComponent
+                    let ext = srcURL.pathExtension
+                    while FileManager.default.fileExists(atPath: destURL.path) {
+                        let name = ext.isEmpty ? "\(base) \(counter)" : "\(base) \(counter).\(ext)"
+                        destURL = targetDir.appendingPathComponent(name)
+                        counter += 1
+                    }
+                    
+                    // Try hardlink first (instant zero-copy), fallback to copyItem
+                    if (try? FileManager.default.linkItem(at: srcURL, to: destURL)) == nil {
+                        try? FileManager.default.copyItem(at: srcURL, to: destURL)
+                    }
+                }
+            }
+        }
+        
+        populate(folderId: virtualFolderId, targetDir: folderURL)
+        return (folderURL, originalFiles)
+    }
+    
     func updateDockTile() {
         DispatchQueue.main.async {
             if self.heldItems.isEmpty {
@@ -185,6 +317,8 @@ class DropShelfManager: ObservableObject {
             self?.shelfWindow?.orderOut(nil)
             self?.shelfWindow = nil
             self?.heldItems.removeAll()
+            self?.virtualFolderNames.removeAll()
+            self?.virtualFolderChildren.removeAll()
         }
     }
 }
