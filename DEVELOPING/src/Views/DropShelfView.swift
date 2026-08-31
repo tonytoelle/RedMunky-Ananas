@@ -1910,10 +1910,7 @@ class DraggableContainerNSView: NSView, NSDraggingSource {
     }
     
     func draggingSession(_ session: NSDraggingSession, sourceOperationMaskFor context: NSDraggingContext) -> NSDragOperation {
-        if context == .outsideApplication {
-            return .move
-        }
-        return [.copy, .move, .generic]
+        return [.copy, .move, .generic, .every]
     }
     
     override func mouseDown(with event: NSEvent) {
@@ -2008,32 +2005,37 @@ class DraggableContainerNSView: NSView, NSDraggingSource {
     }
     
     func draggingSession(_ session: NSDraggingSession, endedAt screenPoint: NSPoint, operation: NSDragOperation) {
-        let isInsideWindow = (self.window?.frame.contains(screenPoint) ?? false) || (DropShelfManager.shared.shelfWindow?.frame.contains(screenPoint) ?? false)
+        let shelfWindowFrame = DropShelfManager.shared.shelfWindow?.frame ?? .zero
+        let myWindowFrame = self.window?.frame ?? .zero
+        let isInside = shelfWindowFrame.contains(screenPoint) || myWindowFrame.contains(screenPoint)
         
-        if isInsideWindow || operation == [] {
+        if isInside {
             // User aborted or dragged back into the shelf window -> Keep files in shelf & untouched on disk!
             DispatchQueue.main.async {
                 self.activeSessionPaths.removeAll()
             }
-        } else {
-            // Items were successfully dropped into an external Finder window / target outside
-            let pathsToRemove = self.activeSessionPaths
-            self.activeSessionPaths.removeAll()
-            
-            DispatchQueue.main.async {
-                for p in pathsToRemove {
-                    DropShelfManager.shared.heldItems.removeAll { $0 == p }
-                }
-                if DropShelfManager.shared.heldItems.isEmpty {
-                    DropShelfManager.shared.closeShelf()
-                }
+            return
+        }
+        
+        // Items were successfully dropped into an external Finder window / target outside
+        let pathsToRemove = self.activeSessionPaths
+        self.activeSessionPaths.removeAll()
+        
+        DispatchQueue.main.async {
+            for p in pathsToRemove {
+                DropShelfManager.shared.heldItems.removeAll { $0 == p }
             }
-            
-            // Complete the Move operation by removing original source files from disk
-            DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + 0.35) {
-                for p in pathsToRemove {
-                    let url = URL(fileURLWithPath: p)
-                    if FileManager.default.fileExists(atPath: p) {
+            if DropShelfManager.shared.heldItems.isEmpty {
+                DropShelfManager.shared.closeShelf()
+            }
+        }
+        
+        // Complete the Move operation by removing original source files from disk
+        DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + 0.35) {
+            for p in pathsToRemove {
+                let url = URL(fileURLWithPath: p)
+                if FileManager.default.fileExists(atPath: p) {
+                    if (try? FileManager.default.trashItem(at: url, resultingItemURL: nil)) == nil {
                         try? FileManager.default.removeItem(at: url)
                     }
                 }
