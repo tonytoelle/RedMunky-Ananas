@@ -472,34 +472,23 @@ struct AsyncFileThumbnailView: View {
     @State private var image: NSImage?
     
     var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: size > 50 ? 12 : 9, style: .continuous)
-                .fill(Color(white: 0.16).opacity(0.7))
-            
-            Group {
-                if DropShelfManager.shared.isVirtualFolder(path) {
-                    Image(nsImage: NSWorkspace.shared.icon(forFileType: "public.folder"))
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .padding(size > 50 ? 6 : 4)
-                } else if let img = image {
-                    Image(nsImage: img)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                } else {
-                    Image(nsImage: NSWorkspace.shared.icon(forFile: path))
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                }
+        Group {
+            if DropShelfManager.shared.isVirtualFolder(path) {
+                Image(nsImage: NSWorkspace.shared.icon(forFileType: "public.folder"))
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+            } else if let img = image {
+                Image(nsImage: img)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+            } else {
+                Image(nsImage: NSWorkspace.shared.icon(forFile: path))
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
             }
-            .clipShape(RoundedRectangle(cornerRadius: size > 50 ? 11 : 8, style: .continuous))
         }
         .frame(width: size, height: size)
-        .overlay(
-            RoundedRectangle(cornerRadius: size > 50 ? 12 : 9, style: .continuous)
-                .stroke(Color.white.opacity(0.15), lineWidth: 0.75)
-        )
-        .shadow(color: Color.black.opacity(0.35), radius: 4, x: 0, y: 2)
+        .shadow(color: Color.black.opacity(0.35), radius: 3, x: 0, y: 1.5)
         .onAppear {
             if !DropShelfManager.shared.isVirtualFolder(path) {
                 loadImage()
@@ -999,15 +988,6 @@ struct DropShelfView: View {
                                             VStack(spacing: 6) {
                                                 AsyncFileThumbnailView(path: itemPath, size: displayedItems.count == 1 ? 64 : 46)
                                                     .scaleEffect(isDirectory && hoveredFolder == itemPath ? 1.15 : 1.0)
-                                                    .overlay(
-                                                        Group {
-                                                            if isDirectory && hoveredFolder == itemPath {
-                                                                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                                                    .stroke(Color.accentColor, lineWidth: 3)
-                                                                    .shadow(color: Color.accentColor.opacity(0.9), radius: 8)
-                                                            }
-                                                        }
-                                                    )
                                                     .animation(.spring(response: 0.25, dampingFraction: 0.65), value: hoveredFolder == itemPath)
                                                 
                                                 if renamingPath == itemPath {
