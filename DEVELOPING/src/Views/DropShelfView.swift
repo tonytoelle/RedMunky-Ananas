@@ -1073,10 +1073,42 @@ struct DropShelfView: View {
                         for provider in providers {
                             group.enter()
                             
-                            // 1. Check local file URL first (Direct file path memorization - Pure transit shelf)
-                            if provider.hasItemConformingToTypeIdentifier("public.file-url") {
+                            // 1. Primary: load directly as URL object (Handles any Finder file / system URL perfectly)
+                            if provider.canLoadObject(ofClass: URL.self) {
+                                _ = provider.loadObject(ofClass: URL.self) { url, _ in
+                                    if let url = url {
+                                        if url.isFileURL {
+                                            if let dir = currentDirectory {
+                                                let destURL = dir.appendingPathComponent(url.lastPathComponent)
+                                                try? FileManager.default.copyItem(at: url, to: destURL)
+                                                loadedPaths.append(destURL.path)
+                                            } else {
+                                                // PURE TRANSIT: Memorize exact source path directly
+                                                loadedPaths.append(url.path)
+                                            }
+                                        } else {
+                                            // Web URL
+                                            DispatchQueue.global(qos: .userInitiated).async {
+                                                if let data = try? Data(contentsOf: url), let _ = NSImage(data: data) {
+                                                    let formatter = DateFormatter()
+                                                    formatter.dateFormat = "yyyyMMdd_HHmmss_SSS"
+                                                    let timestamp = formatter.string(from: Date())
+                                                    let name = url.deletingPathExtension().lastPathComponent.isEmpty ? "Web_Image" : url.deletingPathExtension().lastPathComponent
+                                                    let ext = url.pathExtension.isEmpty ? "png" : url.pathExtension
+                                                    let fileURL = cacheDir.appendingPathComponent("\(name)_\(timestamp).\(ext)")
+                                                    try? data.write(to: fileURL)
+                                                    loadedPaths.append(fileURL.path)
+                                                }
+                                            }
+                                        }
+                                    }
+                                    group.leave()
+                                }
+                            }
+                            // 2. Secondary: check public.file-url identifier
+                            else if provider.hasItemConformingToTypeIdentifier("public.file-url") {
                                 _ = provider.loadItem(forTypeIdentifier: "public.file-url", options: nil) { (item, _) in
-                                    if let data = item as? Data, let url = URL(dataRepresentation: data, relativeTo: nil) {
+                                    if let url = item as? URL {
                                         if let dir = currentDirectory {
                                             let destURL = dir.appendingPathComponent(url.lastPathComponent)
                                             try? FileManager.default.copyItem(at: url, to: destURL)
@@ -1084,7 +1116,7 @@ struct DropShelfView: View {
                                         } else {
                                             loadedPaths.append(url.path)
                                         }
-                                    } else if let url = item as? URL {
+                                    } else if let data = item as? Data, let url = URL(dataRepresentation: data, relativeTo: nil) {
                                         if let dir = currentDirectory {
                                             let destURL = dir.appendingPathComponent(url.lastPathComponent)
                                             try? FileManager.default.copyItem(at: url, to: destURL)
@@ -1104,100 +1136,8 @@ struct DropShelfView: View {
                                     group.leave()
                                 }
                             }
-                            // 2. Check web URL / public.url
-                            else if provider.hasItemConformingToTypeIdentifier("public.url") {
-                                _ = provider.loadItem(forTypeIdentifier: "public.url", options: nil) { (item, _) in
-                                    if let url = item as? URL {
-                                        if url.isFileURL {
-                                            if let dir = currentDirectory {
-                                                let destURL = dir.appendingPathComponent(url.lastPathComponent)
-                                                try? FileManager.default.copyItem(at: url, to: destURL)
-                                                loadedPaths.append(destURL.path)
-                                            } else {
-                                                loadedPaths.append(url.path)
-                                            }
-                                            group.leave()
-                                        } else {
-                                            DispatchQueue.global(qos: .userInitiated).async {
-                                                if let data = try? Data(contentsOf: url), let _ = NSImage(data: data) {
-                                                    let formatter = DateFormatter()
-                                                    formatter.dateFormat = "yyyyMMdd_HHmmss_SSS"
-                                                    let timestamp = formatter.string(from: Date())
-                                                    let name = url.deletingPathExtension().lastPathComponent.isEmpty ? "Web_Image" : url.deletingPathExtension().lastPathComponent
-                                                    let ext = url.pathExtension.isEmpty ? "png" : url.pathExtension
-                                                    let fileURL = cacheDir.appendingPathComponent("\(name)_\(timestamp).\(ext)")
-                                                    try? data.write(to: fileURL)
-                                                    loadedPaths.append(fileURL.path)
-                                                }
-                                                group.leave()
-                                            }
-                                        }
-                                    } else if let data = item as? Data, let url = URL(dataRepresentation: data, relativeTo: nil) {
-                                        if url.isFileURL {
-                                            if let dir = currentDirectory {
-                                                let destURL = dir.appendingPathComponent(url.lastPathComponent)
-                                                try? FileManager.default.copyItem(at: url, to: destURL)
-                                                loadedPaths.append(destURL.path)
-                                            } else {
-                                                loadedPaths.append(url.path)
-                                            }
-                                        }
-                                        group.leave()
-                                    } else {
-                                        group.leave()
-                                    }
-                                }
-                            }
-                            // 3. Fallback: Raw image data (Only if dragging from Safari canvas/clipboard with no file URL)
-                            else if provider.hasItemConformingToTypeIdentifier("public.png") ||
-                                      provider.hasItemConformingToTypeIdentifier("public.jpeg") ||
-                                      provider.hasItemConformingToTypeIdentifier("public.tiff") ||
-                                      provider.hasItemConformingToTypeIdentifier("public.image") {
-                                
-                                let matchedType = provider.registeredTypeIdentifiers.first {
-                                    $0 == "public.png" || $0 == "public.jpeg" || $0 == "public.tiff" || $0 == "public.image"
-                                } ?? "public.image"
-                                
-                                _ = provider.loadDataRepresentation(forTypeIdentifier: matchedType) { data, _ in
-                                    if let data = data, let nsImage = NSImage(data: data) {
-                                        let formatter = DateFormatter()
-                                        formatter.dateFormat = "yyyyMMdd_HHmmss_SSS"
-                                        let timestamp = formatter.string(from: Date())
-                                        let isJpg = (matchedType == "public.jpeg")
-                                        let ext = isJpg ? "jpg" : "png"
-                                        let fileURL = cacheDir.appendingPathComponent("Image_\(timestamp).\(ext)")
-                                        
-                                        if let tiff = nsImage.tiffRepresentation,
-                                           let bitmap = NSBitmapImageRep(data: tiff) {
-                                            let outData = isJpg ?
-                                                bitmap.representation(using: .jpeg, properties: [.compressionFactor: 0.95]) :
-                                                bitmap.representation(using: .png, properties: [:])
-                                            try? (outData ?? data).write(to: fileURL)
-                                            loadedPaths.append(fileURL.path)
-                                        } else {
-                                            try? data.write(to: fileURL)
-                                            loadedPaths.append(fileURL.path)
-                                        }
-                                    } else if provider.canLoadObject(ofClass: NSImage.self) {
-                                        _ = provider.loadObject(ofClass: NSImage.self) { obj, _ in
-                                            if let nsImg = obj as? NSImage,
-                                               let tiff = nsImg.tiffRepresentation,
-                                               let bitmap = NSBitmapImageRep(data: tiff),
-                                               let pngData = bitmap.representation(using: .png, properties: [:]) {
-                                                let formatter = DateFormatter()
-                                                formatter.dateFormat = "yyyyMMdd_HHmmss_SSS"
-                                                let timestamp = formatter.string(from: Date())
-                                                let fileURL = cacheDir.appendingPathComponent("Image_\(timestamp).png")
-                                                try? pngData.write(to: fileURL)
-                                                loadedPaths.append(fileURL.path)
-                                            }
-                                        }
-                                    }
-                                    group.leave()
-                                }
-                            }
-                            // 4. Plain text / file path string
-                            else {
+                            // 3. Plain text / string path
+                            else if provider.canLoadObject(ofClass: NSString.self) {
                                 _ = provider.loadObject(ofClass: NSString.self) { string, _ in
                                     if let str = string as? String {
                                         let lines = str.components(separatedBy: "\n").filter { !$0.isEmpty }
@@ -1224,6 +1164,25 @@ struct DropShelfView: View {
                                     }
                                     group.leave()
                                 }
+                            }
+                            // 4. Raw image fallback (Only for clipboard data with no file on disk)
+                            else if provider.canLoadObject(ofClass: NSImage.self) {
+                                _ = provider.loadObject(ofClass: NSImage.self) { obj, _ in
+                                    if let nsImg = obj as? NSImage,
+                                       let tiff = nsImg.tiffRepresentation,
+                                       let bitmap = NSBitmapImageRep(data: tiff),
+                                       let pngData = bitmap.representation(using: .png, properties: [:]) {
+                                        let formatter = DateFormatter()
+                                        formatter.dateFormat = "yyyyMMdd_HHmmss_SSS"
+                                        let timestamp = formatter.string(from: Date())
+                                        let fileURL = cacheDir.appendingPathComponent("Image_\(timestamp).png")
+                                        try? pngData.write(to: fileURL)
+                                        loadedPaths.append(fileURL.path)
+                                    }
+                                    group.leave()
+                                }
+                            } else {
+                                group.leave()
                             }
                         }
                         
