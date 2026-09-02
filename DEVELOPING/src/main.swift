@@ -24,6 +24,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDele
         AppDelegate.shared = self
         NSApp.applicationIconImage = generateAppIcon()
         CarbonHotKeyManager.shared.installHandlerIfNeeded()
+        ScreenAnnotationManager.shared.start()
         PermissionManager.shared.checkStatus()
         LaunchAtLoginManager.shared.enableAutoStart()
         if UserDefaults.standard.bool(forKey: "enableThreeFingerMiddleClick") {
@@ -367,6 +368,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDele
         inspectorItem.setSymbol("magnifyingglass")
         inspectorItem.target = self
         toolsMenu.addItem(inspectorItem)
+
+        let screenshotItem = NSMenuItem(title: "Screenshot with Note (F10)", action: #selector(startScreenshotAnnotation), keyEquivalent: "")
+        screenshotItem.target = self
+        screenshotItem.setSymbol("rectangle.dashed.and.paperclip")
+        toolsMenu.addItem(screenshotItem)
         
         toolsMenu.addItem(NSMenuItem.separator())
         
@@ -468,6 +474,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDele
         inspectorMenuItem.keyEquivalentModifierMask = [.command, .option]
         inspectorMenuItem.target = self
         toolsSubmenu.addItem(inspectorMenuItem)
+
+        let screenshotMenuItem = NSMenuItem(title: "📸 Screenshot with Note (F10)", action: #selector(startScreenshotAnnotation), keyEquivalent: "")
+        screenshotMenuItem.target = self
+        toolsSubmenu.addItem(screenshotMenuItem)
         
         let dropShelfMenuItem = NSMenuItem(title: "📥 Drop Shelf (Wiggle to Hold)", action: #selector(toggleDropShelf(_:)), keyEquivalent: "")
         dropShelfMenuItem.target = self
@@ -673,6 +683,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDele
     }
 
     @objc func showInspectorWindow() {
+        ScreenAnnotationManager.shared.suspendHotKey()
         NSApp.setActivationPolicy(.regular)
         if inspectorWindow == nil {
             let win = NSWindow(
@@ -696,6 +707,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDele
         AXInspectorManager.shared.startInspecting()
     }
 
+    @objc func startScreenshotAnnotation() {
+        ScreenAnnotationManager.shared.beginSelection()
+    }
+
     // MARK: - NSWindowDelegate
     func windowDidBecomeKey(_ notification: Notification) {
         if let win = notification.object as? NSWindow {
@@ -708,6 +723,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDele
         
         if sender == inspectorWindow {
             AXInspectorManager.shared.stopInspecting()
+            ScreenAnnotationManager.shared.resumeHotKey()
         }
         
         let isEditorVisible = window?.isVisible == true && sender != window

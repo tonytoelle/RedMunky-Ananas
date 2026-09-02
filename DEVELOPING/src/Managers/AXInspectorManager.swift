@@ -206,6 +206,7 @@ class AXInspectorManager: ObservableObject {
         trackingTimer = nil
         removeKeyMonitors()
         overlayWindow?.orderOut(nil)
+        ScreenAnnotationManager.shared.resumeHotKey()
         statusMessage = "Inspection paused"
     }
     
