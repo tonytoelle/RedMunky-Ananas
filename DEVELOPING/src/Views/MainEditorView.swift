@@ -1821,6 +1821,32 @@ struct MainEditorView: View {
                 .padding(.bottom, 10)
                 .zIndex(100)
 
+                // Suspended Banner Notification
+                if store.isSuspended {
+                    HStack(spacing: 8) {
+                        Image(systemName: "pause.circle.fill")
+                            .foregroundColor(.orange)
+                            .font(.system(size: 13, weight: .semibold))
+                        Text("All macros suspended")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(.orange)
+                        Spacer()
+                        Button("Resume") {
+                            store.isSuspended = false
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.mini)
+                        .tint(.orange)
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(Color.orange.opacity(0.12))
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(Color.orange.opacity(0.25), lineWidth: 1))
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 8)
+                }
+
                 // Section Header
                 HStack {
                     Text("MACROS")

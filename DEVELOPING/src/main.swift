@@ -344,6 +344,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDele
         let runItem = NSMenuItem(title: "Run Selected Macro", action: #selector(runCurrentMacro), keyEquivalent: "\r")
         runItem.target = self
         macroMenu.addItem(runItem)
+        
+        let suspendToggleItem = NSMenuItem(title: MacroStore.shared.isSuspended ? "Resume All Macros" : "Suspend All Macros", action: #selector(toggleSuspendAllMacros), keyEquivalent: "s")
+        suspendToggleItem.keyEquivalentModifierMask = [.command, .control]
+        suspendToggleItem.target = self
+        macroMenu.addItem(suspendToggleItem)
+
         macroMenu.addItem(withTitle: "Create New Macro", action: #selector(newMacro), keyEquivalent: "n").target = self
         macroMenu.addItem(NSMenuItem.separator())
         let emergencyItem = NSMenuItem(title: "🛑 Emergency Stop Engine", action: #selector(emergencyKill), keyEquivalent: "x")
@@ -406,19 +412,27 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDele
 
     func setupMenuBar() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        if let crownImage = NSImage(systemSymbolName: "crown.fill", accessibilityDescription: nil) {
-            let symbolConfig = NSImage.SymbolConfiguration(pointSize: 14, weight: .semibold)
-            if let configuredImage = crownImage.withSymbolConfiguration(symbolConfig) {
-                configuredImage.isTemplate = true
-                statusItem.button?.image = configuredImage
-            }
-        } else {
-            statusItem.button?.title = "👑"
-        }
+        updateMenuBarIcon()
         statusMenu = NSMenu()
         statusMenu.delegate = self
         statusItem.menu = statusMenu
         buildStatusMenu()
+    }
+
+    func updateMenuBarIcon() {
+        let isSuspended = MacroStore.shared.isSuspended
+        let symbolName = isSuspended ? "pause.circle.fill" : "crown.fill"
+        if let iconImage = NSImage(systemSymbolName: symbolName, accessibilityDescription: isSuspended ? "ShortKing Suspended" : "ShortKing Active") {
+            let symbolConfig = NSImage.SymbolConfiguration(pointSize: 14, weight: .semibold)
+            if let configuredImage = iconImage.withSymbolConfiguration(symbolConfig) {
+                configuredImage.isTemplate = true
+                statusItem?.button?.image = configuredImage
+                statusItem?.button?.title = ""
+            }
+        } else {
+            statusItem?.button?.image = nil
+            statusItem?.button?.title = isSuspended ? "⏸️" : "👑"
+        }
     }
 
     func menuWillOpen(_ menu: NSMenu) {
@@ -429,6 +443,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDele
 
     func buildStatusMenu() {
         statusMenu.removeAllItems()
+
+        let isSuspended = MacroStore.shared.isSuspended
+        let suspendTitle = isSuspended ? "▶️ Resume All Macros" : "⏸️ Suspend All Macros"
+        let suspendItem = NSMenuItem(title: suspendTitle, action: #selector(toggleSuspendAllMacros), keyEquivalent: "")
+        suspendItem.target = self
+        statusMenu.addItem(suspendItem)
+
+        statusMenu.addItem(NSMenuItem.separator())
 
         let editorItem = NSMenuItem(title: "Open Macro Editor…", action: #selector(showEditorWindow), keyEquivalent: "e")
         editorItem.target = self
@@ -713,6 +735,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDele
         if let macro = sender.representedObject as? MacroItem {
             MacroStore.shared.runMacro(macro)
         }
+    }
+
+    @objc func toggleSuspendAllMacros() {
+        MacroStore.shared.isSuspended.toggle()
+        buildStatusMenu()
     }
 
     @objc func emergencyKill() {

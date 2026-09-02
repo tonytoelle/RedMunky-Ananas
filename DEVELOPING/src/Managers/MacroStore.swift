@@ -35,6 +35,17 @@ class MacroStore: ObservableObject {
         }
     }
 
+    @Published var isSuspended: Bool = false {
+        didSet {
+            if isSuspended {
+                CarbonHotKeyManager.shared.unregisterAll()
+            } else {
+                registerAllCarbonHotKeys()
+            }
+            AppDelegate.shared?.updateMenuBarIcon()
+        }
+    }
+    
     @Published var treeNodes: [FileSystemNode] = []
     @Published var macros: [MacroItem] = []
     @Published var selectedFilePath: String? {
@@ -341,6 +352,7 @@ class MacroStore: ObservableObject {
     }
 
     func triggerMacroBySpecialKey(name: String) {
+        guard !isSuspended else { return }
         for macro in macros {
             guard macro.isEffectivelyEnabled else { continue }
             let items = macro.actionItems
@@ -501,6 +513,7 @@ class MacroStore: ObservableObject {
             return
         }
         CarbonHotKeyManager.shared.unregisterAll()
+        guard !isSuspended else { return }
         
         let activeBundle = self.activeAppBundle
         let activeName = self.activeAppName

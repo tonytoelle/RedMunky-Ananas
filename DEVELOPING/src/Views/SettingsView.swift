@@ -500,6 +500,18 @@ struct SettingsView: View {
     // ═══════════════════════════════════════════════════
     @ViewBuilder
     private func renderEngineSettings() -> some View {
+        // Engine Status & Master Pause Card
+        settingsCard(title: "Master Engine State (Status Mesin)", icon: "pause.circle.fill", iconColor: store.isSuspended ? .red : .green) {
+            toggleRow(
+                title: "Suspend / Disable All Macros Temporarily",
+                subtitle: "Temporarily deactivates all global shortcut listeners and hotkeys without quitting ShortKing.",
+                isOn: Binding(
+                    get: { store.isSuspended },
+                    set: { store.isSuspended = $0 }
+                )
+            )
+        }
+
         // Timing & Delays Card
         settingsCard(title: "Execution Timing & Delays", icon: "gauge.with.needle.fill", iconColor: .orange) {
             VStack(alignment: .leading, spacing: 12) {
