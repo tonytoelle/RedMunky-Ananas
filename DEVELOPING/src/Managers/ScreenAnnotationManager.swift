@@ -7,19 +7,25 @@ import ScreenCaptureKit
 final class ScreenAnnotationManager {
     static let shared = ScreenAnnotationManager()
 
-    private var activeWindow: NSWindow?
+    private var selectionWindows: [ScreenAnnotationSelectionWindow] = []
     private var isScreenshotHotKeySuspended = false
+    private var eventTap: CFMachPort?
+    private var runLoopSource: CFRunLoopSource?
+    private var localKeyMonitor: Any?
 
     private init() {}
 
     func start() {
         registerHotKey()
+        installLowLevelTap()
     }
 
     func registerHotKey() {
         guard !isScreenshotHotKeySuspended else { return }
         CarbonHotKeyManager.shared.registerScreenshotF9 { [weak self] in
-            self?.beginSelection()
+            DispatchQueue.main.async {
+                self?.beginSelection()
+            }
         }
     }
 
@@ -33,69 +39,142 @@ final class ScreenAnnotationManager {
         registerHotKey()
     }
 
-    func beginSelection() {
-        guard activeWindow == nil else { return }
-        activeWindow = ScreenAnnotationSelectionWindow { [weak self] rect in
-            self?.activeWindow = nil
-            self?.showAnnotation(for: rect)
-        } onCancel: { [weak self] in
-            self?.activeWindow = nil
+    private func installLowLevelTap() {
+        // Intercept F9 system-wide even if standard hotkeys miss it
+        let mask = (1 << CGEventType.keyDown.rawValue) | (1 << 14) // keyDown + NX_SYSDEFINED
+        eventTap = CGEvent.tapCreate(
+            tap: .cghidEventTap,
+            place: .headInsertEventTap,
+            options: .defaultTap,
+            eventsOfInterest: CGEventMask(mask),
+            callback: { (proxy, type, event, refcon) -> Unmanaged<CGEvent>? in
+                if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+                    if let tap = ScreenAnnotationManager.shared.eventTap {
+                        CGEvent.tapEnable(tap: tap, enable: true)
+                    }
+                    return Unmanaged.passUnretained(event)
+                }
+
+                if type == .keyDown {
+                    let keycode = event.getIntegerValueField(.keyboardEventKeycode)
+                    if keycode == 101 { // F9
+                        DispatchQueue.main.async {
+                            ScreenAnnotationManager.shared.beginSelection()
+                        }
+                        return nil // Swallow F9 globally
+                    }
+                }
+                return Unmanaged.passUnretained(event)
+            },
+            userInfo: nil
+        )
+
+        if let tap = eventTap {
+            runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
+            if let source = runLoopSource {
+                CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
+            }
+            CGEvent.tapEnable(tap: tap, enable: true)
         }
-        activeWindow?.makeKeyAndOrderFront(nil)
+
+        localKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            if event.keyCode == 101 { // F9
+                self?.beginSelection()
+                return nil
+            }
+            return event
+        }
+    }
+
+    func beginSelection() {
+        guard selectionWindows.isEmpty else { return }
+
+        // Close any existing windows
+        closeSelectionWindows()
+
+        // Create overlay window on EVERY active screen for multi-monitor support
+        for screen in NSScreen.screens {
+            let win = ScreenAnnotationSelectionWindow(screen: screen, onSelected: { [weak self] rect in
+                self?.closeSelectionWindows()
+                self?.captureAndCopyImage(for: rect)
+            }, onCancel: { [weak self] in
+                self?.closeSelectionWindows()
+            })
+            selectionWindows.append(win)
+            win.orderFrontRegardless()
+        }
+
         NSApp.activate(ignoringOtherApps: true)
     }
 
-    private func showAnnotation(for rect: CGRect) {
-        guard rect.width >= 2, rect.height >= 2 else { return }
-        // Capture before displaying the annotation window so the preview stays visible while typing.
+    private func closeSelectionWindows() {
+        for win in selectionWindows {
+            win.orderOut(nil)
+        }
+        selectionWindows.removeAll()
+    }
+
+    private func captureAndCopyImage(for rect: CGRect) {
+        guard rect.width >= 4, rect.height >= 4 else { return }
+
         Task { @MainActor [weak self] in
-            guard let self = self, let screenshot = try? await self.capture(rect: rect) else {
+            guard let self = self else { return }
+            do {
+                let image = try await self.capture(rect: rect)
+                self.copyImageOnly(image)
+                self.playCaptureFeedbackSound()
+                self.flashScreenConfirmation(rect: rect)
+            } catch {
+                print("⚠️ Screenshot capture failed: \(error)")
                 NSSound.beep()
-                return
             }
-            let annotation = ScreenAnnotationWindow(selectionRect: rect, screenshot: screenshot) { [weak self] text in
-                self?.copyComposition(selectionRect: rect, screenshot: screenshot, text: text)
-                self?.activeWindow = nil
-            }
-            self.activeWindow = annotation
-            annotation.show()
         }
     }
 
-    private func copyComposition(selectionRect: CGRect, screenshot: NSImage, text: String) {
-            let width = selectionRect.width
-            let font = NSFont.systemFont(ofSize: 16)
-            let textInset: CGFloat = 14
-            let textWidth = max(1, width - textInset * 2)
-            let attributed = NSAttributedString(string: text, attributes: [
-                .font: font,
-                .foregroundColor: NSColor.white
-            ])
-            let measured = attributed.boundingRect(with: NSSize(width: textWidth, height: 10000),
-                                                   options: [.usesLineFragmentOrigin, .usesFontLeading])
-            let panelHeight = max(52, ceil(measured.height) + textInset * 2)
-            let outputSize = NSSize(width: width, height: selectionRect.height + panelHeight)
-            let output = NSImage(size: outputSize)
-            output.lockFocus()
-            NSBezierPath(roundedRect: NSRect(origin: .zero, size: outputSize), xRadius: 24, yRadius: 24).addClip()
-            screenshot.draw(in: NSRect(x: 0, y: panelHeight, width: width, height: selectionRect.height),
-                            from: .zero, operation: .copy, fraction: 1)
-            NSColor(calibratedWhite: 0.16, alpha: 1).setFill()
-            NSRect(x: 0, y: 0, width: width, height: panelHeight).fill()
-            attributed.draw(with: NSRect(x: textInset, y: textInset, width: textWidth, height: panelHeight - textInset),
-                            options: [.usesLineFragmentOrigin, .usesFontLeading])
-            output.unlockFocus()
-
-            guard let tiff = output.tiffRepresentation,
-                  let bitmap = NSBitmapImageRep(data: tiff),
-                  let png = bitmap.representation(using: .png, properties: [:]) else {
-                NSSound.beep()
-                return
-            }
+    private func copyImageOnly(_ image: NSImage) {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
-        pasteboard.setData(png, forType: .png)
-        pasteboard.setString(text, forType: .string)
+
+        // Write pure image data ONLY (no text/string representation at all)
+        guard let tiff = image.tiffRepresentation,
+              let bitmap = NSBitmapImageRep(data: tiff),
+              let pngData = bitmap.representation(using: .png, properties: [:]) else {
+            pasteboard.writeObjects([image])
+            return
+        }
+
+        let item = NSPasteboardItem()
+        item.setData(pngData, forType: .png)
+        item.setData(tiff, forType: .tiff)
+        pasteboard.writeObjects([item])
+        print("📸 Screenshot copied directly as pure Image to clipboard (\(Int(image.size.width))x\(Int(image.size.height)) px)")
+    }
+
+    private func playCaptureFeedbackSound() {
+        if let sound = NSSound(named: "Tink") ?? NSSound(named: "Pop") {
+            sound.play()
+        }
+    }
+
+    private func flashScreenConfirmation(rect: CGRect) {
+        let flashWin = NSWindow(
+            contentRect: rect,
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        flashWin.isOpaque = false
+        flashWin.backgroundColor = NSColor.white.withAlphaComponent(0.4)
+        flashWin.level = .screenSaver
+        flashWin.ignoresMouseEvents = true
+        flashWin.orderFrontRegardless()
+
+        NSAnimationContext.runAnimationGroup({ context in
+            context.duration = 0.25
+            flashWin.animator().alphaValue = 0.0
+        }) {
+            flashWin.orderOut(nil)
+        }
     }
 
     private func capture(rect: CGRect) async throws -> NSImage {
@@ -103,19 +182,27 @@ final class ScreenAnnotationManager {
         let screenFrame = screen?.frame ?? NSScreen.screens[0].frame
         let displayID = screen?.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID
             ?? CGMainDisplayID()
+
         let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
         guard let display = content.displays.first(where: { $0.displayID == displayID }) ?? content.displays.first else {
-            throw NSError(domain: "ShortKingScreenshot", code: 1)
+            throw NSError(domain: "ShortKingScreenshot", code: 1, userInfo: [NSLocalizedDescriptionKey: "No display found"])
         }
+
         let filter = SCContentFilter(display: display, excludingWindows: [])
         let configuration = SCStreamConfiguration()
-        configuration.sourceRect = CGRect(x: rect.minX - screenFrame.minX,
-                                          y: screenFrame.maxY - rect.maxY,
-                                          width: rect.width, height: rect.height)
-        configuration.width = max(1, Int(rect.width * 2))
-        configuration.height = max(1, Int(rect.height * 2))
-        let image = try await SCScreenshotManager.captureImage(contentFilter: filter, configuration: configuration)
-        return NSImage(cgImage: image, size: NSSize(width: rect.width, height: rect.height))
+        configuration.sourceRect = CGRect(
+            x: rect.minX - screenFrame.minX,
+            y: screenFrame.maxY - rect.maxY,
+            width: rect.width,
+            height: rect.height
+        )
+        let scale = screen?.backingScaleFactor ?? 2.0
+        configuration.width = max(1, Int(rect.width * scale))
+        configuration.height = max(1, Int(rect.height * scale))
+        configuration.showsCursor = false
+
+        let cgImage = try await SCScreenshotManager.captureImage(contentFilter: filter, configuration: configuration)
+        return NSImage(cgImage: cgImage, size: NSSize(width: rect.width, height: rect.height))
     }
 }
 
@@ -123,41 +210,38 @@ private extension CGRect {
     var center: CGPoint { CGPoint(x: midX, y: midY) }
 }
 
+// MARK: - Selection Overlay Window
 private final class ScreenAnnotationSelectionWindow: NSWindow {
     private let onSelected: (CGRect) -> Void
     private let onCancel: () -> Void
 
-    init(onSelected: @escaping (CGRect) -> Void, onCancel: @escaping () -> Void) {
+    init(screen: NSScreen, onSelected: @escaping (CGRect) -> Void, onCancel: @escaping () -> Void) {
         self.onSelected = onSelected
         self.onCancel = onCancel
-        let screen = NSScreen.screens.first { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) }
-            ?? NSScreen.main ?? NSScreen.screens[0]
         super.init(contentRect: screen.frame, styleMask: [.borderless], backing: .buffered, defer: false)
         level = .screenSaver
         isOpaque = false
-        backgroundColor = NSColor.black.withAlphaComponent(0.28)
+        backgroundColor = NSColor.black.withAlphaComponent(0.25)
         ignoresMouseEvents = false
         acceptsMouseMovedEvents = true
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        contentView = ScreenAnnotationSelectionView(onSelected: onSelected, onCancel: onCancel)
+        contentView = ScreenAnnotationSelectionView(screenFrame: screen.frame, onSelected: onSelected, onCancel: onCancel)
     }
 
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { true }
-
-    func show() {
-        makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
-    }
 }
 
+// MARK: - Selection View with Crosshair & Live Dimensions
 private final class ScreenAnnotationSelectionView: NSView {
+    private let screenFrame: CGRect
     private let onSelected: (CGRect) -> Void
     private let onCancel: () -> Void
     private var start: CGPoint?
     private var current: CGPoint = .zero
 
-    init(onSelected: @escaping (CGRect) -> Void, onCancel: @escaping () -> Void) {
+    init(screenFrame: CGRect, onSelected: @escaping (CGRect) -> Void, onCancel: @escaping () -> Void) {
+        self.screenFrame = screenFrame
         self.onSelected = onSelected
         self.onCancel = onCancel
         super.init(frame: .zero)
@@ -165,6 +249,10 @@ private final class ScreenAnnotationSelectionView: NSView {
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    override func resetCursorRects() {
+        addCursorRect(bounds, cursor: .crosshair)
+    }
 
     override func mouseDown(with event: NSEvent) {
         start = convert(event.locationInWindow, from: nil)
@@ -179,117 +267,79 @@ private final class ScreenAnnotationSelectionView: NSView {
 
     override func mouseUp(with event: NSEvent) {
         guard let start = start else { return }
-        let localRect = CGRect(x: min(start.x, current.x), y: min(start.y, current.y),
-                               width: abs(current.x - start.x), height: abs(current.y - start.y))
-        guard localRect.width >= 2, localRect.height >= 2 else { return }
+        let localRect = CGRect(
+            x: min(start.x, current.x),
+            y: min(start.y, current.y),
+            width: abs(current.x - start.x),
+            height: abs(current.y - start.y)
+        )
+        guard localRect.width >= 4, localRect.height >= 4 else {
+            onCancel()
+            return
+        }
+
         let screenRect = window?.convertToScreen(localRect) ?? localRect
-        window?.orderOut(nil)
         onSelected(screenRect)
     }
 
     override func keyDown(with event: NSEvent) {
-        if event.keyCode == 53 {
-            window?.orderOut(nil)
+        if event.keyCode == 53 { // ESC
             onCancel()
-        } else { super.keyDown(with: event) }
+        } else {
+            super.keyDown(with: event)
+        }
     }
 
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
         guard let start = start else { return }
-        let rect = NSRect(x: min(start.x, current.x), y: min(start.y, current.y),
-                          width: abs(current.x - start.x), height: abs(current.y - start.y))
-        NSColor.white.setStroke()
-        let path = NSBezierPath(rect: rect)
-        path.lineWidth = 2
-        path.stroke()
-        NSColor.black.withAlphaComponent(0.35).setFill()
+
+        let rect = NSRect(
+            x: min(start.x, current.x),
+            y: min(start.y, current.y),
+            width: abs(current.x - start.x),
+            height: abs(current.y - start.y)
+        )
+
+        // Clear selection cutout
+        NSGraphicsContext.current?.cgContext.setBlendMode(.clear)
+        NSColor.clear.setFill()
         NSBezierPath(rect: rect).fill()
+
+        // Selection Border
+        NSGraphicsContext.current?.cgContext.setBlendMode(.normal)
+        NSColor(red: 0.15, green: 0.65, blue: 1.0, alpha: 1.0).setStroke()
+        let path = NSBezierPath(rect: rect)
+        path.lineWidth = 1.5
+        path.stroke()
+
+        // Dimension Badge
+        let w = Int(rect.width)
+        let h = Int(rect.height)
+        let dimText = "\(w) × \(h)"
+        let attr: [NSAttributedString.Key: Any] = [
+            .font: NSFont.monospacedSystemFont(ofSize: 11, weight: .semibold),
+            .foregroundColor: NSColor.white
+        ]
+        let textSize = (dimText as NSString).size(withAttributes: attr)
+        let badgeRect = NSRect(
+            x: max(8, min(rect.minX, bounds.width - textSize.width - 20)),
+            y: max(8, rect.minY - 24),
+            width: textSize.width + 12,
+            height: 18
+        )
+
+        NSColor(white: 0.15, alpha: 0.9).setFill()
+        let badgePath = NSBezierPath(roundedRect: badgeRect, xRadius: 4, yRadius: 4)
+        badgePath.fill()
+        NSColor(white: 0.35, alpha: 0.6).setStroke()
+        badgePath.lineWidth = 0.5
+        badgePath.stroke()
+
+        (dimText as NSString).draw(
+            at: NSPoint(x: badgeRect.minX + 6, y: badgeRect.minY + 2),
+            withAttributes: attr
+        )
     }
 }
 
-private final class ScreenAnnotationWindow: NSPanel {
-    private let onComplete: (String) -> Void
-
-    init(selectionRect: CGRect, screenshot: NSImage, onComplete: @escaping (String) -> Void) {
-        self.onComplete = onComplete
-        let width = selectionRect.width
-        let panelHeight: CGFloat = 144
-        super.init(contentRect: NSRect(x: selectionRect.minX, y: selectionRect.minY - panelHeight,
-                                       width: width, height: selectionRect.height + panelHeight),
-                   styleMask: [.borderless], backing: .buffered, defer: false)
-        isOpaque = false
-        backgroundColor = .clear
-        level = .screenSaver
-        hasShadow = true
-        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        contentView = ScreenAnnotationContentView(width: width, imageHeight: selectionRect.height,
-                                                   screenshot: screenshot, panelHeight: panelHeight,
-                                                   onComplete: onComplete)
-    }
-
-    override var canBecomeKey: Bool { true }
-    override var canBecomeMain: Bool { true }
-
-    func show() {
-        makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
-    }
-}
-
-private final class ScreenAnnotationContentView: NSView {
-    private let onComplete: (String) -> Void
-    private let imageView: NSImageView
-    private let textView: NSTextView
-
-    init(width: CGFloat, imageHeight: CGFloat, screenshot: NSImage, panelHeight: CGFloat,
-         onComplete: @escaping (String) -> Void) {
-        self.onComplete = onComplete
-        imageView = NSImageView(image: screenshot)
-        textView = NSTextView(frame: NSRect(x: 14, y: 14, width: max(20, width - 28), height: panelHeight - 28))
-        super.init(frame: NSRect(x: 0, y: 0, width: width, height: imageHeight + panelHeight))
-        wantsLayer = true
-        layer?.backgroundColor = NSColor(calibratedWhite: 0.16, alpha: 1).cgColor
-        layer?.cornerRadius = 8
-        layer?.masksToBounds = true
-
-        imageView.frame = NSRect(x: 0, y: panelHeight, width: width, height: imageHeight)
-        imageView.imageScaling = .scaleProportionallyUpOrDown
-        addSubview(imageView)
-
-        textView.font = .systemFont(ofSize: 16)
-        textView.textColor = .white
-        textView.backgroundColor = .clear
-        textView.drawsBackground = false
-        textView.isRichText = false
-        textView.isEditable = true
-        textView.isSelectable = true
-        textView.isHorizontallyResizable = false
-        textView.isVerticallyResizable = true
-        textView.textContainer?.widthTracksTextView = true
-        textView.textContainer?.lineFragmentPadding = 0
-        textView.delegate = self
-        addSubview(textView)
-    }
-
-    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
-
-    override func viewDidMoveToWindow() {
-        super.viewDidMoveToWindow()
-        if window != nil {
-            window?.makeFirstResponder(textView)
-        }
-    }
-}
-
-extension ScreenAnnotationContentView: NSTextViewDelegate {
-    func textView(_ textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
-        if commandSelector == #selector(NSResponder.cancelOperation(_:)) ||
-            commandSelector == #selector(NSResponder.insertNewline(_:)) {
-            onComplete(textView.string)
-            window?.orderOut(nil)
-            return true
-        }
-        return false
-    }
-}

@@ -369,9 +369,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDele
         inspectorItem.target = self
         toolsMenu.addItem(inspectorItem)
 
-        let screenshotItem = NSMenuItem(title: "Screenshot with Note (F9)", action: #selector(startScreenshotAnnotation), keyEquivalent: "")
+        let screenshotItem = NSMenuItem(title: "Capture Screenshot (F9)", action: #selector(startScreenshotAnnotation), keyEquivalent: "")
         screenshotItem.target = self
-        screenshotItem.setSymbol("rectangle.dashed.and.paperclip")
+        screenshotItem.setSymbol("camera")
         toolsMenu.addItem(screenshotItem)
         
         toolsMenu.addItem(NSMenuItem.separator())
@@ -475,7 +475,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDele
         inspectorMenuItem.target = self
         toolsSubmenu.addItem(inspectorMenuItem)
 
-        let screenshotMenuItem = NSMenuItem(title: "📸 Screenshot with Note (F9)", action: #selector(startScreenshotAnnotation), keyEquivalent: "")
+        let screenshotMenuItem = NSMenuItem(title: "📸 Capture Screenshot (F9)", action: #selector(startScreenshotAnnotation), keyEquivalent: "")
         screenshotMenuItem.target = self
         toolsSubmenu.addItem(screenshotMenuItem)
         

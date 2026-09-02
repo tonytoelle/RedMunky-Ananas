@@ -79,7 +79,7 @@ class CarbonHotKeyManager {
     }
 
     private var inspectorF10Ref: EventHotKeyRef?
-    private var screenshotF10Ref: EventHotKeyRef?
+    private var screenshotF9Ref: EventHotKeyRef?
 
     func registerInspectorF10(action: @escaping () -> Void) {
         unregisterInspectorF10()
@@ -108,7 +108,7 @@ class CarbonHotKeyManager {
         unregisterScreenshotF9()
         installHandlerIfNeeded()
         let hkID = EventHotKeyID(signature: OSType(0x5343524E), id: 8889)
-        let status = RegisterEventHotKey(101, 0, hkID, GetApplicationEventTarget(), 0, &screenshotF10Ref)
+        let status = RegisterEventHotKey(101, 0, hkID, GetApplicationEventTarget(), 0, &screenshotF9Ref)
         if status == noErr {
             lock.lock()
             actionClosures[8889] = action
@@ -118,9 +118,9 @@ class CarbonHotKeyManager {
     }
 
     func unregisterScreenshotF9() {
-        if let ref = screenshotF10Ref {
+        if let ref = screenshotF9Ref {
             UnregisterEventHotKey(ref)
-            screenshotF10Ref = nil
+            screenshotF9Ref = nil
             lock.lock()
             actionClosures.removeValue(forKey: 8889)
             lock.unlock()
