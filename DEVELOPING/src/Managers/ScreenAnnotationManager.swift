@@ -18,14 +18,14 @@ final class ScreenAnnotationManager {
 
     func registerHotKey() {
         guard !isScreenshotHotKeySuspended else { return }
-        CarbonHotKeyManager.shared.registerScreenshotF10 { [weak self] in
+        CarbonHotKeyManager.shared.registerScreenshotF9 { [weak self] in
             self?.beginSelection()
         }
     }
 
     func suspendHotKey() {
         isScreenshotHotKeySuspended = true
-        CarbonHotKeyManager.shared.unregisterScreenshotF10()
+        CarbonHotKeyManager.shared.unregisterScreenshotF9()
     }
 
     func resumeHotKey() {
@@ -47,13 +47,14 @@ final class ScreenAnnotationManager {
 
     private func showAnnotation(for rect: CGRect) {
         guard rect.width >= 2, rect.height >= 2 else { return }
-        // Wait until the selection overlay is gone so it cannot appear in the capture.
-        DispatchQueue.main.async { [weak self] in
-            guard let self = self else { return }
-            let annotation = ScreenAnnotationWindow(selectionRect: rect) { [weak self] text in
-                self?.copyComposition(selectionRect: rect, text: text)
-                self?.activeWindow = nil
-            } onCancel: { [weak self] in
+        // Capture before displaying the annotation window so the preview stays visible while typing.
+        Task { @MainActor [weak self] in
+            guard let self = self, let screenshot = try? await self.capture(rect: rect) else {
+                NSSound.beep()
+                return
+            }
+            let annotation = ScreenAnnotationWindow(selectionRect: rect, screenshot: screenshot) { [weak self] text in
+                self?.copyComposition(selectionRect: rect, screenshot: screenshot, text: text)
                 self?.activeWindow = nil
             }
             self.activeWindow = annotation
@@ -61,13 +62,7 @@ final class ScreenAnnotationManager {
         }
     }
 
-    private func copyComposition(selectionRect: CGRect, text: String) {
-        Task { @MainActor [weak self] in
-            guard let self = self, let screenshot = try? await self.capture(rect: selectionRect) else {
-                NSSound.beep()
-                return
-            }
-
+    private func copyComposition(selectionRect: CGRect, screenshot: NSImage, text: String) {
             let width = selectionRect.width
             let font = NSFont.systemFont(ofSize: 16)
             let textInset: CGFloat = 14
@@ -82,6 +77,7 @@ final class ScreenAnnotationManager {
             let outputSize = NSSize(width: width, height: selectionRect.height + panelHeight)
             let output = NSImage(size: outputSize)
             output.lockFocus()
+            NSBezierPath(roundedRect: NSRect(origin: .zero, size: outputSize), xRadius: 24, yRadius: 24).addClip()
             screenshot.draw(in: NSRect(x: 0, y: panelHeight, width: width, height: selectionRect.height),
                             from: .zero, operation: .copy, fraction: 1)
             NSColor(calibratedWhite: 0.16, alpha: 1).setFill()
@@ -96,21 +92,20 @@ final class ScreenAnnotationManager {
                 NSSound.beep()
                 return
             }
-            let pasteboard = NSPasteboard.general
-            pasteboard.clearContents()
-            pasteboard.setData(png, forType: .png)
-            pasteboard.setString(text, forType: .string)
-        }
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setData(png, forType: .png)
+        pasteboard.setString(text, forType: .string)
     }
 
-    private func capture(rect: CGRect) async throws -> NSImage? {
+    private func capture(rect: CGRect) async throws -> NSImage {
         let screen = NSScreen.screens.first { $0.frame.contains(rect.center) } ?? NSScreen.main
         let screenFrame = screen?.frame ?? NSScreen.screens[0].frame
         let displayID = screen?.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID
             ?? CGMainDisplayID()
         let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
         guard let display = content.displays.first(where: { $0.displayID == displayID }) ?? content.displays.first else {
-            return nil
+            throw NSError(domain: "ShortKingScreenshot", code: 1)
         }
         let filter = SCContentFilter(display: display, excludingWindows: [])
         let configuration = SCStreamConfiguration()
@@ -214,24 +209,23 @@ private final class ScreenAnnotationSelectionView: NSView {
 }
 
 private final class ScreenAnnotationWindow: NSPanel {
-    private let selectionRect: CGRect
     private let onComplete: (String) -> Void
-    private let onCancel: () -> Void
 
-    init(selectionRect: CGRect, onComplete: @escaping (String) -> Void, onCancel: @escaping () -> Void) {
-        self.selectionRect = selectionRect
+    init(selectionRect: CGRect, screenshot: NSImage, onComplete: @escaping (String) -> Void) {
         self.onComplete = onComplete
-        self.onCancel = onCancel
         let width = selectionRect.width
-        super.init(contentRect: NSRect(x: selectionRect.minX, y: selectionRect.minY - 112,
-                                       width: width, height: 112),
+        let panelHeight: CGFloat = 144
+        super.init(contentRect: NSRect(x: selectionRect.minX, y: selectionRect.minY - panelHeight,
+                                       width: width, height: selectionRect.height + panelHeight),
                    styleMask: [.borderless], backing: .buffered, defer: false)
         isOpaque = false
         backgroundColor = .clear
         level = .screenSaver
         hasShadow = true
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        contentView = ScreenAnnotationContentView(width: width, onComplete: onComplete, onCancel: onCancel)
+        contentView = ScreenAnnotationContentView(width: width, imageHeight: selectionRect.height,
+                                                   screenshot: screenshot, panelHeight: panelHeight,
+                                                   onComplete: onComplete)
     }
 
     override var canBecomeKey: Bool { true }
@@ -245,17 +239,24 @@ private final class ScreenAnnotationWindow: NSPanel {
 
 private final class ScreenAnnotationContentView: NSView {
     private let onComplete: (String) -> Void
-    private let onCancel: () -> Void
+    private let imageView: NSImageView
     private let textView: NSTextView
 
-    init(width: CGFloat, onComplete: @escaping (String) -> Void, onCancel: @escaping () -> Void) {
+    init(width: CGFloat, imageHeight: CGFloat, screenshot: NSImage, panelHeight: CGFloat,
+         onComplete: @escaping (String) -> Void) {
         self.onComplete = onComplete
-        self.onCancel = onCancel
-        textView = NSTextView(frame: NSRect(x: 12, y: 12, width: max(20, width - 24), height: 88))
-        super.init(frame: NSRect(x: 0, y: 0, width: width, height: 112))
+        imageView = NSImageView(image: screenshot)
+        textView = NSTextView(frame: NSRect(x: 14, y: 14, width: max(20, width - 28), height: panelHeight - 28))
+        super.init(frame: NSRect(x: 0, y: 0, width: width, height: imageHeight + panelHeight))
         wantsLayer = true
         layer?.backgroundColor = NSColor(calibratedWhite: 0.16, alpha: 1).cgColor
         layer?.cornerRadius = 8
+        layer?.masksToBounds = true
+
+        imageView.frame = NSRect(x: 0, y: panelHeight, width: width, height: imageHeight)
+        imageView.imageScaling = .scaleProportionallyUpOrDown
+        addSubview(imageView)
+
         textView.font = .systemFont(ofSize: 16)
         textView.textColor = .white
         textView.backgroundColor = .clear
@@ -283,12 +284,8 @@ private final class ScreenAnnotationContentView: NSView {
 
 extension ScreenAnnotationContentView: NSTextViewDelegate {
     func textView(_ textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
-        if commandSelector == #selector(NSResponder.cancelOperation(_:)) {
-            window?.orderOut(nil)
-            onCancel()
-            return true
-        }
-        if commandSelector == #selector(NSResponder.insertNewline(_:)) {
+        if commandSelector == #selector(NSResponder.cancelOperation(_:)) ||
+            commandSelector == #selector(NSResponder.insertNewline(_:)) {
             onComplete(textView.string)
             window?.orderOut(nil)
             return true

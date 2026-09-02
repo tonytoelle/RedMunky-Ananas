@@ -104,20 +104,20 @@ class CarbonHotKeyManager {
         }
     }
 
-    func registerScreenshotF10(action: @escaping () -> Void) {
-        unregisterScreenshotF10()
+    func registerScreenshotF9(action: @escaping () -> Void) {
+        unregisterScreenshotF9()
         installHandlerIfNeeded()
         let hkID = EventHotKeyID(signature: OSType(0x5343524E), id: 8889)
-        let status = RegisterEventHotKey(109, 0, hkID, GetApplicationEventTarget(), 0, &screenshotF10Ref)
+        let status = RegisterEventHotKey(101, 0, hkID, GetApplicationEventTarget(), 0, &screenshotF10Ref)
         if status == noErr {
             lock.lock()
             actionClosures[8889] = action
             lock.unlock()
-            print("📸 Screenshot F10 HotKey registered")
+            print("📸 Screenshot F9 HotKey registered")
         }
     }
 
-    func unregisterScreenshotF10() {
+    func unregisterScreenshotF9() {
         if let ref = screenshotF10Ref {
             UnregisterEventHotKey(ref)
             screenshotF10Ref = nil
