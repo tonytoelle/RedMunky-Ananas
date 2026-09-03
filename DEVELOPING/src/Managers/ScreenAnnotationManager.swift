@@ -154,7 +154,6 @@ final class ScreenAnnotationManager {
         if trimmedNote.isEmpty {
             copyImageOnly(screenshot)
             playCaptureFeedbackSound()
-            flashScreenConfirmation(rect: selectionRect)
             return
         }
 
@@ -225,7 +224,6 @@ final class ScreenAnnotationManager {
 
         copyImageOnly(compositeImage)
         playCaptureFeedbackSound()
-        flashScreenConfirmation(rect: selectionRect)
     }
 
     private func copyImageOnly(_ image: NSImage) {
@@ -249,29 +247,8 @@ final class ScreenAnnotationManager {
     }
 
     private func playCaptureFeedbackSound() {
-        if let sound = NSSound(named: "Tink") ?? NSSound(named: "Pop") {
+        if let sound = NSSound(named: "Screen Capture") ?? NSSound(named: "Tink") {
             sound.play()
-        }
-    }
-
-    private func flashScreenConfirmation(rect: CGRect) {
-        let flashWin = NSWindow(
-            contentRect: rect,
-            styleMask: [.borderless],
-            backing: .buffered,
-            defer: false
-        )
-        flashWin.isOpaque = false
-        flashWin.backgroundColor = NSColor.white.withAlphaComponent(0.4)
-        flashWin.level = .screenSaver
-        flashWin.ignoresMouseEvents = true
-        flashWin.orderFrontRegardless()
-
-        NSAnimationContext.runAnimationGroup({ context in
-            context.duration = 0.25
-            flashWin.animator().alphaValue = 0.0
-        }) {
-            flashWin.orderOut(nil)
         }
     }
 
@@ -319,7 +296,7 @@ private final class ScreenAnnotationSelectionWindow: NSWindow {
         super.init(contentRect: screen.frame, styleMask: [.borderless], backing: .buffered, defer: false)
         level = .screenSaver
         isOpaque = false
-        backgroundColor = NSColor.black.withAlphaComponent(0.25)
+        backgroundColor = .clear
         ignoresMouseEvents = false
         acceptsMouseMovedEvents = true
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
@@ -450,17 +427,19 @@ private final class ScreenAnnotationWindow: NSPanel {
         self.onCommit = onCommit
         self.onCancel = onCancel
 
-        let panelWidth = max(selectionRect.width, 280)
-        let panelHeight: CGFloat = 84
+        let panelWidth = max(selectionRect.width, 180)
+        let notePanelHeight: CGFloat = 124
+        let imageHeight = max(1, selectionRect.height * panelWidth / max(selectionRect.width, 1))
+        let totalHeight = imageHeight + notePanelHeight
 
-        // Place the text note box directly below the selection area, or above if screen edge is reached
-        var winY = selectionRect.minY - panelHeight - 8
+        // Keep the annotation window attached to the selected region.
+        var winY = selectionRect.minY - totalHeight - 8
         if winY < 20 {
             winY = selectionRect.maxY + 8
         }
         let winX = selectionRect.minX
 
-        let frame = NSRect(x: winX, y: winY, width: panelWidth, height: panelHeight)
+        let frame = NSRect(x: winX, y: winY, width: panelWidth, height: totalHeight)
 
         super.init(contentRect: frame, styleMask: [.borderless], backing: .buffered, defer: false)
         isOpaque = false
@@ -471,7 +450,9 @@ private final class ScreenAnnotationWindow: NSPanel {
 
         contentView = ScreenAnnotationContentView(
             width: panelWidth,
-            height: panelHeight,
+            imageHeight: imageHeight,
+            screenshot: screenshot,
+            notePanelHeight: notePanelHeight,
             onCommit: onCommit,
             onCancel: onCancel
         )
@@ -490,17 +471,19 @@ private final class ScreenAnnotationWindow: NSPanel {
 private final class ScreenAnnotationContentView: NSView {
     private let onCommit: (String) -> Void
     private let onCancel: () -> Void
+    private let imageView: NSImageView
     private let textView: NSTextView
     private let hintLabel: NSTextField
 
-    init(width: CGFloat, height: CGFloat, onCommit: @escaping (String) -> Void, onCancel: @escaping () -> Void) {
+    init(width: CGFloat, imageHeight: CGFloat, screenshot: NSImage, notePanelHeight: CGFloat,
+         onCommit: @escaping (String) -> Void, onCancel: @escaping () -> Void) {
         self.onCommit = onCommit
         self.onCancel = onCancel
 
         let textInsetH: CGFloat = 12
-        let textInsetTop: CGFloat = 10
-        let textViewHeight: CGFloat = height - 34
+        let textViewHeight: CGFloat = notePanelHeight - 34
 
+        imageView = NSImageView(image: screenshot)
         textView = NSTextView(frame: NSRect(
             x: textInsetH,
             y: 26,
@@ -509,9 +492,9 @@ private final class ScreenAnnotationContentView: NSView {
         ))
 
         hintLabel = NSTextField(labelWithString: "↩ Enter to copy image  •  ESC to copy without note")
-        hintLabel.frame = NSRect(x: textInsetH, y: 6, width: width - textInsetH * 2, height: 16)
+        hintLabel.frame = NSRect(x: textInsetH, y: 7, width: width - textInsetH * 2, height: 16)
 
-        super.init(frame: NSRect(x: 0, y: 0, width: width, height: height))
+        super.init(frame: NSRect(x: 0, y: 0, width: width, height: imageHeight + notePanelHeight))
 
         wantsLayer = true
         layer?.backgroundColor = NSColor(red: 0.12, green: 0.13, blue: 0.15, alpha: 0.96).cgColor
@@ -519,6 +502,13 @@ private final class ScreenAnnotationContentView: NSView {
         layer?.masksToBounds = true
         layer?.borderWidth = 1.0
         layer?.borderColor = NSColor(white: 0.30, alpha: 0.8).cgColor
+
+        imageView.frame = NSRect(x: 0, y: notePanelHeight, width: width, height: imageHeight)
+        imageView.imageScaling = .scaleProportionallyUpOrDown
+        imageView.wantsLayer = true
+        imageView.layer?.borderWidth = 1.0
+        imageView.layer?.borderColor = NSColor(white: 0.85, alpha: 0.75).cgColor
+        addSubview(imageView)
 
         // Text view setup
         textView.font = .systemFont(ofSize: 14)
@@ -575,5 +565,3 @@ extension ScreenAnnotationContentView: NSTextViewDelegate {
         return false
     }
 }
-
-
