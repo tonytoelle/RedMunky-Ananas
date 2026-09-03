@@ -94,6 +94,8 @@ final class ScreenAnnotationManager {
         closeSelectionWindows()
 
         // Create overlay window on EVERY active screen for multi-monitor support
+        let cursorLocation = NSEvent.mouseLocation
+        var currentScreenWindow: ScreenAnnotationSelectionWindow?
         for screen in NSScreen.screens {
             let win = ScreenAnnotationSelectionWindow(screen: screen, onSelected: { [weak self] rect in
                 self?.closeSelectionWindows()
@@ -102,10 +104,16 @@ final class ScreenAnnotationManager {
                 self?.closeSelectionWindows()
             })
             selectionWindows.append(win)
-            win.orderFrontRegardless()
+            if screen.frame.contains(cursorLocation) {
+                currentScreenWindow = win
+            } else {
+                win.orderFrontRegardless()
+            }
         }
 
         NSApp.activate(ignoringOtherApps: true)
+        // Make the current display's overlay key before the first mouse-down.
+        currentScreenWindow?.makeKeyAndOrderFront(nil)
     }
 
     private func closeSelectionWindows() {
@@ -427,16 +435,13 @@ private final class ScreenAnnotationWindow: NSPanel {
         self.onCommit = onCommit
         self.onCancel = onCancel
 
-        let panelWidth = max(selectionRect.width, 180)
+        let panelWidth = selectionRect.width
         let notePanelHeight: CGFloat = 124
-        let imageHeight = max(1, selectionRect.height * panelWidth / max(selectionRect.width, 1))
+        let imageHeight = selectionRect.height
         let totalHeight = imageHeight + notePanelHeight
 
-        // Keep the annotation window attached to the selected region.
-        var winY = selectionRect.minY - totalHeight - 8
-        if winY < 20 {
-            winY = selectionRect.maxY + 8
-        }
+        // Keep the image at the exact screen position that was captured.
+        let winY = selectionRect.minY - notePanelHeight
         let winX = selectionRect.minX
 
         let frame = NSRect(x: winX, y: winY, width: panelWidth, height: totalHeight)
@@ -450,6 +455,7 @@ private final class ScreenAnnotationWindow: NSPanel {
 
         contentView = ScreenAnnotationContentView(
             width: panelWidth,
+            imageWidth: selectionRect.width,
             imageHeight: imageHeight,
             screenshot: screenshot,
             notePanelHeight: notePanelHeight,
@@ -475,7 +481,7 @@ private final class ScreenAnnotationContentView: NSView {
     private let textView: NSTextView
     private let hintLabel: NSTextField
 
-    init(width: CGFloat, imageHeight: CGFloat, screenshot: NSImage, notePanelHeight: CGFloat,
+    init(width: CGFloat, imageWidth: CGFloat, imageHeight: CGFloat, screenshot: NSImage, notePanelHeight: CGFloat,
          onCommit: @escaping (String) -> Void, onCancel: @escaping () -> Void) {
         self.onCommit = onCommit
         self.onCancel = onCancel
@@ -503,7 +509,7 @@ private final class ScreenAnnotationContentView: NSView {
         layer?.borderWidth = 1.0
         layer?.borderColor = NSColor(white: 0.30, alpha: 0.8).cgColor
 
-        imageView.frame = NSRect(x: 0, y: notePanelHeight, width: width, height: imageHeight)
+        imageView.frame = NSRect(x: 0, y: notePanelHeight, width: imageWidth, height: imageHeight)
         imageView.imageScaling = .scaleProportionallyUpOrDown
         imageView.wantsLayer = true
         imageView.layer?.borderWidth = 1.0
