@@ -1,0 +1,135 @@
+{
+  "": {
+    "swiftmodule": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/ShortKing.swiftmodule"
+  },
+  "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/src/Managers/MacroStore.swift": {
+    "object": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/MacroStore.o",
+    "swift-dependencies": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/MacroStore.swiftdeps",
+    "diagnostics": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/MacroStore.dia"
+  },
+  "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/src/Managers/CarbonHotKeyManager.swift": {
+    "object": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/CarbonHotKeyManager.o",
+    "swift-dependencies": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/CarbonHotKeyManager.swiftdeps",
+    "diagnostics": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/CarbonHotKeyManager.dia"
+  },
+  "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/src/Managers/AXInspectorManager.swift": {
+    "object": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/AXInspectorManager.o",
+    "swift-dependencies": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/AXInspectorManager.swiftdeps",
+    "diagnostics": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/AXInspectorManager.dia"
+  },
+  "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/src/Managers/ScreenAnnotationManager.swift": {
+    "object": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/ScreenAnnotationManager.o",
+    "swift-dependencies": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/ScreenAnnotationManager.swiftdeps",
+    "diagnostics": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/ScreenAnnotationManager.dia"
+  },
+  "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/src/Managers/ShortKingParser.swift": {
+    "object": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/ShortKingParser.o",
+    "swift-dependencies": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/ShortKingParser.swiftdeps",
+    "diagnostics": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/ShortKingParser.dia"
+  },
+  "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/src/Managers/DropShelfManager.swift": {
+    "object": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/DropShelfManager.o",
+    "swift-dependencies": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/DropShelfManager.swiftdeps",
+    "diagnostics": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/DropShelfManager.dia"
+  },
+  "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/src/Managers/MultitouchManager.swift": {
+    "object": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/MultitouchManager.o",
+    "swift-dependencies": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/MultitouchManager.swiftdeps",
+    "diagnostics": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/MultitouchManager.dia"
+  },
+  "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/src/Managers/InputSimulator.swift": {
+    "object": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/InputSimulator.o",
+    "swift-dependencies": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/InputSimulator.swiftdeps",
+    "diagnostics": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/InputSimulator.dia"
+  },
+  "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/src/Managers/LaunchAtLoginManager.swift": {
+    "object": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/LaunchAtLoginManager.o",
+    "swift-dependencies": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/LaunchAtLoginManager.swiftdeps",
+    "diagnostics": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/LaunchAtLoginManager.dia"
+  },
+  "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/src/Managers/PermissionManager.swift": {
+    "object": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/PermissionManager.o",
+    "swift-dependencies": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/PermissionManager.swiftdeps",
+    "diagnostics": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/PermissionManager.dia"
+  },
+  "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/src/Models/Trigger.swift": {
+    "object": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/Trigger.o",
+    "swift-dependencies": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/Trigger.swiftdeps",
+    "diagnostics": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/Trigger.dia"
+  },
+  "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/src/Models/MacroItem.swift": {
+    "object": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/MacroItem.o",
+    "swift-dependencies": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/MacroItem.swiftdeps",
+    "diagnostics": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/MacroItem.dia"
+  },
+  "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/src/Models/FileSystemNode.swift": {
+    "object": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/FileSystemNode.o",
+    "swift-dependencies": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/FileSystemNode.swiftdeps",
+    "diagnostics": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/FileSystemNode.dia"
+  },
+  "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/src/Utilities/IconHelpers.swift": {
+    "object": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/IconHelpers.o",
+    "swift-dependencies": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/IconHelpers.swiftdeps",
+    "diagnostics": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/IconHelpers.dia"
+  },
+  "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/src/Utilities/String+Extensions.swift": {
+    "object": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/String+Extensions.o",
+    "swift-dependencies": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/String+Extensions.swiftdeps",
+    "diagnostics": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/String+Extensions.dia"
+  },
+  "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/src/main.swift": {
+    "object": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/main.o",
+    "swift-dependencies": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/main.swiftdeps",
+    "diagnostics": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/main.dia"
+  },
+  "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/src/Views/DropShelfView.swift": {
+    "object": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/DropShelfView.o",
+    "swift-dependencies": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/DropShelfView.swiftdeps",
+    "diagnostics": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/DropShelfView.dia"
+  },
+  "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/src/Views/SettingsView.swift": {
+    "object": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/SettingsView.o",
+    "swift-dependencies": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/SettingsView.swiftdeps",
+    "diagnostics": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/SettingsView.dia"
+  },
+  "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/src/Views/DraggableActionListView.swift": {
+    "object": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/DraggableActionListView.o",
+    "swift-dependencies": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/DraggableActionListView.swiftdeps",
+    "diagnostics": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/DraggableActionListView.dia"
+  },
+  "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/src/Views/CaptureOverlayWindow.swift": {
+    "object": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/CaptureOverlayWindow.o",
+    "swift-dependencies": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/CaptureOverlayWindow.swiftdeps",
+    "diagnostics": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/CaptureOverlayWindow.dia"
+  },
+  "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/src/Views/ShortcutBadgeView.swift": {
+    "object": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/ShortcutBadgeView.o",
+    "swift-dependencies": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/ShortcutBadgeView.swiftdeps",
+    "diagnostics": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/ShortcutBadgeView.dia"
+  },
+  "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/src/Views/ActionEditViews.swift": {
+    "object": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/ActionEditViews.o",
+    "swift-dependencies": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/ActionEditViews.swiftdeps",
+    "diagnostics": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/ActionEditViews.dia"
+  },
+  "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/src/Views/SpotlightSearchBar.swift": {
+    "object": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/SpotlightSearchBar.o",
+    "swift-dependencies": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/SpotlightSearchBar.swiftdeps",
+    "diagnostics": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/SpotlightSearchBar.dia"
+  },
+  "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/src/Views/UIInspectorView.swift": {
+    "object": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/UIInspectorView.o",
+    "swift-dependencies": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/UIInspectorView.swiftdeps",
+    "diagnostics": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/UIInspectorView.dia"
+  },
+  "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/src/Views/MainEditorView.swift": {
+    "object": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/MainEditorView.o",
+    "swift-dependencies": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/MainEditorView.swiftdeps",
+    "diagnostics": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/MainEditorView.dia"
+  },
+  "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/src/Views/InlineActionEditViews.swift": {
+    "object": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/InlineActionEditViews.o",
+    "swift-dependencies": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/InlineActionEditViews.swiftdeps",
+    "diagnostics": "/Users/tonytoelle/Documents/Sorted/Color Grading/PROJECTS/RedMunky-ShortKing/DEVELOPING/.build-fast/InlineActionEditViews.dia"
+  }
+}

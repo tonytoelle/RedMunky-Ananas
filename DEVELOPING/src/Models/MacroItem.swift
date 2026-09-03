@@ -81,7 +81,7 @@ class MacroItem: Identifiable, ObservableObject {
 // ==========================================
 // MARK: - Carbon HotKey Manager
 // ==========================================
-private func carbonHotKeyCallback(
+func carbonHotKeyCallback(
     nextHandler: EventHandlerCallRef?, theEvent: EventRef?, userData: UnsafeMutableRawPointer?
 ) -> OSStatus {
     guard let theEvent = theEvent else { return OSStatus(eventNotHandledErr) }
@@ -95,4 +95,3 @@ private func carbonHotKeyCallback(
     }
     return OSStatus(eventNotHandledErr)
 }
-

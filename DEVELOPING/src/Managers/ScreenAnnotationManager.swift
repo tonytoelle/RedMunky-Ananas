@@ -8,6 +8,7 @@ final class ScreenAnnotationManager {
     static let shared = ScreenAnnotationManager()
 
     private var selectionWindows: [ScreenAnnotationSelectionWindow] = []
+    private var activeAnnotationWindow: ScreenAnnotationWindow?
     private var isScreenshotHotKeySuspended = false
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
@@ -40,7 +41,6 @@ final class ScreenAnnotationManager {
     }
 
     private func installLowLevelTap() {
-        // Intercept F9 system-wide even if standard hotkeys miss it
         let mask = (1 << CGEventType.keyDown.rawValue) | (1 << 14) // keyDown + NX_SYSDEFINED
         eventTap = CGEvent.tapCreate(
             tap: .cghidEventTap,
@@ -87,16 +87,17 @@ final class ScreenAnnotationManager {
     }
 
     func beginSelection() {
-        guard selectionWindows.isEmpty else { return }
+        // If an annotation window is already active, close it first
+        closeActiveAnnotation()
 
-        // Close any existing windows
+        guard selectionWindows.isEmpty else { return }
         closeSelectionWindows()
 
         // Create overlay window on EVERY active screen for multi-monitor support
         for screen in NSScreen.screens {
             let win = ScreenAnnotationSelectionWindow(screen: screen, onSelected: { [weak self] rect in
                 self?.closeSelectionWindows()
-                self?.captureAndCopyImage(for: rect)
+                self?.showAnnotationInput(for: rect)
             }, onCancel: { [weak self] in
                 self?.closeSelectionWindows()
             })
@@ -114,16 +115,31 @@ final class ScreenAnnotationManager {
         selectionWindows.removeAll()
     }
 
-    private func captureAndCopyImage(for rect: CGRect) {
+    private func closeActiveAnnotation() {
+        activeAnnotationWindow?.orderOut(nil)
+        activeAnnotationWindow = nil
+    }
+
+    private func showAnnotationInput(for rect: CGRect) {
         guard rect.width >= 4, rect.height >= 4 else { return }
 
         Task { @MainActor [weak self] in
             guard let self = self else { return }
             do {
-                let image = try await self.capture(rect: rect)
-                self.copyImageOnly(image)
-                self.playCaptureFeedbackSound()
-                self.flashScreenConfirmation(rect: rect)
+                let screenshot = try await self.capture(rect: rect)
+                let annotationWin = ScreenAnnotationWindow(
+                    selectionRect: rect,
+                    screenshot: screenshot,
+                    onCommit: { [weak self] userNote in
+                        self?.closeActiveAnnotation()
+                        self?.renderAndCopyCompositeImage(selectionRect: rect, screenshot: screenshot, noteText: userNote)
+                    },
+                    onCancel: { [weak self] in
+                        self?.closeActiveAnnotation()
+                    }
+                )
+                self.activeAnnotationWindow = annotationWin
+                annotationWin.show()
             } catch {
                 print("⚠️ Screenshot capture failed: \(error)")
                 NSSound.beep()
@@ -131,11 +147,93 @@ final class ScreenAnnotationManager {
         }
     }
 
+    private func renderAndCopyCompositeImage(selectionRect: CGRect, screenshot: NSImage, noteText: String) {
+        let trimmedNote = noteText.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // If user didn't write any note, copy the screenshot directly as pure image!
+        if trimmedNote.isEmpty {
+            copyImageOnly(screenshot)
+            playCaptureFeedbackSound()
+            flashScreenConfirmation(rect: selectionRect)
+            return
+        }
+
+        // User typed a note -> Combine screenshot + text banner into ONE SINGLE IMAGE
+        let width = max(screenshot.size.width, 240)
+        let font = NSFont.systemFont(ofSize: 15, weight: .regular)
+        let textPaddingH: CGFloat = 16
+        let textPaddingV: CGFloat = 14
+        let textWidth = max(1, width - textPaddingH * 2)
+
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.lineSpacing = 4
+        paragraphStyle.alignment = .left
+
+        let attributed = NSAttributedString(string: trimmedNote, attributes: [
+            .font: font,
+            .foregroundColor: NSColor.white,
+            .paragraphStyle: paragraphStyle
+        ])
+
+        let measured = attributed.boundingRect(
+            with: NSSize(width: textWidth, height: 10000),
+            options: [.usesLineFragmentOrigin, .usesFontLeading]
+        )
+
+        let notePanelHeight = max(48, ceil(measured.height) + textPaddingV * 2)
+        let outputSize = NSSize(width: width, height: screenshot.size.height + notePanelHeight)
+
+        let compositeImage = NSImage(size: outputSize)
+        compositeImage.lockFocus()
+
+        // Draw squircle card background for entire composite
+        let totalBounds = NSRect(origin: .zero, size: outputSize)
+        let cardPath = NSBezierPath(roundedRect: totalBounds, xRadius: 14, yRadius: 14)
+        cardPath.addClip()
+
+        // 1. Draw Screenshot on top portion
+        screenshot.draw(
+            in: NSRect(x: 0, y: notePanelHeight, width: width, height: screenshot.size.height),
+            from: .zero,
+            operation: .copy,
+            fraction: 1.0
+        )
+
+        // 2. Draw Note Bar on bottom portion (dark modern macOS panel)
+        NSColor(calibratedWhite: 0.14, alpha: 1.0).setFill()
+        let noteRect = NSRect(x: 0, y: 0, width: width, height: notePanelHeight)
+        noteRect.fill()
+
+        // Separator line between image and note
+        NSColor(calibratedWhite: 0.28, alpha: 0.8).setStroke()
+        let sepPath = NSBezierPath()
+        sepPath.move(to: NSPoint(x: 0, y: notePanelHeight))
+        sepPath.line(to: NSPoint(x: width, y: notePanelHeight))
+        sepPath.lineWidth = 1.0
+        sepPath.stroke()
+
+        // 3. Draw Note Text
+        let drawTextRect = NSRect(
+            x: textPaddingH,
+            y: textPaddingV,
+            width: textWidth,
+            height: notePanelHeight - textPaddingV * 2
+        )
+        attributed.draw(with: drawTextRect, options: [.usesLineFragmentOrigin, .usesFontLeading])
+
+        compositeImage.unlockFocus()
+
+        copyImageOnly(compositeImage)
+        playCaptureFeedbackSound()
+        flashScreenConfirmation(rect: selectionRect)
+    }
+
     private func copyImageOnly(_ image: NSImage) {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
 
-        // Write pure image data ONLY (no text/string representation at all)
+        // Write PURE IMAGE DATA ONLY (PNG & TIFF) to pasteboard.
+        // NEVER call pasteboard.setString(..., forType: .string) so applications always paste the graphic!
         guard let tiff = image.tiffRepresentation,
               let bitmap = NSBitmapImageRep(data: tiff),
               let pngData = bitmap.representation(using: .png, properties: [:]) else {
@@ -147,7 +245,7 @@ final class ScreenAnnotationManager {
         item.setData(pngData, forType: .png)
         item.setData(tiff, forType: .tiff)
         pasteboard.writeObjects([item])
-        print("📸 Screenshot copied directly as pure Image to clipboard (\(Int(image.size.width))x\(Int(image.size.height)) px)")
+        print("📸 Screenshot copied as PURE IMAGE to clipboard (\(Int(image.size.width))x\(Int(image.size.height)) px)")
     }
 
     private func playCaptureFeedbackSound() {
@@ -210,7 +308,7 @@ private extension CGRect {
     var center: CGPoint { CGPoint(x: midX, y: midY) }
 }
 
-// MARK: - Selection Overlay Window
+// MARK: - Selection Overlay Window (Multi-Monitor)
 private final class ScreenAnnotationSelectionWindow: NSWindow {
     private let onSelected: (CGRect) -> Void
     private let onCancel: () -> Void
@@ -342,4 +440,140 @@ private final class ScreenAnnotationSelectionView: NSView {
         )
     }
 }
+
+// MARK: - Screen Annotation Window (Text Penampang Input Box)
+private final class ScreenAnnotationWindow: NSPanel {
+    private let onCommit: (String) -> Void
+    private let onCancel: () -> Void
+
+    init(selectionRect: CGRect, screenshot: NSImage, onCommit: @escaping (String) -> Void, onCancel: @escaping () -> Void) {
+        self.onCommit = onCommit
+        self.onCancel = onCancel
+
+        let panelWidth = max(selectionRect.width, 280)
+        let panelHeight: CGFloat = 84
+
+        // Place the text note box directly below the selection area, or above if screen edge is reached
+        var winY = selectionRect.minY - panelHeight - 8
+        if winY < 20 {
+            winY = selectionRect.maxY + 8
+        }
+        let winX = selectionRect.minX
+
+        let frame = NSRect(x: winX, y: winY, width: panelWidth, height: panelHeight)
+
+        super.init(contentRect: frame, styleMask: [.borderless], backing: .buffered, defer: false)
+        isOpaque = false
+        backgroundColor = .clear
+        level = .screenSaver
+        hasShadow = true
+        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+
+        contentView = ScreenAnnotationContentView(
+            width: panelWidth,
+            height: panelHeight,
+            onCommit: onCommit,
+            onCancel: onCancel
+        )
+    }
+
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { true }
+
+    func show() {
+        makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+}
+
+// MARK: - Screen Annotation Content View (Typing UI)
+private final class ScreenAnnotationContentView: NSView {
+    private let onCommit: (String) -> Void
+    private let onCancel: () -> Void
+    private let textView: NSTextView
+    private let hintLabel: NSTextField
+
+    init(width: CGFloat, height: CGFloat, onCommit: @escaping (String) -> Void, onCancel: @escaping () -> Void) {
+        self.onCommit = onCommit
+        self.onCancel = onCancel
+
+        let textInsetH: CGFloat = 12
+        let textInsetTop: CGFloat = 10
+        let textViewHeight: CGFloat = height - 34
+
+        textView = NSTextView(frame: NSRect(
+            x: textInsetH,
+            y: 26,
+            width: width - textInsetH * 2,
+            height: textViewHeight
+        ))
+
+        hintLabel = NSTextField(labelWithString: "↩ Enter to copy image  •  ESC to copy without note")
+        hintLabel.frame = NSRect(x: textInsetH, y: 6, width: width - textInsetH * 2, height: 16)
+
+        super.init(frame: NSRect(x: 0, y: 0, width: width, height: height))
+
+        wantsLayer = true
+        layer?.backgroundColor = NSColor(red: 0.12, green: 0.13, blue: 0.15, alpha: 0.96).cgColor
+        layer?.cornerRadius = 10
+        layer?.masksToBounds = true
+        layer?.borderWidth = 1.0
+        layer?.borderColor = NSColor(white: 0.30, alpha: 0.8).cgColor
+
+        // Text view setup
+        textView.font = .systemFont(ofSize: 14)
+        textView.textColor = .white
+        textView.backgroundColor = .clear
+        textView.drawsBackground = false
+        textView.isRichText = false
+        textView.isEditable = true
+        textView.isSelectable = true
+        textView.isHorizontallyResizable = false
+        textView.isVerticallyResizable = true
+        textView.textContainer?.widthTracksTextView = true
+        textView.textContainer?.lineFragmentPadding = 0
+        textView.delegate = self
+        addSubview(textView)
+
+        // Hint label setup
+        hintLabel.font = .systemFont(ofSize: 10.5, weight: .medium)
+        hintLabel.textColor = NSColor(white: 0.60, alpha: 1.0)
+        addSubview(hintLabel)
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if window != nil {
+            window?.makeFirstResponder(textView)
+        }
+    }
+}
+
+extension ScreenAnnotationContentView: NSTextViewDelegate {
+    func textView(_ textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
+        if commandSelector == #selector(NSResponder.insertNewline(_:)) {
+            // Check modifier: Shift+Enter allows newline in note, Enter commits
+            if NSEvent.modifierFlags.contains(.shift) {
+                return false // Insert newline
+            }
+            onCommit(textView.string)
+            return true
+        }
+
+        if commandSelector == #selector(NSResponder.cancelOperation(_:)) {
+            // ESC key: commit whatever is typed, or if empty commit empty (pure screenshot)
+            if textView.string.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                onCancel()
+            } else {
+                onCommit(textView.string)
+            }
+            return true
+        }
+
+        return false
+    }
+}
+
 
