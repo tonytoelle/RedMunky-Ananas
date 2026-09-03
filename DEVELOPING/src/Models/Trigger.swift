@@ -310,6 +310,7 @@ enum MacroAction: Equatable {
     case originAction(type: OriginType)
     case currentPosition(button: CGMouseButton)
     case axPress(target: String)
+    case screenshotAnnotation
 
     var iconName: String {
         switch self {
@@ -333,6 +334,7 @@ enum MacroAction: Equatable {
         case .windowTransform: return "macwindow"
         case .originAction:  return "scope"
         case .axPress:       return "hand.tap"
+        case .screenshotAnnotation: return "rectangle.dashed.and.paperclip"
         }
     }
     var color: Color {
@@ -355,6 +357,7 @@ enum MacroAction: Equatable {
         case .windowTransform: return Color(red: 0.1, green: 0.58, blue: 0.8)
         case .originAction: return Color(red: 0.85, green: 0.15, blue: 0.45)
         case .axPress:      return Color.purple
+        case .screenshotAnnotation: return Color(red: 0.18, green: 0.52, blue: 0.78)
         }
     }
     var title: String {
@@ -379,6 +382,7 @@ enum MacroAction: Equatable {
         case .windowTransform:      return "Window Transform"
         case .originAction:         return "Origin"
         case .axPress:              return "AX Press"
+        case .screenshotAnnotation: return "Screenshot with Note"
         }
     }
     var details: String {
@@ -427,6 +431,8 @@ enum MacroAction: Equatable {
             return "Record current \(type == .cursor ? "cursor position" : "active window state") as origin"
         case .axPress(let target):
             return "Perform Accessibility Press on \"\(target)\""
+        case .screenshotAnnotation:
+            return "Capture a screen region and add a note"
         }
     }
     var parameterString: String {
@@ -480,6 +486,8 @@ enum MacroAction: Equatable {
             return type.title
         case .axPress(let target):
             return "\"\(target)\""
+        case .screenshotAnnotation:
+            return "F9 tool"
         }
     }
     var scriptLine: String {
@@ -533,6 +541,8 @@ enum MacroAction: Equatable {
             return "ACTION: origin \(type.rawValue)"
         case .axPress(let target):
             return "ACTION: ax_press \"\(target)\""
+        case .screenshotAnnotation:
+            return "ACTION: screenshot_annotation"
         }
     }
     

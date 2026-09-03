@@ -537,6 +537,8 @@ class MacroStore: ObservableObject {
             let items = macro.actionItems
             for trig in macro.triggers {
                 if trig.keyCode == 144 || trig.keyCode == 145 { continue }
+                // F9 is reserved by the built-in screenshot annotation tool.
+                if trig.keyCode == 101 { continue }
                 
                 let combo = comboKey(for: trig)
                 
@@ -1271,6 +1273,7 @@ class MacroStore: ObservableObject {
         case "Window Transform": newAction = .windowTransform(p1: .zero, p2: .zero, p3: .zero, p4: .zero)
         case "Origin": newAction = .originAction(type: .cursor)
         case "AX Press": newAction = .axPress(target: "")
+        case "Screenshot with Note": newAction = .screenshotAnnotation
         default: newAction = .delay(ms: 300)
         }
         

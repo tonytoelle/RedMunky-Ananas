@@ -295,6 +295,8 @@ class ShortKingParser {
             var t = s.dropFirst(cmd.count).trimmingCharacters(in: .whitespaces)
             if t.hasPrefix("\"") && t.hasSuffix("\"") && t.count >= 2 { t = String(t.dropFirst().dropLast()) }
             return .axPress(target: t)
+        case "screenshot_annotation", "screenshot_with_note", "annotated_screenshot":
+            return .screenshotAnnotation
         case "volume_up":
             return .volumeUp
         case "volume_down":

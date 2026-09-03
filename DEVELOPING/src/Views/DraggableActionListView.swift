@@ -426,6 +426,10 @@ struct ActionCardView: View {
             InlineCustomActionEditView(action: $item.action, onPreSave: onPreSave, onSave: onSave, detailWidth: detailWidth)
         case .axPress:
             InlineAXPressEditView(action: $item.action, onPreSave: onPreSave, onSave: onSave, detailWidth: detailWidth)
+        case .screenshotAnnotation:
+            ActionCardEditButton(action: {
+                ScreenAnnotationManager.shared.beginSelection()
+            }, title: "Start Capture")
         case .delay:
             InlineDelayEditView(action: $item.action, onPreSave: onPreSave, onSave: onSave, detailWidth: detailWidth)
         case .pressKey, .pressShortcut:
@@ -929,4 +933,3 @@ struct GroupActionDropDelegate: DropDelegate {
         }
     }
 }
-

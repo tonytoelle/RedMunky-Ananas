@@ -58,6 +58,8 @@ struct SearchableActionDef: Identifiable {
               keywords: ["origin", "origin position", "record position", "save pos", "titik awal", "posisi awal"]),
         .init(title: "AX Press", icon: "hand.tap", color: Color.purple, category: "Utility",
               keywords: ["ax press", "ax", "accessibility", "press", "ui element", "menu item", "button", "click ax", "element", "axpress", "axclick", "otomasi ui"]),
+        .init(title: "Screenshot with Note", icon: "rectangle.dashed.and.paperclip", color: Color(red: 0.18, green: 0.52, blue: 0.78), category: "Utility",
+              keywords: ["screenshot", "screen shot", "annotation", "capture note", "screen capture", "tangkapan layar", "catatan layar"]),
     ]
 }
 

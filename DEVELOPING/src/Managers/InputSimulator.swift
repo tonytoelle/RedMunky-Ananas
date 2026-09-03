@@ -420,6 +420,13 @@ class InputSimulator {
                     guard !isEmergencyStopped else { return }
                     InputSimulator.performAXPress(target: target)
                     usleep(50000)
+
+                case .screenshotAnnotation:
+                    guard !isEmergencyStopped else { return }
+                    DispatchQueue.main.async {
+                        ScreenAnnotationManager.shared.beginSelection()
+                    }
+                    usleep(50000)
                     
                 case .volumeUp:
                     guard !isEmergencyStopped else { return }
