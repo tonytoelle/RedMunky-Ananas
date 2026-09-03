@@ -360,16 +360,9 @@ class MacroStore: ObservableObject {
                 let targetCode: CGKeyCode = (name == "brightness_down") ? 145 : 144
                 if trigger.keyCode == targetCode {
                     print("🚀 Executing special hardware key macro: \(macro.fileName)")
-                    let originPos: CGPoint = {
-                        if let loc = CGEvent(source: nil)?.location, loc != .zero { return loc }
-                        let cp = NSEvent.mouseLocation
-                        let sh = NSScreen.screens.first?.frame.height ?? 1080
-                        return CGPoint(x: cp.x, y: sh - cp.y)
-                    }()
+                    let originPos = MacroRuntime.currentCursorPosition()
                     let windowRect = InputSimulator.getFrontmostWindowRect()
-                    DispatchQueue.global(qos: .userInitiated).async {
-                        InputSimulator.execute(items: items, preRecordedOrigin: originPos, preRecordedWindowRect: windowRect, macroID: macro.id)
-                    }
+                    MacroRuntime.shared.run(items: items, macroID: macro.id, origin: originPos, windowRect: windowRect)
                 }
             }
         }
@@ -558,12 +551,7 @@ class MacroStore: ObservableObject {
                 let altItems = trig.alternateActionItems
                 CarbonHotKeyManager.shared.register(trigger: trig) { [weak self] in
                     print("🚀 Executing: \(macro.fileName)")
-                    let originPos: CGPoint = {
-                        if let loc = CGEvent(source: nil)?.location, loc != .zero { return loc }
-                        let cp = NSEvent.mouseLocation
-                        let sh = NSScreen.screens.first?.frame.height ?? 1080
-                        return CGPoint(x: cp.x, y: sh - cp.y)
-                    }()
+                    let originPos = MacroRuntime.currentCursorPosition()
                     let windowRect = InputSimulator.getFrontmostWindowRect()
                     
                     let executionItems: [MacroActionItem]
@@ -576,9 +564,7 @@ class MacroStore: ObservableObject {
                         executionItems = items
                     }
                     
-                    DispatchQueue.global(qos: .userInitiated).async {
-                        InputSimulator.execute(items: executionItems, preRecordedOrigin: originPos, preRecordedWindowRect: windowRect, macroID: macro.id)
-                    }
+                    MacroRuntime.shared.run(items: executionItems, macroID: macro.id, origin: originPos, windowRect: windowRect)
                 }
             }
         }
@@ -1027,18 +1013,7 @@ class MacroStore: ObservableObject {
     }
 
     func runMacro(_ macro: MacroItem) {
-        let items = macro.actionItems
-        // Capture cursor origin on main thread before dispatching to background
-        let originPos: CGPoint = {
-            if let loc = CGEvent(source: nil)?.location, loc != .zero {
-                return loc
-            }
-            let cocoaPt = NSEvent.mouseLocation
-            let screenH = NSScreen.screens.first?.frame.height ?? 1080
-            return CGPoint(x: cocoaPt.x, y: screenH - cocoaPt.y)
-        }()
-        let windowRect = InputSimulator.getFrontmostWindowRect()
-        DispatchQueue.global(qos: .userInitiated).async { InputSimulator.execute(items: items, preRecordedOrigin: originPos, preRecordedWindowRect: windowRect, macroID: macro.id) }
+        MacroRuntime.shared.run(macro)
     }
 
     func pasteCopiedMacro(toFolder destDir: URL) {

@@ -130,7 +130,7 @@ class CarbonHotKeyManager {
     func dispatch(hotKeyID: UInt32) {
         if hotKeyID == 9999 {
             print("🚨 EMERGENCY KILL")
-            InputSimulator.isEmergencyStopped = true
+            MacroRuntime.shared.emergencyStop()
             NSSound.beep()
             DispatchQueue.main.async { NSApp.terminate(nil) }
             return

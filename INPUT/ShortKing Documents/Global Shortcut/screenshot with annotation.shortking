@@ -1,5 +1,5 @@
 # ShortKing Macro Script
-TRIGGER: F9
+TRIGGER: f7
 
 # Actions:
 ACTION: screenshot_annotation
