@@ -73,4 +73,15 @@ extension String {
                             .replacingOccurrences(of: "-", with: " ")
         return formatted.capitalized
     }
+    
+    func wrapWords(maxWordsPerLine: Int = 3) -> String {
+        let words = self.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
+        guard words.count > maxWordsPerLine else { return self }
+        var lines: [String] = []
+        for i in stride(from: 0, to: words.count, by: maxWordsPerLine) {
+            let end = min(i + maxWordsPerLine, words.count)
+            lines.append(words[i..<end].joined(separator: " "))
+        }
+        return lines.joined(separator: "\n")
+    }
 }

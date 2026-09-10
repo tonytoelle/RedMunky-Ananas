@@ -1362,7 +1362,7 @@ struct SidebarNodeView: View {
                     )
                 }
             } label: {
-                HStack(spacing: 6) {
+                HStack(alignment: .top, spacing: 6) {
                     let appBundleId: String? = {
                         if let customId = config.customAppIconBundleId, !customId.isEmpty {
                             return customId
@@ -1399,7 +1399,7 @@ struct SidebarNodeView: View {
                             }
                         )
                     } else {
-                        Text(name.toTitleCase())
+                        Text(name.toTitleCase().wrapWords(maxWordsPerLine: 3))
                             .font(.system(size: 13, weight: isSelected ? .bold : .medium))
                             .foregroundColor(isSelected ? Color.accentColor : (isFolderEffectivelyEnabled ? Color(white: 0.92) : Color.secondary.opacity(0.65)))
                             .lineLimit(nil)
@@ -1408,7 +1408,7 @@ struct SidebarNodeView: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     
-                    Spacer(minLength: 4)
+                    Spacer(minLength: 45)
                     
                     if !isFolderEffectivelyEnabled {
                         Text("Off")
@@ -1428,6 +1428,7 @@ struct SidebarNodeView: View {
                         .background(isSelected ? Color.accentColor.opacity(0.12) : Color.white.opacity(0.06))
                         .clipShape(Capsule())
                 }
+                .padding(.vertical, 4)
                 .opacity(isFolderEffectivelyEnabled ? 1.0 : 0.55)
                 .contentShape(Rectangle())
                 .onTapGesture {
@@ -1530,7 +1531,7 @@ struct SidebarNodeView: View {
             let isMacroEffectivelyEnabled = isParentEnabled && macro.isEffectivelyEnabled
             let isSelected = selectedPaths.contains(macro.fileURL.path) || (store.selectedFilePath == macro.fileURL.path && selectedPaths.isEmpty)
 
-            HStack(spacing: 8) {
+            HStack(alignment: .top, spacing: 8) {
                 let mainAction = macro.actionItems.first?.action
                 let iconName = mainAction?.iconName ?? "bolt.fill"
                 let iconColor = mainAction?.color ?? squircleColor(for: macro.fileName.hashValue)
@@ -1557,7 +1558,7 @@ struct SidebarNodeView: View {
                     )
                 } else {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(macro.fileName.replacingOccurrences(of: ".shortking", with: "").toTitleCase())
+                        Text(macro.fileName.replacingOccurrences(of: ".shortking", with: "").toTitleCase().wrapWords(maxWordsPerLine: 3))
                             .font(.system(size: 13, weight: isSelected ? .bold : .regular))
                             .foregroundColor(isSelected ? Color.accentColor : (isMacroEffectivelyEnabled ? Color(white: 0.90) : Color.secondary.opacity(0.55)))
                             .lineLimit(nil)
@@ -1581,7 +1582,7 @@ struct SidebarNodeView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
-                Spacer(minLength: 4)
+                Spacer(minLength: 45)
 
                 if !isMacroEffectivelyEnabled {
                     Text("Off")
@@ -1596,6 +1597,7 @@ struct SidebarNodeView: View {
                 ShortcutBadgeView(trigger: macro.trigger, isDimmedMini: true, isSelected: isSelected)
                     .opacity(isSelected ? 0.6 : (isMacroEffectivelyEnabled ? 1.0 : 0.35))
             }
+            .padding(.vertical, 4)
             .contentShape(Rectangle())
             .onTapGesture {
                 let flags = NSEvent.modifierFlags
