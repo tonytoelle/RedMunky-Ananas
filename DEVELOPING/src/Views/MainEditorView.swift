@@ -1402,6 +1402,9 @@ struct SidebarNodeView: View {
                         Text(name.toTitleCase())
                             .font(.system(size: 13, weight: isSelected ? .bold : .medium))
                             .foregroundColor(isSelected ? Color.accentColor : (isFolderEffectivelyEnabled ? Color(white: 0.92) : Color.secondary.opacity(0.65)))
+                            .lineLimit(nil)
+                            .multilineTextAlignment(.leading)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     
@@ -1557,6 +1560,9 @@ struct SidebarNodeView: View {
                         Text(macro.fileName.replacingOccurrences(of: ".shortking", with: "").toTitleCase())
                             .font(.system(size: 13, weight: isSelected ? .bold : .regular))
                             .foregroundColor(isSelected ? Color.accentColor : (isMacroEffectivelyEnabled ? Color(white: 0.90) : Color.secondary.opacity(0.55)))
+                            .lineLimit(nil)
+                            .multilineTextAlignment(.leading)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                             .fixedSize(horizontal: false, vertical: true)
                         
                         if isSearching {
@@ -1565,10 +1571,14 @@ struct SidebarNodeView: View {
                                 Text(breadcrumbs.joined(separator: " > "))
                                     .font(.system(size: 9.5))
                                     .foregroundColor(isSelected ? Color.accentColor.opacity(0.8) : Color.secondary.opacity(0.65))
+                                    .lineLimit(nil)
+                                    .multilineTextAlignment(.leading)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
                                     .fixedSize(horizontal: false, vertical: true)
                             }
                         }
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
                 Spacer(minLength: 4)
