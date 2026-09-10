@@ -45,6 +45,30 @@ enum FileSystemNode: Identifiable {
         case .macro: return nil
         }
     }
+
+    func searchScore(_ query: String) -> Int {
+        switch self {
+        case .folder(let name, _, _, let children):
+            let q = query.lowercased().trimmingCharacters(in: .whitespaces)
+            var nameScore = 9999
+            if name.lowercased() == q {
+                nameScore = 0
+            } else if name.lowercased().hasPrefix(q) {
+                nameScore = 1
+            } else if name.lowercased().contains(q) {
+                nameScore = 5
+            } else {
+                let fm = fuzzyMatch(q, in: name)
+                if fm.matches {
+                    nameScore = 40 + fm.score
+                }
+            }
+            let childrenMinScore = children.map { $0.searchScore(query) }.min() ?? 9999
+            return min(nameScore, childrenMinScore)
+        case .macro(let item):
+            return item.searchScore(query) ?? 9999
+        }
+    }
 }
 
 // ==========================================

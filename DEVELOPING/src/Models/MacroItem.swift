@@ -54,27 +54,49 @@ class MacroItem: Identifiable, ObservableObject {
         self.parentFolderConfig = parentFolderConfig
     }
 
-    func matchesSearchQuery(_ query: String) -> Bool {
+    func searchScore(_ query: String) -> Int? {
         let q = query.lowercased().trimmingCharacters(in: .whitespaces)
-        guard !q.isEmpty else { return true }
+        guard !q.isEmpty else { return 0 }
         
-        // 1. Check all triggers
+        var bestScore = Int.max
+        
+        // 1. Check trigger score
         for trig in triggers {
-            if trig.matchesSearchQuery(q) {
-                return true
+            if let score = trig.searchScore(query: q) {
+                bestScore = min(bestScore, score)
             }
         }
         
-        // 2. Check file name
-        let cleanFileName = fileName.replacingOccurrences(of: ".shortking", with: "")
-        if cleanFileName.lowercased().contains(q) {
-            return true
-        }
-        if fuzzyMatch(q, in: cleanFileName).matches {
-            return true
+        // 2. Check file name score
+        let cleanFileName = fileName.replacingOccurrences(of: ".shortking", with: "").lowercased()
+        if cleanFileName == q {
+            bestScore = min(bestScore, 0)
+        } else if cleanFileName.hasPrefix(q) {
+            bestScore = min(bestScore, 1)
+        } else if cleanFileName.contains(q) {
+            bestScore = min(bestScore, 5)
+        } else {
+            let fm = fuzzyMatch(q, in: cleanFileName)
+            if fm.matches {
+                bestScore = min(bestScore, 40 + fm.score)
+            }
         }
         
-        return false
+        // 3. Check action items score
+        for item in actionItems {
+            let desc = item.action.title.lowercased()
+            if desc == q {
+                bestScore = min(bestScore, 10)
+            } else if desc.contains(q) {
+                bestScore = min(bestScore, 20)
+            }
+        }
+        
+        return bestScore < Int.max ? bestScore : nil
+    }
+
+    func matchesSearchQuery(_ query: String) -> Bool {
+        return searchScore(query) != nil
     }
 }
 

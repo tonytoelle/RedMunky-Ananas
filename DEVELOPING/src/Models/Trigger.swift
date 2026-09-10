@@ -136,25 +136,23 @@ struct Trigger: Hashable, Equatable, Codable, Identifiable {
         hasher.combine(mode)
     }
 
-    func matchesSearchQuery(_ query: String) -> Bool {
+    func searchScore(query: String) -> Int? {
         let q = query.lowercased().trimmingCharacters(in: .whitespaces)
-        guard !q.isEmpty else { return false }
+        guard !q.isEmpty else { return 0 }
         
         let dStr = displayString.lowercased()
         let sStr = scriptString.lowercased()
         
-        // 1. Direct match on displayString or scriptString
-        if dStr.contains(q) || sStr.contains(q) {
-            return true
+        if sStr == q || dStr == q {
+            return 0
         }
         
-        // 2. Tokenized matching (handling +, -, comma, space delimiters)
         let cleanQ = q.replacingOccurrences(of: "+", with: " ")
                       .replacingOccurrences(of: "-", with: " ")
                       .replacingOccurrences(of: ",", with: " ")
                       .replacingOccurrences(of: "_", with: " ")
         let tokens = cleanQ.split(separator: " ").map { String($0) }
-        guard !tokens.isEmpty else { return false }
+        guard !tokens.isEmpty else { return nil }
         
         var queryCmd = false
         var queryCtrl = false
@@ -177,37 +175,61 @@ struct Trigger: Hashable, Equatable, Codable, Identifiable {
             }
         }
         
-        // Check requested modifier requirements
-        if queryCmd && !requireCmd { return false }
-        if queryCtrl && !requireControl { return false }
-        if queryOpt && !requireOption { return false }
-        if queryShift && !requireShift { return false }
+        if queryCmd && !requireCmd { return nil }
+        if queryCtrl && !requireControl { return nil }
+        if queryOpt && !requireOption { return nil }
+        if queryShift && !requireShift { return nil }
         
-        // If query was modifier-only (e.g. searching "cmd" or "ctrl")
+        let triggerModifierCount = (requireCmd ? 1 : 0) + (requireControl ? 1 : 0) + (requireOption ? 1 : 0) + (requireShift ? 1 : 0)
+        let queryModifierCount = (queryCmd ? 1 : 0) + (queryCtrl ? 1 : 0) + (queryOpt ? 1 : 0) + (queryShift ? 1 : 0)
+        let extraModifiers = max(0, triggerModifierCount - queryModifierCount)
+        
         if keyTokens.isEmpty {
-            return true
+            return extraModifiers
         }
         
-        // Match key tokens against current keyCode or keyName
         let currentKeyName = KeyMap.name(for: keyCode).lowercased()
         for keyToken in keyTokens {
-            if let tokenCode = KeyMap.keyCode(for: keyToken), tokenCode == keyCode {
-                return true
+            let isCodeMatch = (KeyMap.keyCode(for: keyToken) == keyCode)
+            let isExactNameMatch = (currentKeyName == keyToken)
+            
+            if isCodeMatch || isExactNameMatch {
+                return extraModifiers == 0 ? 0 : (2 + extraModifiers)
             }
-            if currentKeyName == keyToken || currentKeyName.hasPrefix(keyToken) {
-                return true
+            
+            if currentKeyName.hasPrefix(keyToken) {
+                return 10 + extraModifiers
             }
-            if fuzzyMatch(keyToken, in: currentKeyName).matches {
-                return true
+            
+            if sStr.contains(keyToken) || dStr.contains(keyToken) {
+                return 15 + extraModifiers
+            }
+            
+            let fmKey = fuzzyMatch(keyToken, in: currentKeyName)
+            if fmKey.matches {
+                return 50 + fmKey.score + extraModifiers
             }
         }
         
-        // 3. Fallback fuzzy match on display/script string
-        if fuzzyMatch(q, in: sStr).matches || fuzzyMatch(q, in: dStr).matches {
-            return true
+        if sStr.contains(q) || dStr.contains(q) {
+            return 20
         }
         
-        return false
+        let fmScript = fuzzyMatch(q, in: sStr)
+        if fmScript.matches {
+            return 60 + fmScript.score
+        }
+        
+        let fmDisplay = fuzzyMatch(q, in: dStr)
+        if fmDisplay.matches {
+            return 60 + fmDisplay.score
+        }
+        
+        return nil
+    }
+
+    func matchesSearchQuery(_ query: String) -> Bool {
+        return searchScore(query: query) != nil
     }
 
     // Manual Equatable

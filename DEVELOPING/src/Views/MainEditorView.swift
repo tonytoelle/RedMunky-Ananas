@@ -1708,7 +1708,7 @@ struct MainEditorView: View {
                 }
             }
         }
-        return result
+        return result.sorted { $0.searchScore(query) < $1.searchScore(query) }
     }
 
     private func expandAncestors(of path: String) {
