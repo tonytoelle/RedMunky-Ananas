@@ -23,10 +23,17 @@ final class ScreenAnnotationManager {
 
     func registerHotKey() {
         guard !isScreenshotHotKeySuspended else { return }
-        CarbonHotKeyManager.shared.registerScreenshotF9 { [weak self] in
-            DispatchQueue.main.async {
-                self?.beginSelection()
+        let hasUserF9 = MacroStore.shared.macros.contains { m in
+            m.isEffectivelyEnabled && m.triggers.contains { $0.keyCode == 101 && !$0.requireCmd && !$0.requireShift && !$0.requireOption && !$0.requireControl }
+        }
+        if !hasUserF9 {
+            CarbonHotKeyManager.shared.registerScreenshotF9 { [weak self] in
+                DispatchQueue.main.async {
+                    self?.beginSelection()
+                }
             }
+        } else {
+            CarbonHotKeyManager.shared.unregisterScreenshotF9()
         }
     }
 

@@ -530,8 +530,6 @@ class MacroStore: ObservableObject {
             let items = macro.actionItems
             for trig in macro.triggers {
                 if trig.keyCode == 144 || trig.keyCode == 145 { continue }
-                // F9 is reserved by the built-in screenshot annotation tool.
-                if trig.keyCode == 101 { continue }
                 
                 let combo = comboKey(for: trig)
                 

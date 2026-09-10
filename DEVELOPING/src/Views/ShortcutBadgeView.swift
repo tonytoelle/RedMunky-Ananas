@@ -118,10 +118,38 @@ struct HotKeyRecorder: View {
     func startRecording() {
         isRecording = true
         CarbonHotKeyManager.shared.unregisterAll()
-        monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+        monitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .systemDefined]) { event in
             let f = event.modifierFlags
-            let kc = event.keyCode
+            var kc = event.keyCode
             let isCmd = f.contains(.command), isShift = f.contains(.shift), isOpt = f.contains(.option), isCtrl = f.contains(.control)
+            
+            if event.type == .systemDefined && event.subtype.rawValue == 8 {
+                let data1 = event.data1
+                let mediaKeyCode = (data1 & 0xFFFF0000) >> 16
+                let keyFlags = data1 & 0x0000FFFF
+                let keyState = (keyFlags & 0xFF00) >> 8
+                
+                if keyState == 0x0A {
+                    switch mediaKeyCode {
+                    case 17, 18: // Rewind / Prev -> Physical F9
+                        kc = 101
+                    case 16:     // Play/Pause -> Physical F8
+                        kc = 100
+                    case 19:     // Fast Forward / Next -> Physical F10
+                        kc = 109
+                    case 1:      // Volume down -> F11
+                        kc = 103
+                    case 0:      // Volume up -> F12
+                        kc = 111
+                    default:
+                        return event
+                    }
+                } else {
+                    return event
+                }
+            } else if event.type != .keyDown {
+                return event
+            }
             
             // Esc alone = cancel
             if kc == 53 && !isCmd && !isShift && !isOpt && !isCtrl {

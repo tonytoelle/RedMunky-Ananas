@@ -1,0 +1,9 @@
+# ShortKing Macro Script
+TRIGGER: f11
+
+# Actions:
+ACTION: current_position right
+ACTION: press up x5
+ACTION: press right
+ACTION: press up x2
+ACTION: press return
