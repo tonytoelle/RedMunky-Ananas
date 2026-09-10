@@ -2,4 +2,5 @@
 DEVELOPING/bin/
 .agents/
 *.log
+*.o
 DEVELOPING/src/temp_build.swift
