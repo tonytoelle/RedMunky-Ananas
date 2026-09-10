@@ -1362,7 +1362,7 @@ struct SidebarNodeView: View {
                     )
                 }
             } label: {
-                HStack(alignment: .top, spacing: 6) {
+                HStack(alignment: .top, spacing: 12) {
                     let appBundleId: String? = {
                         if let customId = config.customAppIconBundleId, !customId.isEmpty {
                             return customId
@@ -1531,7 +1531,7 @@ struct SidebarNodeView: View {
             let isMacroEffectivelyEnabled = isParentEnabled && macro.isEffectivelyEnabled
             let isSelected = selectedPaths.contains(macro.fileURL.path) || (store.selectedFilePath == macro.fileURL.path && selectedPaths.isEmpty)
 
-            HStack(alignment: .top, spacing: 8) {
+            HStack(alignment: .top, spacing: 12) {
                 let mainAction = macro.actionItems.first?.action
                 let iconName = mainAction?.iconName ?? "bolt.fill"
                 let iconColor = mainAction?.color ?? squircleColor(for: macro.fileName.hashValue)
