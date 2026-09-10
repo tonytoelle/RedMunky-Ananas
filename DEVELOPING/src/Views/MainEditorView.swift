@@ -1275,6 +1275,7 @@ struct SidebarNodeView: View {
     var isParentEnabled: Bool = true
     @Binding var expandedFolders: Set<String>
     @Binding var selectedPaths: Set<String>
+    var isSearching: Bool = false
     var store = MacroStore.shared
     var onSelect: (String, NSEvent.ModifierFlags) -> Void
 
@@ -1287,7 +1288,7 @@ struct SidebarNodeView: View {
             let isFolderEffectivelyEnabled = isParentEnabled && config.isEnabled
             let isSelected = selectedPaths.contains(url.path) || store.selectedFolderPath == url.path
             let isExpanded = Binding<Bool>(
-                get: { expandedFolders.contains(url.path) },
+                get: { isSearching || expandedFolders.contains(url.path) },
                 set: { val in
                     if val {
                         _ = expandedFolders.insert(url.path)
@@ -1305,6 +1306,7 @@ struct SidebarNodeView: View {
                         isParentEnabled: isFolderEffectivelyEnabled,
                         expandedFolders: $expandedFolders,
                         selectedPaths: $selectedPaths,
+                        isSearching: isSearching,
                         onSelect: onSelect
                     )
                 }
@@ -1874,6 +1876,7 @@ struct MainEditorView: View {
                                 depth: 0,
                                 expandedFolders: $expandedFolders,
                                 selectedPaths: $selectedPaths,
+                                isSearching: !searchText.isEmpty,
                                 onSelect: handleSelect
                             )
                         }

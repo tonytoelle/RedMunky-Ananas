@@ -140,49 +140,69 @@ struct Trigger: Hashable, Equatable, Codable, Identifiable {
         let q = query.lowercased().trimmingCharacters(in: .whitespaces)
         guard !q.isEmpty else { return false }
         
-        let keyName = KeyMap.name(for: keyCode).lowercased()
-        
-        // 1. Direct match on key name alone (e.g. searching "f8" matches F8, ⇧F8, ⌥F8, ⌃F8, ⌘F8, etc.)
-        // or searching "a" matches A, ⇧A, ⌃A, ⌘A, etc.
-        if keyName == q {
-            return true
-        }
-        
-        // 2. Direct match on displayString or scriptString
         let dStr = displayString.lowercased()
         let sStr = scriptString.lowercased()
+        
+        // 1. Direct match on displayString or scriptString
         if dStr.contains(q) || sStr.contains(q) {
             return true
         }
         
-        // 3. Multi-word/token matching (e.g. "shift f8", "shift+f8", "ctrl a", "alt a", "opt f8", "cmd f8")
+        // 2. Tokenized matching (handling +, -, comma, space delimiters)
         let cleanQ = q.replacingOccurrences(of: "+", with: " ")
                       .replacingOccurrences(of: "-", with: " ")
+                      .replacingOccurrences(of: ",", with: " ")
                       .replacingOccurrences(of: "_", with: " ")
         let tokens = cleanQ.split(separator: " ").map { String($0) }
+        guard !tokens.isEmpty else { return false }
         
-        if tokens.contains(keyName) {
-            var allModifiersMatch = true
-            for token in tokens where token != keyName {
-                switch token {
-                case "cmd", "command", "⌘":
-                    if !requireCmd { allModifiersMatch = false }
-                case "shift", "⇧":
-                    if !requireShift { allModifiersMatch = false }
-                case "opt", "option", "alt", "⌥":
-                    if !requireOption { allModifiersMatch = false }
-                case "ctrl", "control", "⌃":
-                    if !requireControl { allModifiersMatch = false }
-                default:
-                    allModifiersMatch = false
-                }
+        var queryCmd = false
+        var queryCtrl = false
+        var queryOpt = false
+        var queryShift = false
+        var keyTokens: [String] = []
+        
+        for token in tokens {
+            switch token {
+            case "cmd", "command", "⌘", "mac", "win", "super":
+                queryCmd = true
+            case "ctrl", "control", "⌃", "ctl":
+                queryCtrl = true
+            case "opt", "option", "alt", "⌥":
+                queryOpt = true
+            case "shift", "⇧", "sft":
+                queryShift = true
+            default:
+                keyTokens.append(token)
             }
-            if allModifiersMatch {
+        }
+        
+        // Check requested modifier requirements
+        if queryCmd && !requireCmd { return false }
+        if queryCtrl && !requireControl { return false }
+        if queryOpt && !requireOption { return false }
+        if queryShift && !requireShift { return false }
+        
+        // If query was modifier-only (e.g. searching "cmd" or "ctrl")
+        if keyTokens.isEmpty {
+            return true
+        }
+        
+        // Match key tokens against current keyCode or keyName
+        let currentKeyName = KeyMap.name(for: keyCode).lowercased()
+        for keyToken in keyTokens {
+            if let tokenCode = KeyMap.keyCode(for: keyToken), tokenCode == keyCode {
+                return true
+            }
+            if currentKeyName == keyToken || currentKeyName.hasPrefix(keyToken) {
+                return true
+            }
+            if fuzzyMatch(keyToken, in: currentKeyName).matches {
                 return true
             }
         }
         
-        // 4. Fuzzy match fallback
+        // 3. Fallback fuzzy match on display/script string
         if fuzzyMatch(q, in: sStr).matches || fuzzyMatch(q, in: dStr).matches {
             return true
         }
