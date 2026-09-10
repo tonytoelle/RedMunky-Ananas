@@ -1688,27 +1688,38 @@ struct MainEditorView: View {
         if searchText.isEmpty {
             return store.treeNodes
         } else {
-            return filterTree(nodes: store.treeNodes, query: searchText)
+            return flattenSearchResults(nodes: store.treeNodes, query: searchText)
         }
     }
 
-    func filterTree(nodes: [FileSystemNode], query: String) -> [FileSystemNode] {
-        var result: [FileSystemNode] = []
-        for node in nodes {
-            switch node {
-            case .folder(let name, let url, let config, let children):
-                let matching = filterTree(nodes: children, query: query)
-                let nameMatches = fuzzyMatch(query, in: name).matches || name.lowercased().contains(query.lowercased())
-                if !matching.isEmpty || nameMatches {
-                    result.append(.folder(name: name, url: url, config: config, children: matching))
-                }
-            case .macro(let item):
-                if item.matchesSearchQuery(query) {
-                    result.append(.macro(item: item))
+    func flattenSearchResults(nodes: [FileSystemNode], query: String) -> [FileSystemNode] {
+        var macros: [MacroItem] = []
+        
+        func collect(nodes: [FileSystemNode]) {
+            for node in nodes {
+                switch node {
+                case .folder(_, _, _, let children):
+                    collect(nodes: children)
+                case .macro(let item):
+                    if item.matchesSearchQuery(query) {
+                        macros.append(item)
+                    }
                 }
             }
         }
-        return result.sorted { $0.searchScore(query) < $1.searchScore(query) }
+        
+        collect(nodes: nodes)
+        
+        let sortedMacros = macros.sorted { (a, b) -> Bool in
+            let scoreA = a.searchScore(query) ?? 9999
+            let scoreB = b.searchScore(query) ?? 9999
+            if scoreA != scoreB {
+                return scoreA < scoreB
+            }
+            return a.fileName.lowercased() < b.fileName.lowercased()
+        }
+        
+        return sortedMacros.map { FileSystemNode.macro(item: $0) }
     }
 
     private func expandAncestors(of path: String) {
