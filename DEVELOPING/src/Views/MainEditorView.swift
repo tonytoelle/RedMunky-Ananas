@@ -1380,11 +1380,13 @@ struct SidebarNodeView: View {
                             .aspectRatio(contentMode: .fit)
                             .frame(width: 18, height: 18)
                             .opacity(isFolderEffectivelyEnabled ? 1.0 : 0.35)
+                            .padding(.leading, 8)
                     } else {
                         Image(systemName: config.iconName)
                             .foregroundColor(isSelected ? Color.accentColor : (isFolderEffectivelyEnabled ? config.color : Color.gray.opacity(0.45)))
                             .font(.system(size: 14))
                             .frame(width: 18, height: 18)
+                            .padding(.leading, 8)
                     }
 
                     if store.editingFolderPath == url.path {
