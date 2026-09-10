@@ -77,11 +77,47 @@ struct MacroInspectorView: View {
     // MARK: - Header Section
     @ViewBuilder
     private var headerSection: some View {
-        HStack(alignment: .center, spacing: 12) {
-            if !store.isSidebarVisible {
-                Spacer().frame(width: 120)
+        let breadcrumbs = getBreadcrumbPath(for: macro.fileURL, rootURL: store.watchDirectoryURL)
+        
+        VStack(alignment: .leading, spacing: 6) {
+            // Breadcrumb Bar
+            HStack(spacing: 4) {
+                Image(systemName: "folder")
+                    .font(.system(size: 10))
+                    .foregroundColor(.secondary)
+                
+                Text("Macros")
+                    .font(.system(size: 10.5, weight: .medium))
+                    .foregroundColor(.secondary)
+                
+                ForEach(breadcrumbs, id: \.self) { folderName in
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 8, weight: .bold))
+                        .foregroundColor(Color.secondary.opacity(0.5))
+                    
+                    Text(folderName)
+                        .font(.system(size: 10.5, weight: .medium))
+                        .foregroundColor(.secondary)
+                }
+                
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundColor(Color.secondary.opacity(0.5))
+                
+                Text(macro.fileName.replacingOccurrences(of: ".shortking", with: ""))
+                    .font(.system(size: 10.5, weight: .semibold))
+                    .foregroundColor(Color.accentColor)
             }
-            HStack(spacing: 8) {
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+            .background(Color.white.opacity(0.06))
+            .clipShape(Capsule())
+            
+            HStack(alignment: .center, spacing: 12) {
+                if !store.isSidebarVisible {
+                    Spacer().frame(width: 120)
+                }
+                HStack(spacing: 8) {
                 if isEditingName {
                     TextField("Macro Name", text: $tempName)
                         .font(.system(size: 24, weight: .bold))
@@ -164,6 +200,7 @@ struct MacroInspectorView: View {
                     .overlay(Capsule().stroke(Color.white.opacity(0.15), lineWidth: 0.5))
             }
             .buttonStyle(.plain)
+            }
         }
         .padding(.vertical, 4)
         .background(WindowDragView())
@@ -1269,6 +1306,20 @@ struct InlineRenameField: View {
     }
 }
 
+// MARK: - Breadcrumb Helper
+func getBreadcrumbPath(for url: URL, rootURL: URL) -> [String] {
+    var pathComponents: [String] = []
+    let rootPath = rootURL.standardizedFileURL.path
+    var current = url.deletingLastPathComponent().standardizedFileURL
+    
+    while current.path != rootPath && current.path.hasPrefix(rootPath) {
+        pathComponents.insert(current.lastPathComponent, at: 0)
+        current = current.deletingLastPathComponent().standardizedFileURL
+    }
+    
+    return pathComponents
+}
+
 struct SidebarNodeView: View {
     let node: FileSystemNode
     let depth: Int
@@ -1502,10 +1553,22 @@ struct SidebarNodeView: View {
                         }
                     )
                 } else {
-                    Text(macro.fileName.replacingOccurrences(of: ".shortking", with: "").toTitleCase())
-                        .font(.system(size: 13, weight: isSelected ? .bold : .regular))
-                        .foregroundColor(isSelected ? Color.accentColor : (isMacroEffectivelyEnabled ? Color(white: 0.90) : Color.secondary.opacity(0.55)))
-                        .lineLimit(1)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(macro.fileName.replacingOccurrences(of: ".shortking", with: "").toTitleCase())
+                            .font(.system(size: 13, weight: isSelected ? .bold : .regular))
+                            .foregroundColor(isSelected ? Color.accentColor : (isMacroEffectivelyEnabled ? Color(white: 0.90) : Color.secondary.opacity(0.55)))
+                            .lineLimit(1)
+                        
+                        if isSearching {
+                            let breadcrumbs = getBreadcrumbPath(for: macro.fileURL, rootURL: store.watchDirectoryURL)
+                            if !breadcrumbs.isEmpty {
+                                Text(breadcrumbs.joined(separator: " > "))
+                                    .font(.system(size: 9.5))
+                                    .foregroundColor(isSelected ? Color.accentColor.opacity(0.8) : Color.secondary.opacity(0.65))
+                                    .lineLimit(1)
+                            }
+                        }
+                    }
                 }
 
                 Spacer()
