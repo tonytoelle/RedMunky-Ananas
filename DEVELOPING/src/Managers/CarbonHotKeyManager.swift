@@ -79,7 +79,6 @@ class CarbonHotKeyManager {
     }
 
     private var inspectorF10Ref: EventHotKeyRef?
-    private var screenshotF9Ref: EventHotKeyRef?
 
     func registerInspectorF10(action: @escaping () -> Void) {
         unregisterInspectorF10()
@@ -104,29 +103,6 @@ class CarbonHotKeyManager {
         }
     }
 
-    func registerScreenshotF9(action: @escaping () -> Void) {
-        unregisterScreenshotF9()
-        installHandlerIfNeeded()
-        let hkID = EventHotKeyID(signature: OSType(0x5343524E), id: 8889)
-        let status = RegisterEventHotKey(101, 0, hkID, GetApplicationEventTarget(), 0, &screenshotF9Ref)
-        if status == noErr {
-            lock.lock()
-            actionClosures[8889] = action
-            lock.unlock()
-            print("📸 Screenshot F9 HotKey registered")
-        }
-    }
-
-    func unregisterScreenshotF9() {
-        if let ref = screenshotF9Ref {
-            UnregisterEventHotKey(ref)
-            screenshotF9Ref = nil
-            lock.lock()
-            actionClosures.removeValue(forKey: 8889)
-            lock.unlock()
-        }
-    }
-
     func dispatch(hotKeyID: UInt32) {
         if hotKeyID == 9999 {
             print("🚨 EMERGENCY KILL")
@@ -138,15 +114,6 @@ class CarbonHotKeyManager {
         if hotKeyID == 8888 {
             lock.lock()
             let closure = actionClosures[8888]
-            lock.unlock()
-            if let closure = closure {
-                DispatchQueue.main.async { closure() }
-            }
-            return
-        }
-        if hotKeyID == 8889 {
-            lock.lock()
-            let closure = actionClosures[8889]
             lock.unlock()
             if let closure = closure {
                 DispatchQueue.main.async { closure() }

@@ -9,89 +9,15 @@ final class ScreenAnnotationManager {
 
     private var selectionWindows: [ScreenAnnotationSelectionWindow] = []
     private var activeAnnotationWindow: ScreenAnnotationWindow?
-    private var isScreenshotHotKeySuspended = false
-    private var eventTap: CFMachPort?
-    private var runLoopSource: CFRunLoopSource?
-    private var localKeyMonitor: Any?
 
     private init() {}
 
     func start() {
-        registerHotKey()
-        installLowLevelTap()
+        // Screenshot annotation is an on-demand macro action; no global hotkey or event tap needed.
     }
 
-    func registerHotKey() {
-        guard !isScreenshotHotKeySuspended else { return }
-        let hasUserF9 = MacroStore.shared.macros.contains { m in
-            m.isEffectivelyEnabled && m.triggers.contains { $0.keyCode == 101 && !$0.requireCmd && !$0.requireShift && !$0.requireOption && !$0.requireControl }
-        }
-        if !hasUserF9 {
-            CarbonHotKeyManager.shared.registerScreenshotF9 { [weak self] in
-                DispatchQueue.main.async {
-                    self?.beginSelection()
-                }
-            }
-        } else {
-            CarbonHotKeyManager.shared.unregisterScreenshotF9()
-        }
-    }
-
-    func suspendHotKey() {
-        isScreenshotHotKeySuspended = true
-        CarbonHotKeyManager.shared.unregisterScreenshotF9()
-    }
-
-    func resumeHotKey() {
-        isScreenshotHotKeySuspended = false
-        registerHotKey()
-    }
-
-    private func installLowLevelTap() {
-        let mask = (1 << CGEventType.keyDown.rawValue) | (1 << 14) // keyDown + NX_SYSDEFINED
-        eventTap = CGEvent.tapCreate(
-            tap: .cghidEventTap,
-            place: .headInsertEventTap,
-            options: .defaultTap,
-            eventsOfInterest: CGEventMask(mask),
-            callback: { (proxy, type, event, refcon) -> Unmanaged<CGEvent>? in
-                if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
-                    if let tap = ScreenAnnotationManager.shared.eventTap {
-                        CGEvent.tapEnable(tap: tap, enable: true)
-                    }
-                    return Unmanaged.passUnretained(event)
-                }
-
-                if type == .keyDown {
-                    let keycode = event.getIntegerValueField(.keyboardEventKeycode)
-                    if keycode == 101 { // F9
-                        DispatchQueue.main.async {
-                            ScreenAnnotationManager.shared.beginSelection()
-                        }
-                        return nil // Swallow F9 globally
-                    }
-                }
-                return Unmanaged.passUnretained(event)
-            },
-            userInfo: nil
-        )
-
-        if let tap = eventTap {
-            runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
-            if let source = runLoopSource {
-                CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
-            }
-            CGEvent.tapEnable(tap: tap, enable: true)
-        }
-
-        localKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            if event.keyCode == 101 { // F9
-                self?.beginSelection()
-                return nil
-            }
-            return event
-        }
-    }
+    func suspendHotKey() {}
+    func resumeHotKey() {}
 
     func beginSelection() {
         // If an annotation window is already active, close it first
