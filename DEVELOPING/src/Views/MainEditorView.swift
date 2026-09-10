@@ -1378,15 +1378,15 @@ struct SidebarNodeView: View {
                         Image(nsImage: nsImage)
                             .resizable()
                             .aspectRatio(contentMode: .fit)
-                            .frame(width: 18, height: 18)
+                            .frame(width: 24, height: 24)
                             .opacity(isFolderEffectivelyEnabled ? 1.0 : 0.35)
-                            .padding(.leading, 8)
+                            .padding(.leading, 6)
                     } else {
                         Image(systemName: config.iconName)
                             .foregroundColor(isSelected ? Color.accentColor : (isFolderEffectivelyEnabled ? config.color : Color.gray.opacity(0.45)))
-                            .font(.system(size: 14))
-                            .frame(width: 18, height: 18)
-                            .padding(.leading, 8)
+                            .font(.system(size: 18))
+                            .frame(width: 24, height: 24)
+                            .padding(.leading, 6)
                     }
 
                     if store.editingFolderPath == url.path {
@@ -1539,12 +1539,12 @@ struct SidebarNodeView: View {
                 let iconColor = mainAction?.color ?? squircleColor(for: macro.fileName.hashValue)
                 
                 ZStack {
-                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
                         .fill(isMacroEffectivelyEnabled ? iconColor : Color.gray.opacity(0.35))
-                        .frame(width: 18, height: 18)
+                        .frame(width: 24, height: 24)
                     Image(systemName: iconName)
                         .foregroundColor(isMacroEffectivelyEnabled ? .white : Color.white.opacity(0.6))
-                        .font(.system(size: 9, weight: .bold))
+                        .font(.system(size: 12, weight: .bold))
                 }
 
                 if store.editingFolderPath == macro.fileURL.path {
