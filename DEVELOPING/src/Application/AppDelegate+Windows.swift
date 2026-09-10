@@ -26,8 +26,8 @@ extension AppDelegate {
             }
 
             configureWindow(win, title: "👑 ShortKing — Macro Editor")
-            win.isOpaque = false
-            win.backgroundColor = .clear
+            win.isOpaque = true
+            win.backgroundColor = NSColor(red: 0.11, green: 0.11, blue: 0.13, alpha: 1.0)
             win.contentViewController = NSHostingController(rootView: MainEditorView().preferredColorScheme(.dark))
             window = win
         }

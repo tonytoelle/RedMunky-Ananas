@@ -1402,10 +1402,10 @@ struct SidebarNodeView: View {
                         Text(name.toTitleCase())
                             .font(.system(size: 13, weight: isSelected ? .bold : .medium))
                             .foregroundColor(isSelected ? Color.accentColor : (isFolderEffectivelyEnabled ? Color(white: 0.92) : Color.secondary.opacity(0.65)))
-                            .lineLimit(1)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                     
-                    Spacer()
+                    Spacer(minLength: 4)
                     
                     if !isFolderEffectivelyEnabled {
                         Text("Off")
@@ -1553,11 +1553,11 @@ struct SidebarNodeView: View {
                         }
                     )
                 } else {
-                    VStack(alignment: .leading, spacing: 1) {
+                    VStack(alignment: .leading, spacing: 2) {
                         Text(macro.fileName.replacingOccurrences(of: ".shortking", with: "").toTitleCase())
                             .font(.system(size: 13, weight: isSelected ? .bold : .regular))
                             .foregroundColor(isSelected ? Color.accentColor : (isMacroEffectivelyEnabled ? Color(white: 0.90) : Color.secondary.opacity(0.55)))
-                            .lineLimit(1)
+                            .fixedSize(horizontal: false, vertical: true)
                         
                         if isSearching {
                             let breadcrumbs = getBreadcrumbPath(for: macro.fileURL, rootURL: store.watchDirectoryURL)
@@ -1565,13 +1565,13 @@ struct SidebarNodeView: View {
                                 Text(breadcrumbs.joined(separator: " > "))
                                     .font(.system(size: 9.5))
                                     .foregroundColor(isSelected ? Color.accentColor.opacity(0.8) : Color.secondary.opacity(0.65))
-                                    .lineLimit(1)
+                                    .fixedSize(horizontal: false, vertical: true)
                             }
                         }
                     }
                 }
 
-                Spacer()
+                Spacer(minLength: 4)
 
                 if !isMacroEffectivelyEnabled {
                     Text("Off")
@@ -1994,7 +1994,7 @@ struct MainEditorView: View {
                     return true
                 }
             }
-            .navigationSplitViewColumnWidth(min: 180, ideal: 260, max: 700)
+            .navigationSplitViewColumnWidth(min: 310, ideal: 340, max: 700)
         } detail: {
             GeometryReader { detailGeo in
                 if let macro = store.selectedMacro {
@@ -2073,11 +2073,8 @@ struct MainEditorView: View {
         .ignoresSafeArea(.container, edges: .top)
         .navigationSplitViewStyle(.balanced)
         .background(
-            ZStack {
-                VisualEffectView(material: .fullScreenUI, blendingMode: .behindWindow)
-                Color.black.opacity(0.12)
-            }
-            .ignoresSafeArea()
+            Color(nsColor: NSColor(red: 0.11, green: 0.11, blue: 0.13, alpha: 1.0))
+                .ignoresSafeArea()
         )
         .onChange(of: columnVisibility) { _, newValue in
             store.isSidebarVisible = (newValue != .detailOnly)
