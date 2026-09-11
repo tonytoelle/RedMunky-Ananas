@@ -80,6 +80,7 @@ struct SpotlightSearchBar: View {
     @FocusState private var isFocused: Bool
     
     @State private var keyMonitor: Any? = nil
+    @State private var clickMonitor: Any? = nil
     
     let categories = ["All", "Mouse", "Keyboard", "System", "Utility"]
     
@@ -375,7 +376,7 @@ struct SpotlightSearchBar: View {
             // Do NOT auto-focus on appear to prevent hijacking arrow keys
         }
         .onDisappear {
-            removeKeyMonitor()
+            removeMonitors()
         }
         .onChange(of: query) { _, _ in
             selectedIndex = 0
@@ -385,7 +386,7 @@ struct SpotlightSearchBar: View {
             if focused {
                 setupKeyMonitor()
             } else {
-                removeKeyMonitor()
+                removeMonitors()
             }
         }
     }
@@ -402,7 +403,15 @@ struct SpotlightSearchBar: View {
     }
     
     private func setupKeyMonitor() {
-        removeKeyMonitor()
+        removeMonitors()
+        clickMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { event in
+            if isFocused {
+                isFocused = false
+                NSApp.keyWindow?.makeFirstResponder(nil)
+            }
+            return event
+        }
+        
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
             let itemsCount = visibleItems.count
             
@@ -438,7 +447,6 @@ struct SpotlightSearchBar: View {
                 if query.isEmpty {
                     isFocused = false
                     NSApp.keyWindow?.makeFirstResponder(nil)
-                    // If action items selected, allow delete event to be handled by editor
                     if !store.selectedActionIDs.isEmpty {
                         store.deleteSelectedActions()
                         return nil
@@ -461,10 +469,14 @@ struct SpotlightSearchBar: View {
         }
     }
     
-    private func removeKeyMonitor() {
+    private func removeMonitors() {
         if let monitor = keyMonitor {
             NSEvent.removeMonitor(monitor)
             keyMonitor = nil
+        }
+        if let cMonitor = clickMonitor {
+            NSEvent.removeMonitor(cMonitor)
+            clickMonitor = nil
         }
     }
 }
