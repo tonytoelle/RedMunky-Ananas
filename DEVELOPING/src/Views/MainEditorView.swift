@@ -2414,6 +2414,8 @@ struct MainEditorView: View {
                     }
                 }
                 return event
+            }
+        }
         .onAppear {
             clickMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { event in
                 if isSearchFocused {
