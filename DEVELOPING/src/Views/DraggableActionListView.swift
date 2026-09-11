@@ -316,24 +316,7 @@ struct ActionCardView: View {
             
             Image(systemName: getActionIcon(for: item.action))
                 .foregroundColor(.white)
-                .font(.system(size: 13, weight: .semibold))
-                .offset(x: item.repeatCount > 1 ? -2 : 0, y: item.repeatCount > 1 ? 2 : 0)
-            
-            Text("\(index + 1)")
-                .font(.system(size: 8, weight: .bold))
-                .foregroundColor(.white.opacity(0.85))
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-                .padding(.top, 2)
-                .padding(.trailing, 4)
-            
-            if item.repeatCount > 1 {
-                Text("\(item.repeatCount)x")
-                    .font(.system(size: 7, weight: .bold))
-                    .foregroundColor(.white.opacity(0.95))
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
-                    .padding(.bottom, 2)
-                    .padding(.leading, 4)
-            }
+                .font(.system(size: 14, weight: .semibold))
         }
         .frame(width: 32, height: 32)
     }
@@ -521,7 +504,8 @@ struct ActionCardView: View {
                     }
             }
         } else {
-            Text(item.action.title)
+            let repeatText = item.repeatCount > 1 ? "  \(item.repeatCount)x" : ""
+            Text("\(item.action.title)\(repeatText)")
                 .font(.system(size: detailWidth < 520 ? 11 : 13, weight: .semibold))
                 .foregroundColor(.white)
                 .lineLimit(1)
