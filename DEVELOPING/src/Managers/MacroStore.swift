@@ -48,19 +48,31 @@ class MacroStore: ObservableObject {
     
     @Published var treeNodes: [FileSystemNode] = []
     @Published var macros: [MacroItem] = []
-    @Published var selectedFilePath: String? {
+    @Published var selectedFilePath: String? = UserDefaults.standard.string(forKey: "lastSelectedFilePath") {
         didSet {
             if oldValue != selectedFilePath {
                 cleanAllOrphanedActions()
                 CaptureOverlayWindow.closeAllActiveWindows()
+                if let path = selectedFilePath {
+                    UserDefaults.standard.set(path, forKey: "lastSelectedFilePath")
+                    UserDefaults.standard.removeObject(forKey: "lastSelectedFolderPath")
+                } else if selectedFolderPath == nil {
+                    UserDefaults.standard.removeObject(forKey: "lastSelectedFilePath")
+                }
             }
         }
     }
-    @Published var selectedFolderPath: String? {
+    @Published var selectedFolderPath: String? = UserDefaults.standard.string(forKey: "lastSelectedFolderPath") {
         didSet {
             if oldValue != selectedFolderPath {
                 cleanAllOrphanedActions()
                 CaptureOverlayWindow.closeAllActiveWindows()
+                if let path = selectedFolderPath {
+                    UserDefaults.standard.set(path, forKey: "lastSelectedFolderPath")
+                    UserDefaults.standard.removeObject(forKey: "lastSelectedFilePath")
+                } else if selectedFilePath == nil {
+                    UserDefaults.standard.removeObject(forKey: "lastSelectedFolderPath")
+                }
             }
         }
     }

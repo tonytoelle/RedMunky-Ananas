@@ -79,7 +79,7 @@ struct MacroInspectorView: View {
     private var headerSection: some View {
         let breadcrumbs = getBreadcrumbPath(for: macro.fileURL, rootURL: store.watchDirectoryURL)
         
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 18) {
             // Breadcrumb Bar
             HStack(spacing: 4) {
                 ForEach(Array(breadcrumbs.enumerated()), id: \.offset) { index, folderName in
@@ -108,6 +108,7 @@ struct MacroInspectorView: View {
             .padding(.vertical, 4)
             .background(Color.white.opacity(0.06))
             .clipShape(Capsule())
+            .padding(.bottom, 6)
             
             HStack(alignment: .center, spacing: 12) {
                 if !store.isSidebarVisible {
