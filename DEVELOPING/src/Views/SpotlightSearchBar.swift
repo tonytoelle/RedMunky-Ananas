@@ -405,7 +405,6 @@ struct SpotlightSearchBar: View {
         removeKeyMonitor()
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
             let itemsCount = visibleItems.count
-            guard itemsCount > 0 else { return event }
             
             switch event.keyCode {
             case 123: // Left arrow
@@ -434,6 +433,16 @@ struct SpotlightSearchBar: View {
                     isFocused = false
                     NSApp.keyWindow?.makeFirstResponder(nil)
                     return nil
+                }
+            case 51, 117: // Delete or Backspace
+                if query.isEmpty {
+                    isFocused = false
+                    NSApp.keyWindow?.makeFirstResponder(nil)
+                    // If action items selected, allow delete event to be handled by editor
+                    if !store.selectedActionIDs.isEmpty {
+                        store.deleteSelectedActions()
+                        return nil
+                    }
                 }
             case 53: // Escape
                 isFocused = false
