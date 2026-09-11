@@ -268,9 +268,23 @@ final class AppIconCache {
             return cached
         }
         if let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId),
-           let img = NSWorkspace.shared.icon(forFile: appURL.path) as NSImage? {
-            cache[bundleId] = img
-            return img
+           let bundle = Bundle(url: appURL) {
+            // Read main app icon file directly from bundle resources to avoid generic document frame
+            if let iconFile = (bundle.object(forInfoDictionaryKey: "CFBundleIconFile") as? String) ?? (bundle.object(forInfoDictionaryKey: "CFBundleIconName") as? String) {
+                var iconName = iconFile
+                if iconName.hasSuffix(".icns") {
+                    iconName = String(iconName.dropLast(5))
+                }
+                if let iconURL = bundle.url(forResource: iconName, withExtension: "icns") ?? bundle.url(forResource: iconName, withExtension: nil),
+                   let img = NSImage(contentsOf: iconURL) {
+                    cache[bundleId] = img
+                    return img
+                }
+            }
+            if let img = NSWorkspace.shared.icon(forFile: appURL.path) as NSImage? {
+                cache[bundleId] = img
+                return img
+            }
         }
         return nil
     }
