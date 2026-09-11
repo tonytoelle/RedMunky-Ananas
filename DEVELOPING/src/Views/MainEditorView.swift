@@ -434,44 +434,10 @@ struct MacroInspectorView: View {
 
     @ViewBuilder
     private var actionSelectionDrawer: some View {
-        VStack(spacing: 0) {
-            Button {
-                withAnimation(.easeInOut(duration: 0.18)) {
-                    isActionDrawerOpen.toggle()
-                }
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "plus.circle.fill")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(Color.accentColor)
-                    Text(isActionDrawerOpen ? "Hide Action Search" : "Add / Search Actions...")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(.white)
-                    Spacer()
-                    Image(systemName: isActionDrawerOpen ? "chevron.up" : "chevron.down")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundColor(.secondary)
-                }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .background(Color.white.opacity(0.06))
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke(isActionDrawerOpen ? Color.accentColor.opacity(0.4) : Color.white.opacity(0.08), lineWidth: 1)
-                )
-            }
-            .buttonStyle(.plain)
-
-            if isActionDrawerOpen {
-                SpotlightSearchBar(placeholder: "Search actions...", items: SearchableActionDef.allActions, width: detailWidth) { actionDef in
-                    let isAlt = hasKeySwitchTrigger && activeActionTarget == .alternate
-                    let tIdx = isAlt ? (macro.triggers.first(where: { $0.mode == .keySwitch })?.alternateActionItems.count ?? 0) : macro.actionItems.count
-                    insertAction(typeName: actionDef.title, targetIndex: tIdx, isAlternate: isAlt)
-                }
-                .padding(.top, 10)
-                .transition(.opacity.combined(with: .move(edge: .top)))
-            }
+        SpotlightSearchBar(placeholder: "Search actions...", items: SearchableActionDef.allActions, width: detailWidth) { actionDef in
+            let isAlt = hasKeySwitchTrigger && activeActionTarget == .alternate
+            let tIdx = isAlt ? (macro.triggers.first(where: { $0.mode == .keySwitch })?.alternateActionItems.count ?? 0) : macro.actionItems.count
+            insertAction(typeName: actionDef.title, targetIndex: tIdx, isAlternate: isAlt)
         }
     }
 

@@ -177,10 +177,10 @@ struct SpotlightSearchBar: View {
     }
     var body: some View {
         VStack(spacing: 0) {
-            // Top Search Area: Borderless and integrated directly with container
+            // Top Search Area (Search Pill)
             HStack(spacing: 10) {
                 Image(systemName: "magnifyingglass")
-                    .foregroundColor(.secondary)
+                    .foregroundColor(isFocused ? .accentColor : .secondary)
                     .font(.system(size: 15, weight: .medium))
                 
                 TextField(placeholder, text: $query)
@@ -203,43 +203,52 @@ struct SpotlightSearchBar: View {
                 }
             }
             .padding(.horizontal, 14)
-            .padding(.top, 14)
-            .padding(.bottom, 12)
-            
-            Divider()
-                .background(Color.white.opacity(0.08))
-                .padding(.bottom, 12)
-            
-            // Category Chips Scroll Bar
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 6) {
-                    ForEach(categories, id: \.self) { cat in
-                        Button {
-                            activeCategory = cat
-                            selectedIndex = 0
-                            showAllResults = false
-                        } label: {
-                            Text(cat)
-                                .font(.system(size: 11, weight: .semibold))
-                                .foregroundColor(activeCategory == cat ? .white : .secondary)
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 5)
-                                .background(activeCategory == cat ? Color.white.opacity(0.15) : Color.white.opacity(0.04))
-                                .clipShape(Capsule())
-                                .overlay(
-                                    Capsule()
-                                        .stroke(activeCategory == cat ? Color.white.opacity(0.2) : Color.clear, lineWidth: 1)
-                                )
+            .padding(.vertical, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(Color.white.opacity(isFocused ? 0.08 : 0.05))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(isFocused ? Color.accentColor.opacity(0.5) : Color.white.opacity(0.1), lineWidth: 1)
+            )
+
+            if !query.isEmpty {
+                Divider()
+                    .background(Color.white.opacity(0.08))
+                    .padding(.top, 12)
+                    .padding(.bottom, 12)
+                
+                // Category Chips Scroll Bar
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        ForEach(categories, id: \.self) { cat in
+                            Button {
+                                activeCategory = cat
+                                selectedIndex = 0
+                                showAllResults = false
+                            } label: {
+                                Text(cat)
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .foregroundColor(activeCategory == cat ? .white : .secondary)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 5)
+                                    .background(activeCategory == cat ? Color.white.opacity(0.15) : Color.white.opacity(0.04))
+                                    .clipShape(Capsule())
+                                    .overlay(
+                                        Capsule()
+                                            .stroke(activeCategory == cat ? Color.white.opacity(0.2) : Color.clear, lineWidth: 1)
+                                    )
+                            }
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
                     }
+                    .padding(.horizontal, 4)
                 }
-                .padding(.horizontal, 4)
-            }
-            .padding(.bottom, 12)
-            
-            // Results Grid Area
-            ScrollView(showsIndicators: true) {
+                .padding(.bottom, 12)
+                
+                // Results Grid Area
+                ScrollView(showsIndicators: true) {
                 VStack(spacing: 12) {
                     if filteredItems.isEmpty {
                         Text("No matching actions found")
@@ -355,6 +364,7 @@ struct SpotlightSearchBar: View {
                     }
                 }
                 .padding(.horizontal, 4)
+            }
             }
         }
         .padding(.horizontal, 12)
