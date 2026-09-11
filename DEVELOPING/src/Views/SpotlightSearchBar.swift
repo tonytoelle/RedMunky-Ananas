@@ -429,9 +429,21 @@ struct SpotlightSearchBar: View {
                 if newIndex >= 0 {
                     selectedIndex = newIndex
                     return nil
+                } else {
+                    // Up arrow at top row -> defocus search field
+                    isFocused = false
+                    NSApp.keyWindow?.makeFirstResponder(nil)
+                    return nil
                 }
+            case 53: // Escape
+                isFocused = false
+                query = ""
+                NSApp.keyWindow?.makeFirstResponder(nil)
+                return nil
             case 36: // Enter
                 executeSelection()
+                isFocused = false
+                NSApp.keyWindow?.makeFirstResponder(nil)
                 return nil
             default:
                 break

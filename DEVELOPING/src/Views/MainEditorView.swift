@@ -2421,17 +2421,15 @@ struct MainEditorView: View {
                 if isSearchFocused {
                     isSearchFocused = false
                 }
-                if let responder = NSApp.keyWindow?.firstResponder {
-                    if responder is NSTextView || responder is NSTextField {
-                        // Check if click target is outside text input
-                        DispatchQueue.main.async {
-                            if let newResponder = NSApp.keyWindow?.firstResponder,
-                               newResponder is NSTextView || newResponder is NSTextField {
-                                // leave active input
-                            } else {
-                                NSApp.keyWindow?.makeFirstResponder(nil)
-                            }
+                // Always clear text input focus on click outside
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                    if let newResponder = NSApp.keyWindow?.firstResponder {
+                        if !(newResponder is NSTextView || newResponder is NSTextField) {
+                            // User clicked outside text field
+                            NSApp.keyWindow?.makeFirstResponder(nil)
                         }
+                    } else {
+                        NSApp.keyWindow?.makeFirstResponder(nil)
                     }
                 }
                 return event
