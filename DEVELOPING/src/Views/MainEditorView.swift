@@ -206,12 +206,11 @@ struct MacroInspectorView: View {
     // MARK: - Trigger Section
     @ViewBuilder
     private var triggerSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Text("Trigger")
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundColor(.secondary)
-                    .padding(.leading, 2)
                 Spacer()
                 Image(systemName: isTriggerCollapsed ? "chevron.right" : "chevron.down")
                     .foregroundColor(.secondary)
@@ -225,125 +224,129 @@ struct MacroInspectorView: View {
             }
 
             if !isTriggerCollapsed {
-                ForEach(macro.triggers) { trig in
-                    HStack(spacing: 12) {
-                        ZStack {
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .fill(trig.mode.color)
-                                .frame(width: 32, height: 32)
-                            Image(systemName: trig.mode.iconName)
-                                .foregroundColor(.white)
-                                .font(.system(size: 15, weight: .semibold))
-                        }
-
-                        if detailWidth > 320 {
-                            Text(trig.mode.displayName)
-                                .font(.system(size: 13, weight: .medium))
-                                .foregroundColor(.white)
-                        }
-
-                        Spacer()
-
-                        HotKeyRecorder(trigger: triggerBinding(for: trig)) {
-                            store.saveMacro(macro)
-                            isDirty = false
-                        }
-
-                        // Mode toggle button
-                        Button {
-                            store.registerUndoState(for: macro)
-                            if let idx = macro.triggers.firstIndex(where: { $0.id == trig.id }) {
-                                macro.triggers[idx].mode = macro.triggers[idx].mode == .keyPress ? .keySwitch : .keyPress
-                                store.saveMacro(macro)
+                VStack(alignment: .leading, spacing: 12) {
+                    ForEach(macro.triggers) { trig in
+                        HStack(spacing: 12) {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    .fill(trig.mode.color)
+                                    .frame(width: 32, height: 32)
+                                Image(systemName: trig.mode.iconName)
+                                    .foregroundColor(.white)
+                                    .font(.system(size: 15, weight: .semibold))
                             }
-                        } label: {
-                            Image(systemName: "arrow.triangle.swap")
-                                .font(.system(size: 10, weight: .bold))
-                                .foregroundColor(trig.mode == .keySwitch ? Color(red: 0.1, green: 0.65, blue: 0.7) : .secondary)
-                                .frame(width: 20, height: 20)
-                                .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        .help(trig.mode == .keyPress ? "Switch to Key Switch mode" : "Switch to Key Press mode")
 
-                        if macro.triggers.count > 1 {
+                            if detailWidth > 320 {
+                                Text(trig.mode.displayName)
+                                    .font(.system(size: 13, weight: .medium))
+                                    .foregroundColor(.white)
+                            }
+
+                            Spacer()
+
+                            HotKeyRecorder(trigger: triggerBinding(for: trig)) {
+                                store.saveMacro(macro)
+                                isDirty = false
+                            }
+
+                            // Mode toggle button
                             Button {
                                 store.registerUndoState(for: macro)
-                                macro.triggers.removeAll(where: { $0.id == trig.id })
-                                store.saveMacro(macro)
+                                if let idx = macro.triggers.firstIndex(where: { $0.id == trig.id }) {
+                                    macro.triggers[idx].mode = macro.triggers[idx].mode == .keyPress ? .keySwitch : .keyPress
+                                    store.saveMacro(macro)
+                                }
                             } label: {
-                                Image(systemName: "xmark")
-                                    .font(.system(size: 9, weight: .bold))
-                                    .foregroundColor(.secondary)
+                                Image(systemName: "arrow.triangle.swap")
+                                    .font(.system(size: 10, weight: .bold))
+                                    .foregroundColor(trig.mode == .keySwitch ? Color(red: 0.1, green: 0.65, blue: 0.7) : .secondary)
                                     .frame(width: 20, height: 20)
                                     .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
-                        }
-                    }
-                }
+                            .help(trig.mode == .keyPress ? "Switch to Key Switch mode" : "Switch to Key Press mode")
 
-                // Centered + button for adding triggers
-                HStack {
-                    Spacer()
-                    Button {
-                        isShowingTriggerPopover.toggle()
-                    } label: {
-                        Image(systemName: "plus")
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundColor(.secondary)
-                            .frame(width: 28, height: 28)
-                            .background(Color.white.opacity(0.05))
-                            .clipShape(Circle())
-                    }
-                    .buttonStyle(.plain)
-                    .popover(isPresented: $isShowingTriggerPopover, arrowEdge: .bottom) {
-                        VStack(spacing: 4) {
-                            ForEach(TriggerMode.allCases, id: \.self) { mode in
+                            if macro.triggers.count > 1 {
                                 Button {
                                     store.registerUndoState(for: macro)
-                                    macro.triggers.append(Trigger(keyCode: 17, requireCmd: true, requireShift: true, requireOption: false, requireControl: false, mode: mode))
+                                    macro.triggers.removeAll(where: { $0.id == trig.id })
                                     store.saveMacro(macro)
-                                    isShowingTriggerPopover = false
                                 } label: {
-                                    HStack(spacing: 8) {
-                                        ZStack {
-                                            RoundedRectangle(cornerRadius: 5, style: .continuous)
-                                                .fill(mode.color)
-                                                .frame(width: 22, height: 22)
-                                            Image(systemName: mode.iconName)
-                                                .foregroundColor(.white)
-                                                .font(.system(size: 11, weight: .semibold))
-                                        }
-                                        Text(mode.displayName)
-                                            .font(.system(size: 12, weight: .medium))
-                                            .foregroundColor(.white)
-                                        Spacer()
-                                    }
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 5)
-                                    .contentShape(Rectangle())
+                                    Image(systemName: "xmark")
+                                        .font(.system(size: 9, weight: .bold))
+                                        .foregroundColor(.secondary)
+                                        .frame(width: 20, height: 20)
+                                        .contentShape(Rectangle())
                                 }
                                 .buttonStyle(.plain)
                             }
                         }
-                        .padding(8)
-                        .frame(width: 160)
                     }
-                    Spacer()
+
+                    // Centered + button for adding triggers
+                    HStack {
+                        Spacer()
+                        Button {
+                            isShowingTriggerPopover.toggle()
+                        } label: {
+                            Image(systemName: "plus")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundColor(.secondary)
+                                .frame(width: 28, height: 28)
+                                .background(Color.white.opacity(0.05))
+                                .clipShape(Circle())
+                        }
+                        .buttonStyle(.plain)
+                        .popover(isPresented: $isShowingTriggerPopover, arrowEdge: .bottom) {
+                            VStack(spacing: 4) {
+                                ForEach(TriggerMode.allCases, id: \.self) { mode in
+                                    Button {
+                                        store.registerUndoState(for: macro)
+                                        macro.triggers.append(Trigger(keyCode: 17, requireCmd: true, requireShift: true, requireOption: false, requireControl: false, mode: mode))
+                                        store.saveMacro(macro)
+                                        isShowingTriggerPopover = false
+                                    } label: {
+                                        HStack(spacing: 8) {
+                                            ZStack {
+                                                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                                                    .fill(mode.color)
+                                                    .frame(width: 22, height: 22)
+                                                Image(systemName: mode.iconName)
+                                                    .foregroundColor(.white)
+                                                    .font(.system(size: 11, weight: .semibold))
+                                            }
+                                            Text(mode.displayName)
+                                                .font(.system(size: 12, weight: .medium))
+                                                .foregroundColor(.white)
+                                            Spacer()
+                                        }
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 5)
+                                        .contentShape(Rectangle())
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                            .padding(8)
+                            .frame(width: 160)
+                        }
+                        Spacer()
+                    }
+                    .padding(.top, 4)
                 }
-                .padding(.top, 4)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+                .background(Color(white: 0.18))
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(store.focusedPane == .right && store.isTriggerFocused ? Color.accentColor : Color.white.opacity(0.06),
+                                lineWidth: store.focusedPane == .right && store.isTriggerFocused ? 1.5 : 1)
+                )
             }
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
-        .background(Color(white: 0.18))
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .stroke(store.focusedPane == .right && store.isTriggerFocused ? Color.accentColor : Color.white.opacity(0.06),
-                        lineWidth: store.focusedPane == .right && store.isTriggerFocused ? 1.5 : 1)
-        )
+        .padding(.horizontal, 4)
+        .padding(.vertical, 4)
         .contentShape(Rectangle())
         .onTapGesture {
             store.focusedPane = .right
@@ -434,7 +437,7 @@ struct MacroInspectorView: View {
 
     @ViewBuilder
     private var actionSelectionDrawer: some View {
-        SpotlightSearchBar(placeholder: "Search actions...", items: SearchableActionDef.allActions, width: detailWidth) { actionDef in
+        SpotlightSearchBar(placeholder: "Search to Add actions...", items: SearchableActionDef.allActions, width: detailWidth) { actionDef in
             let isAlt = hasKeySwitchTrigger && activeActionTarget == .alternate
             let tIdx = isAlt ? (macro.triggers.first(where: { $0.mode == .keySwitch })?.alternateActionItems.count ?? 0) : macro.actionItems.count
             insertAction(typeName: actionDef.title, targetIndex: tIdx, isAlternate: isAlt)
@@ -1895,15 +1898,15 @@ struct MainEditorView: View {
                         .buttonStyle(.plain)
                     }
                 }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
                 .background(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(Color.white.opacity(0.10))
+                    Capsule()
+                        .fill(Color(red: 0.08, green: 0.08, blue: 0.09))
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .stroke(isSearchFocused ? Color.accentColor : Color.white.opacity(0.12), lineWidth: 1)
+                    Capsule()
+                        .stroke(isSearchFocused ? Color.accentColor.opacity(0.6) : Color.white.opacity(0.18), lineWidth: 1)
                         .animation(.easeInOut(duration: 0.15), value: isSearchFocused)
                 )
                 .padding(.horizontal, 12)
