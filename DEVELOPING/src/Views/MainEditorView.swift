@@ -1760,6 +1760,7 @@ struct MainEditorView: View {
     @State private var columnVisibility = NavigationSplitViewVisibility.all
     @FocusState private var isSearchFocused: Bool
     @State private var keyMonitor: Any? = nil
+    @State private var clickMonitor: Any? = nil
     @AppStorage("alwaysOnTop") private var alwaysOnTop: Bool = false
     @AppStorage("sidebarWidth") private var sidebarWidth: Double = 260
 
@@ -2156,6 +2157,19 @@ struct MainEditorView: View {
                     return nil // consume
                 }
                 
+                // Dismiss search focus when pressing Escape
+                if event.keyCode == 53 { // Escape
+                    if isSearchFocused {
+                        isSearchFocused = false
+                        return nil
+                    }
+                    if let firstResponder = NSApp.keyWindow?.firstResponder,
+                       (firstResponder is NSTextView || firstResponder is NSTextField) {
+                        NSApp.keyWindow?.makeFirstResponder(nil)
+                        return nil
+                    }
+                }
+                
                 // Handle navigation when search bar is focused
                 if isSearchFocused {
                     if event.keyCode == 125 { // Down Arrow from search bar -> enter sidebar list
@@ -2258,9 +2272,9 @@ struct MainEditorView: View {
                                 }
                                 return nil // consume
                             }
-                        } else {
                             // Macro selected -> Jump from sidebar to editor pane
                             store.focusedPane = .right
+                            isSearchFocused = false
                             NSApp.keyWindow?.makeFirstResponder(nil)
                             if let selected = store.selectedMacro, let firstAction = selected.actionItems.first {
                                 store.selectedActionIDs = [firstAction.id]
@@ -2400,12 +2414,35 @@ struct MainEditorView: View {
                     }
                 }
                 return event
+        .onAppear {
+            clickMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { event in
+                if isSearchFocused {
+                    isSearchFocused = false
+                }
+                if let responder = NSApp.keyWindow?.firstResponder {
+                    if responder is NSTextView || responder is NSTextField {
+                        // Check if click target is outside text input
+                        DispatchQueue.main.async {
+                            if let newResponder = NSApp.keyWindow?.firstResponder,
+                               newResponder is NSTextView || newResponder is NSTextField {
+                                // leave active input
+                            } else {
+                                NSApp.keyWindow?.makeFirstResponder(nil)
+                            }
+                        }
+                    }
+                }
+                return event
             }
         }
         .onDisappear {
             if let monitor = keyMonitor {
                 NSEvent.removeMonitor(monitor)
                 keyMonitor = nil
+            }
+            if let cMonitor = clickMonitor {
+                NSEvent.removeMonitor(cMonitor)
+                clickMonitor = nil
             }
         }
         .frame(minWidth: 980, minHeight: 770)
