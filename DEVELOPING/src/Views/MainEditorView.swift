@@ -82,31 +82,27 @@ struct MacroInspectorView: View {
         VStack(alignment: .leading, spacing: 6) {
             // Breadcrumb Bar
             HStack(spacing: 4) {
-                Image(systemName: "folder")
-                    .font(.system(size: 10))
-                    .foregroundColor(.secondary)
-                
-                Text("Macros")
-                    .font(.system(size: 10.5, weight: .medium))
-                    .foregroundColor(.secondary)
-                
-                ForEach(breadcrumbs, id: \.self) { folderName in
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 8, weight: .bold))
-                        .foregroundColor(Color.secondary.opacity(0.5))
+                ForEach(Array(breadcrumbs.enumerated()), id: \.offset) { index, folderName in
+                    if index > 0 {
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundColor(Color(white: 0.35))
+                    }
                     
                     Text(folderName)
                         .font(.system(size: 10.5, weight: .medium))
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color(white: 0.45))
                 }
                 
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 8, weight: .bold))
-                    .foregroundColor(Color.secondary.opacity(0.5))
+                if !breadcrumbs.isEmpty {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 8, weight: .bold))
+                        .foregroundColor(Color(white: 0.35))
+                }
                 
                 Text(macro.fileName.replacingOccurrences(of: ".shortking", with: ""))
                     .font(.system(size: 10.5, weight: .semibold))
-                    .foregroundColor(Color.accentColor)
+                    .foregroundColor(Color(white: 0.75))
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 4)
