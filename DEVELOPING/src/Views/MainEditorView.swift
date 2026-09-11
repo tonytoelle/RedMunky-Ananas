@@ -480,7 +480,6 @@ struct MacroInspectorView: View {
                 actionSelectionDrawer
             }
         }
-        }
         .padding(.horizontal, 4)
         .padding(.vertical, 4)
     }
