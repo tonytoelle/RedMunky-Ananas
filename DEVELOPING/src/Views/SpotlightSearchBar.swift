@@ -203,14 +203,14 @@ struct SpotlightSearchBar: View {
                 }
             }
             .padding(.horizontal, 14)
-            .padding(.vertical, 10)
+            .padding(.vertical, 8)
             .background(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(Color.white.opacity(isFocused ? 0.08 : 0.05))
+                Capsule()
+                    .fill(Color(red: 0.08, green: 0.08, blue: 0.09))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .stroke(isFocused ? Color.accentColor.opacity(0.5) : Color.white.opacity(0.1), lineWidth: 1)
+                Capsule()
+                    .stroke(isFocused ? Color.accentColor.opacity(0.6) : Color.white.opacity(0.18), lineWidth: 1)
             )
 
             if !query.isEmpty {

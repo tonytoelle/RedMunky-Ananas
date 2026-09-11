@@ -480,14 +480,9 @@ struct MacroInspectorView: View {
                 actionSelectionDrawer
             }
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
-        .background(Color(white: 0.18))
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .stroke(Color.white.opacity(0.06), lineWidth: 1)
-        )
+        }
+        .padding(.horizontal, 4)
+        .padding(.vertical, 4)
     }
 
     private func insertAction(typeName: String, targetIndex: Int, isAlternate: Bool) {
