@@ -1408,27 +1408,31 @@ struct SidebarNodeView: View {
                             .multilineTextAlignment(.leading)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .fixedSize(horizontal: false, vertical: true)
+                            .padding(.top, 3)
                     }
                     
                     Spacer(minLength: 45)
                     
-                    if !isFolderEffectivelyEnabled {
-                        Text("Off")
-                            .font(.system(size: 8.5, weight: .bold))
-                            .foregroundColor(.secondary)
-                            .padding(.horizontal, 4)
-                            .padding(.vertical, 1)
-                            .background(Color.white.opacity(0.08))
-                            .clipShape(RoundedRectangle(cornerRadius: 3))
+                    HStack(spacing: 6) {
+                        if !isFolderEffectivelyEnabled {
+                            Text("Off")
+                                .font(.system(size: 8.5, weight: .bold))
+                                .foregroundColor(.secondary)
+                                .padding(.horizontal, 4)
+                                .padding(.vertical, 1)
+                                .background(Color.white.opacity(0.08))
+                                .clipShape(RoundedRectangle(cornerRadius: 3))
+                        }
+                        
+                        Text("\(children.count)")
+                            .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                            .foregroundColor(isSelected ? Color.accentColor : (isFolderEffectivelyEnabled ? Color(white: 0.55) : Color(white: 0.35)))
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(isSelected ? Color.accentColor.opacity(0.12) : Color.white.opacity(0.06))
+                            .clipShape(Capsule())
                     }
-                    
-                    Text("\(children.count)")
-                        .font(.system(size: 10, weight: .semibold, design: .monospaced))
-                        .foregroundColor(isSelected ? Color.accentColor : (isFolderEffectivelyEnabled ? Color(white: 0.55) : Color(white: 0.35)))
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(isSelected ? Color.accentColor.opacity(0.12) : Color.white.opacity(0.06))
-                        .clipShape(Capsule())
+                    .padding(.top, 3)
                 }
                 .padding(.vertical, 4)
                 .opacity(isFolderEffectivelyEnabled ? 1.0 : 0.55)
@@ -1567,6 +1571,7 @@ struct SidebarNodeView: View {
                             .multilineTextAlignment(.leading)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .fixedSize(horizontal: false, vertical: true)
+                            .padding(.top, 3)
                         
                         if isSearching {
                             let breadcrumbs = getBreadcrumbPath(for: macro.fileURL, rootURL: store.watchDirectoryURL)
@@ -1586,18 +1591,21 @@ struct SidebarNodeView: View {
 
                 Spacer(minLength: 45)
 
-                if !isMacroEffectivelyEnabled {
-                    Text("Off")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundColor(.secondary)
-                        .padding(.horizontal, 4)
-                        .padding(.vertical, 1)
-                        .background(Color.white.opacity(0.08))
-                        .clipShape(RoundedRectangle(cornerRadius: 3))
-                }
+                HStack(spacing: 6) {
+                    if !isMacroEffectivelyEnabled {
+                        Text("Off")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundColor(.secondary)
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 1)
+                            .background(Color.white.opacity(0.08))
+                            .clipShape(RoundedRectangle(cornerRadius: 3))
+                    }
 
-                ShortcutBadgeView(trigger: macro.trigger, isDimmedMini: true, isSelected: isSelected)
-                    .opacity(isSelected ? 0.6 : (isMacroEffectivelyEnabled ? 1.0 : 0.35))
+                    ShortcutBadgeView(trigger: macro.trigger, isDimmedMini: true, isSelected: isSelected)
+                        .opacity(isSelected ? 0.6 : (isMacroEffectivelyEnabled ? 1.0 : 0.35))
+                }
+                .padding(.top, 3)
             }
             .padding(.vertical, 4)
             .contentShape(Rectangle())
