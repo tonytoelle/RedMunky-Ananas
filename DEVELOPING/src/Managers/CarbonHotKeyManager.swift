@@ -15,6 +15,7 @@ class CarbonHotKeyManager {
     private var isHandlerInstalled = false
     private var currentID: UInt32 = 100
     private var emergencyRef: EventHotKeyRef?
+    private var emergencyRef2: EventHotKeyRef?
     private let lock = NSLock()
 
     func installHandlerIfNeeded() {
@@ -28,9 +29,12 @@ class CarbonHotKeyManager {
     }
 
     func registerEmergencyKillSwitch() {
-        let eID = EventHotKeyID(signature: OSType(0x4B494C4C), id: 9999)
-        RegisterEventHotKey(7, UInt32(cmdKey | shiftKey | controlKey), eID, GetApplicationEventTarget(), 0, &emergencyRef)
-        print("🛑 [Emergency] Cmd+Ctrl+Shift+X aktif")
+        let eID1 = EventHotKeyID(signature: OSType(0x4B494C4C), id: 9999)
+        RegisterEventHotKey(7, UInt32(cmdKey | shiftKey | controlKey), eID1, GetApplicationEventTarget(), 0, &emergencyRef)
+
+        let eID2 = EventHotKeyID(signature: OSType(0x4B494C4C), id: 9998)
+        RegisterEventHotKey(7, UInt32(cmdKey | shiftKey), eID2, GetApplicationEventTarget(), 0, &emergencyRef2)
+        print("🛑 [Emergency] Cmd+Shift+X & Cmd+Ctrl+Shift+X aktif")
     }
 
     func unregisterAll() {
@@ -104,7 +108,7 @@ class CarbonHotKeyManager {
     }
 
     func dispatch(hotKeyID: UInt32) {
-        if hotKeyID == 9999 {
+        if hotKeyID == 9999 || hotKeyID == 9998 {
             print("🚨 EMERGENCY KILL")
             MacroRuntime.shared.emergencyStop()
             NSSound.beep()

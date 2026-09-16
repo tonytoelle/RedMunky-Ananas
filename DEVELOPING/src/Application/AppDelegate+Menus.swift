@@ -84,7 +84,7 @@ extension AppDelegate {
         menu.addTargetedItem(title: "Create New Macro", action: #selector(newMacro), keyEquivalent: "n", target: self)
         menu.addItem(.separator())
         let emergency = menu.addTargetedItem(title: "🛑 Emergency Stop Engine", action: #selector(emergencyKill), keyEquivalent: "x", target: self)
-        emergency.keyEquivalentModifierMask = [.command, .control, .shift]
+        emergency.keyEquivalentModifierMask = [.command, .shift]
         root.submenu = menu
         return root
     }
@@ -191,7 +191,7 @@ extension AppDelegate {
         statusMenu.addTargetedItem(title: "Open Macros Folder", action: #selector(openFolder), keyEquivalent: "o", target: self)
         statusMenu.addTargetedItem(title: "Open Docs & Guides", action: #selector(openLearnFolder), target: self)
         statusMenu.addItem(.separator())
-        statusMenu.addTargetedItem(title: "🛑 Emergency Stop (⌘⌃⇧X)", action: #selector(emergencyKill), target: self)
+        statusMenu.addTargetedItem(title: "🛑 Emergency Stop (⌘⇧X)", action: #selector(emergencyKill), target: self)
         statusMenu.addItem(.separator())
         statusMenu.addTargetedItem(title: "About RedMunky Ananas", action: #selector(showAbout), target: self)
         statusMenu.addTargetedItem(title: "Quit RedMunky Ananas", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
