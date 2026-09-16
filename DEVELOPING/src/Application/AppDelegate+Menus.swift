@@ -15,14 +15,14 @@ extension AppDelegate {
 
     private func applicationMenuItem() -> NSMenuItem {
         let root = NSMenuItem()
-        let menu = NSMenu(title: "ShortKing")
+        let menu = NSMenu(title: "RedMunky Ananas")
 
-        menu.addTargetedItem(title: "About ShortKing", action: #selector(showAbout), target: self, symbol: "info.circle")
+        menu.addTargetedItem(title: "About RedMunky Ananas", action: #selector(showAbout), target: self, symbol: "info.circle")
         menu.addItem(.separator())
         menu.addTargetedItem(title: "Settings…", action: #selector(showSettingsWindow), keyEquivalent: ",", target: self, symbol: "gearshape")
         menu.addItem(.separator())
 
-        let relaunch = menu.addTargetedItem(title: "Relaunch ShortKing", action: #selector(relaunchApp), keyEquivalent: "r", target: self, symbol: "arrow.clockwise")
+        let relaunch = menu.addTargetedItem(title: "Relaunch RedMunky Ananas", action: #selector(relaunchApp), keyEquivalent: "r", target: self, symbol: "arrow.clockwise")
         relaunch.keyEquivalentModifierMask = [.command, .shift]
         menu.addItem(.separator())
 
@@ -33,12 +33,12 @@ extension AppDelegate {
         menu.addItem(servicesItem)
         menu.addItem(.separator())
 
-        menu.addTargetedItem(title: "Hide ShortKing", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h", symbol: "eye.slash")
+        menu.addTargetedItem(title: "Hide RedMunky Ananas", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h", symbol: "eye.slash")
         let hideOthers = menu.addTargetedItem(title: "Hide Others", action: #selector(NSApplication.hideOtherApplications(_:)), keyEquivalent: "h", symbol: "square.dashed")
         hideOthers.keyEquivalentModifierMask = [.command, .option]
         menu.addTargetedItem(title: "Show All", action: #selector(NSApplication.unhideAllApplications(_:)), symbol: "eye")
         menu.addItem(.separator())
-        menu.addTargetedItem(title: "Quit ShortKing", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q", symbol: "power")
+        menu.addTargetedItem(title: "Quit RedMunky Ananas", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q", symbol: "power")
 
         root.submenu = menu
         return root
@@ -124,8 +124,8 @@ extension AppDelegate {
     private func helpMenuItem() -> NSMenuItem {
         let root = NSMenuItem()
         let menu = NSMenu(title: "Help")
-        menu.addTargetedItem(title: "ShortKing Documentation", action: #selector(openLearnFolder), keyEquivalent: "?", target: self)
-        menu.addTargetedItem(title: "About ShortKing", action: #selector(showAbout), target: self)
+        menu.addTargetedItem(title: "RedMunky Ananas Documentation", action: #selector(openLearnFolder), keyEquivalent: "?", target: self)
+        menu.addTargetedItem(title: "About RedMunky Ananas", action: #selector(showAbout), target: self)
         root.submenu = menu
         return root
     }
@@ -142,7 +142,7 @@ extension AppDelegate {
     func updateMenuBarIcon() {
         let isSuspended = MacroStore.shared.isSuspended
         let symbolName = isSuspended ? "pause.circle.fill" : "crown.fill"
-        let description = isSuspended ? "ShortKing Suspended" : "ShortKing Active"
+        let description = isSuspended ? "RedMunky Ananas Suspended" : "RedMunky Ananas Active"
 
         if let image = NSImage(systemSymbolName: symbolName, accessibilityDescription: description)?.withSymbolConfiguration(
             NSImage.SymbolConfiguration(pointSize: 14, weight: .semibold)
@@ -193,8 +193,8 @@ extension AppDelegate {
         statusMenu.addItem(.separator())
         statusMenu.addTargetedItem(title: "🛑 Emergency Stop (⌘⌃⇧X)", action: #selector(emergencyKill), target: self)
         statusMenu.addItem(.separator())
-        statusMenu.addTargetedItem(title: "About ShortKing", action: #selector(showAbout), target: self)
-        statusMenu.addTargetedItem(title: "Quit ShortKing", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        statusMenu.addTargetedItem(title: "About RedMunky Ananas", action: #selector(showAbout), target: self)
+        statusMenu.addTargetedItem(title: "Quit RedMunky Ananas", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
     }
 
     func applicationDockMenu(_ sender: NSApplication) -> NSMenu? {
@@ -211,7 +211,7 @@ extension AppDelegate {
         }
 
         menu.addItem(.separator())
-        menu.addTargetedItem(title: "ShortKing Macro Editor", action: #selector(showEditorWindow), target: self)
+        menu.addTargetedItem(title: "RedMunky Ananas Macro Editor", action: #selector(showEditorWindow), target: self)
         return menu
     }
 }

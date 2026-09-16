@@ -95,7 +95,7 @@ extension AppDelegate {
 
     @objc func showAbout() {
         let alert = NSAlert()
-        alert.messageText = "👑 ShortKing"
+        alert.messageText = "👑 RedMunky Ananas"
         alert.informativeText = "Compact & High-Performance macOS Macro Automation Engine\nPowered by Carbon HotKey & Quartz Event Simulation.\n\nEmergency Stop: ⌘⌃⇧X"
         alert.alertStyle = .informational
         alert.addButton(withTitle: "OK")

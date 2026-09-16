@@ -68,7 +68,7 @@ class MacroItem: Identifiable, ObservableObject {
         }
         
         // 2. Check file name score
-        let cleanFileName = fileName.replacingOccurrences(of: ".shortking", with: "").lowercased()
+        let cleanFileName = fileName.replacingOccurrences(of: ".nanas", with: "").lowercased()
         if cleanFileName == q {
             bestScore = min(bestScore, 0)
         } else if cleanFileName.hasPrefix(q) {

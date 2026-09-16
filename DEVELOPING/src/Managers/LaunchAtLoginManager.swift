@@ -13,10 +13,10 @@ class LaunchAtLoginManager: ObservableObject {
     @Published var isEnabled: Bool = false
 
     private var isUpdating: Bool = false
-    private let launchAgentLabel = "com.redmunky.shortking"
+    private let launchAgentLabel = "com.redmunky.ananas"
     private var launchAgentURL: URL {
         let home = FileManager.default.homeDirectoryForCurrentUser
-        return home.appendingPathComponent("Library/LaunchAgents/com.redmunky.shortking.plist")
+        return home.appendingPathComponent("Library/LaunchAgents/com.redmunky.ananas.plist")
     }
 
     init() {

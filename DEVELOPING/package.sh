@@ -4,7 +4,7 @@ set -e
 # Dapatkan path direktori DEVELOPING dan ROOT project
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(dirname "$DIR")"
-APP_NAME="ShortKing"
+APP_NAME="RedMunky Ananas"
 DMG_NAME="$APP_NAME"
 OUTPUT_DIR="$ROOT_DIR/output"
 TEMP_DIR="$DIR/bin/dmg_temp"

@@ -21,7 +21,7 @@ enum FileSystemNode: Identifiable {
     var name: String {
         switch self {
         case .folder(let name, _, _, _): return name
-        case .macro(let item): return item.fileName.replacingOccurrences(of: ".shortking", with: "")
+        case .macro(let item): return item.fileName.replacingOccurrences(of: ".nanas", with: "")
         }
     }
 

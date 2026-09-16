@@ -1,7 +1,7 @@
-# ShortKing Project Rules
+# RedMunky Ananas Project Rules
 
 ## Project Overview
-ShortKing is a native macOS menu-bar app for creating and executing keyboard/mouse macro shortcuts using `.shortking` files. Built with pure Swift + SwiftUI + AppKit (no Xcode project, compiled directly via `swiftc`).
+RedMunky Ananas is a native macOS menu-bar app for creating and executing keyboard/mouse macro shortcuts using `.nanas` files. Built with pure Swift + SwiftUI + AppKit (no Xcode project, compiled directly via `swiftc`).
 
 ## Tech Stack
 - Language: Swift (SwiftUI + AppKit + Carbon for global hotkeys)
@@ -19,7 +19,7 @@ src/
 │   └── FileSystemNode.swift (52 lines)  — FileSystemNode enum for sidebar
 ├── Managers/
 │   ├── MacroStore.swift    (751 lines)  — State management, file watching, macro CRUD
-│   ├── ShortKingParser.swift(370 lines) — .shortking file parser
+│   ├── AnanasParser.swift  (370 lines) — .nanas file parser
 │   ├── InputSimulator.swift(401 lines)  — Mouse/keyboard event simulation
 │   ├── CarbonHotKeyManager.swift(100 lines) — Global OS hotkey registration
 │   ├── PermissionManager.swift(110 lines)   — Accessibility permission checks
@@ -45,7 +45,7 @@ src/
 
 ## Auto Compile & Relaunch App After Coding Changes
 Every time swift code changes or modifications are completed:
-1. Compile the app using `./DEVELOPING/build.sh` which automatically kills the active instance and opens the newly built `ShortKing.app`.
+1. Compile the app using `./DEVELOPING/build.sh` which automatically kills the active instance and opens the newly built `RedMunky Ananas.app`.
 2. Follow up immediately with the Auto Git Sync.
 
 ## Auto Git Sync After Coding Changes

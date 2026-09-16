@@ -302,7 +302,7 @@ class MacroStore: ObservableObject {
     init() {
         let fileManager = FileManager.default
         let documentsURL = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first!
-        let defaultPathURL = documentsURL.appendingPathComponent("ShortKing")
+        let defaultPathURL = documentsURL.appendingPathComponent("RedMunky Ananas")
         let defaultPath = defaultPathURL.path
 
         if !fileManager.fileExists(atPath: defaultPath) {
@@ -318,7 +318,7 @@ class MacroStore: ObservableObject {
         }
 
         var savedPath = UserDefaults.standard.string(forKey: "watchDirectoryPath") ?? defaultPath
-        if savedPath == "/Users/tonytoelle/Documents/PROJECTS/RedMunky - ShortKing/INPUT/ShortKing Documents" || !fileManager.fileExists(atPath: savedPath) {
+        if savedPath.contains("ShortKing") || !fileManager.fileExists(atPath: savedPath) {
             savedPath = defaultPath
             UserDefaults.standard.set(savedPath, forKey: "watchDirectoryPath")
             UserDefaults.standard.synchronize()
@@ -454,8 +454,8 @@ class MacroStore: ObservableObject {
                 }
                 let children = scanDirectory(at: item, loadedMacros: &loadedMacros, existingMacrosMap: existingMacrosMap, parentConfig: effectiveFolderConfig)
                 nodes.append(.folder(name: item.lastPathComponent, url: item, config: config, children: children))
-            } else if item.pathExtension.lowercased() == "shortking" {
-                if let parsed = ShortKingParser.parseFile(at: item) {
+            } else if item.pathExtension.lowercased() == "nanas" {
+                if let parsed = AnanasParser.parseFile(at: item) {
                     let macro: MacroItem
                     if let existing = existingMacrosMap[item.path] {
                         existing.fileName = parsed.fileName
@@ -693,7 +693,7 @@ class MacroStore: ObservableObject {
         self.lastInternalSaveTime = Date()
         
         DispatchQueue.global(qos: .utility).async {
-            let content = ShortKingParser.generateScript(triggers: triggers, actionItems: actionItems, isEnabled: isEnabled)
+            let content = AnanasParser.generateScript(triggers: triggers, actionItems: actionItems, isEnabled: isEnabled)
             try? content.write(to: fileURL, atomically: true, encoding: .utf8)
             
             DispatchQueue.main.async {
@@ -728,10 +728,10 @@ class MacroStore: ObservableObject {
 
     func renameMacro(_ macro: MacroItem, newBaseName: String) {
         let cleanName = newBaseName.trimmingCharacters(in: .whitespacesAndNewlines)
-                                   .replacingOccurrences(of: ".shortking", with: "")
+                                   .replacingOccurrences(of: ".nanas", with: "")
         guard !cleanName.isEmpty else { return }
         
-        let newFileName = cleanName + ".shortking"
+        let newFileName = cleanName + ".nanas"
         let oldURL = macro.fileURL
         let parentDir = oldURL.deletingLastPathComponent()
         let newURL = parentDir.appendingPathComponent(newFileName)
@@ -742,7 +742,7 @@ class MacroStore: ObservableObject {
             if FileManager.default.fileExists(atPath: oldURL.path) {
                 try FileManager.default.moveItem(at: oldURL, to: newURL)
             } else {
-                let content = ShortKingParser.generateScript(triggers: macro.triggers, actions: macro.actions)
+                let content = AnanasParser.generateScript(triggers: macro.triggers, actionItems: macro.actionItems, isEnabled: macro.isEnabled)
                 try content.write(to: newURL, atomically: true, encoding: .utf8)
             }
             macro.fileURL = newURL
@@ -854,11 +854,11 @@ class MacroStore: ObservableObject {
         }
         
         var count = 1
-        var fileName = "Macro \(count).shortking"
+        var fileName = "Macro \(count).nanas"
         var url = targetDir.appendingPathComponent(fileName)
         while FileManager.default.fileExists(atPath: url.path) {
             count += 1
-            fileName = "Macro \(count).shortking"
+            fileName = "Macro \(count).nanas"
             url = targetDir.appendingPathComponent(fileName)
         }
         
@@ -866,17 +866,17 @@ class MacroStore: ObservableObject {
         self.selectedFolderPath = nil
         self.focusedPane = .right
         let t = Trigger(keyCode: 40, requireCmd: true, requireShift: true, requireOption: false, requireControl: false)
-        let a: [MacroAction] = []
-        try? ShortKingParser.generateScript(triggers: [t], actions: a).write(to: url, atomically: true, encoding: .utf8)
+        let a: [MacroActionItem] = []
+        try? AnanasParser.generateScript(triggers: [t], actionItems: a, isEnabled: true).write(to: url, atomically: true, encoding: .utf8)
         loadMacros()
     }
 
     func renameMacro(_ macro: MacroItem, newName: String) {
         let clean = newName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !clean.isEmpty else { return }
-        let baseName = clean.hasSuffix(".shortking") ? String(clean.dropLast(10)) : clean
+        let baseName = clean.hasSuffix(".nanas") ? String(clean.dropLast(6)) : clean
         let parentDir = macro.fileURL.deletingLastPathComponent()
-        let newURL = parentDir.appendingPathComponent("\(baseName).shortking")
+        let newURL = parentDir.appendingPathComponent("\(baseName).nanas")
         guard newURL != macro.fileURL else { return }
         
         do {
@@ -891,14 +891,14 @@ class MacroStore: ObservableObject {
     }
 
     func duplicateMacro(_ macro: MacroItem) {
-        let baseName = macro.fileName.replacingOccurrences(of: ".shortking", with: "")
+        let baseName = macro.fileName.replacingOccurrences(of: ".nanas", with: "")
         let parentDir = macro.fileURL.deletingLastPathComponent()
         var newName = "\(baseName) copy"
-        var newURL = parentDir.appendingPathComponent("\(newName).shortking")
+        var newURL = parentDir.appendingPathComponent("\(newName).nanas")
         var copyIndex = 2
         while FileManager.default.fileExists(atPath: newURL.path) {
             newName = "\(baseName) copy \(copyIndex)"
-            newURL = parentDir.appendingPathComponent("\(newName).shortking")
+            newURL = parentDir.appendingPathComponent("\(newName).nanas")
             copyIndex += 1
         }
         
@@ -1030,11 +1030,11 @@ class MacroStore: ObservableObject {
         guard let copiedURL = copiedMacroURL else { return }
         let baseName = copiedURL.deletingPathExtension().lastPathComponent
         var newName = "\(baseName) copy"
-        var newURL = destDir.appendingPathComponent("\(newName).shortking")
+        var newURL = destDir.appendingPathComponent("\(newName).nanas")
         var copyIndex = 2
         while FileManager.default.fileExists(atPath: newURL.path) {
             newName = "\(baseName) copy \(copyIndex)"
-            newURL = destDir.appendingPathComponent("\(newName).shortking")
+            newURL = destDir.appendingPathComponent("\(newName).nanas")
             copyIndex += 1
         }
         
@@ -1071,7 +1071,7 @@ class MacroStore: ObservableObject {
     }
     
     private func selectPath(_ path: String) {
-        if path.hasSuffix(".shortking") {
+        if path.hasSuffix(".nanas") {
             selectedFilePath = path
             selectedFolderPath = nil
         } else {
@@ -1245,7 +1245,7 @@ class MacroStore: ObservableObject {
         case "Drag": newAction = .drag(start: .zero, end: .zero)
         case "Move Cursor": newAction = .moveCursor(point: .zero)
         case "Delay": newAction = .delay(ms: 300)
-        case "Text": newAction = .typeText(text: "Hello ShortKing")
+        case "Text": newAction = .typeText(text: "Hello RedMunky Ananas")
         case "Key": newAction = .pressKey(keyCode: 36)
         case "Do Again": newAction = .doAgain(target: .origin)
         case "Group": newAction = .group(name: "New Group", actions: [])

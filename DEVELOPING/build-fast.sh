@@ -3,7 +3,7 @@ set -euo pipefail
 
 BUILD_START=$(date +%s)
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-APP_NAME="ShortKing"
+APP_NAME="RedMunky Ananas"
 APP_BUNDLE="$DIR/bin/$APP_NAME.app"
 MACOS_DIR="$APP_BUNDLE/Contents/MacOS"
 RESOURCES_DIR="$APP_BUNDLE/Contents/Resources"

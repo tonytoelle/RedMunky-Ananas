@@ -12,7 +12,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable, Hashable {
     case permissions = "Permissions & Security"
     case engine = "Macro Engine"
     case appearance = "Appearance & Editor"
-    case about = "About ShortKing"
+    case about = "About RedMunky Ananas"
 
     var id: String { rawValue }
 
@@ -191,7 +191,7 @@ struct SettingsView: View {
             VStack(spacing: 0) {
                 toggleRow(
                     title: "Launch at Login (Buka Otomatis saat Startup)",
-                    subtitle: "Starts the ShortKing background macro engine automatically when your Mac turns on or you log in.",
+                    subtitle: "Starts the RedMunky Ananas background macro engine automatically when your Mac turns on or you log in.",
                     isOn: Binding(
                         get: { launchAtLogin.isEnabled },
                         set: { launchAtLogin.setEnabled($0) }
@@ -202,7 +202,7 @@ struct SettingsView: View {
 
                 toggleRow(
                     title: "Always on Top (Jendela Selalu di Atas)",
-                    subtitle: "Keeps the ShortKing Macro Editor floating on top of all other application windows.",
+                    subtitle: "Keeps the RedMunky Ananas Macro Editor floating on top of all other application windows.",
                     isOn: Binding(
                         get: { alwaysOnTop },
                         set: {
@@ -219,7 +219,7 @@ struct SettingsView: View {
             VStack(spacing: 0) {
                 toggleRow(
                     title: "Show in macOS Menu Bar (Status Bar Item)",
-                    subtitle: "Displays the 👑 ShortKing status icon in the top macOS menu bar for rapid macro triggers.",
+                    subtitle: "Displays the 👑 RedMunky Ananas status icon in the top macOS menu bar for rapid macro triggers.",
                     isOn: Binding(
                         get: { showInMenuBar },
                         set: {
@@ -233,7 +233,7 @@ struct SettingsView: View {
 
                 toggleRow(
                     title: "Show in macOS Dock",
-                    subtitle: "Displays ShortKing in your macOS Dock. Turn off if you prefer running purely in the Menu Bar.",
+                    subtitle: "Displays RedMunky Ananas in your macOS Dock. Turn off if you prefer running purely in the Menu Bar.",
                     isOn: Binding(
                         get: { showInDock },
                         set: {
@@ -279,7 +279,7 @@ struct SettingsView: View {
         // Macro Watch Directory Card
         settingsCard(title: "Macro Watch Directory (Penyimpanan Dokumen)", icon: "folder.fill", iconColor: Color(red: 0.15, green: 0.65, blue: 0.95)) {
             VStack(alignment: .leading, spacing: 12) {
-                Text("ShortKing monitors this folder in real-time. Any `.shortking` JSON macro file added or edited here will automatically sync.")
+                Text("RedMunky Ananas monitors this folder in real-time. Any `.nanas` JSON macro file added or edited here will automatically sync.")
                     .font(.system(size: 11.5))
                     .foregroundColor(Color(white: 0.65))
 
@@ -302,7 +302,7 @@ struct SettingsView: View {
                         panel.canChooseDirectories = true
                         panel.canChooseFiles = false
                         panel.allowsMultipleSelection = false
-                        panel.title = "Pilih Folder Makro ShortKing"
+                        panel.title = "Pilih Folder Makro RedMunky Ananas"
                         if panel.runModal() == .OK, let url = panel.url {
                             store.setWatchDirectory(url)
                         }
@@ -504,7 +504,7 @@ struct SettingsView: View {
         settingsCard(title: "Master Engine State (Status Mesin)", icon: "pause.circle.fill", iconColor: store.isSuspended ? .red : .green) {
             toggleRow(
                 title: "Suspend / Disable All Macros Temporarily",
-                subtitle: "Temporarily deactivates all global shortcut listeners and hotkeys without quitting ShortKing.",
+                subtitle: "Temporarily deactivates all global shortcut listeners and hotkeys without quitting RedMunky Ananas.",
                 isOn: Binding(
                     get: { store.isSuspended },
                     set: { store.isSuspended = $0 }
@@ -658,7 +658,7 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Macro File Format: .shortking (JSON)")
+                        Text("Macro File Format: .nanas (JSON)")
                             .font(.system(size: 13, weight: .medium))
                             .foregroundColor(.white)
                         Text("Standardized JSON structure compatible with Git version control and text editors.")
@@ -675,7 +675,7 @@ struct SettingsView: View {
     }
 
     // ═══════════════════════════════════════════════════
-    // 5. ABOUT SHORTKING PANE
+    // 5. ABOUT REDMUNKY ANANAS PANE
     // ═══════════════════════════════════════════════════
     @ViewBuilder
     private func renderAboutSettings() -> some View {
@@ -695,7 +695,7 @@ struct SettingsView: View {
                 }
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("ShortKing")
+                    Text("RedMunky Ananas")
                         .font(.system(size: 18, weight: .bold))
                         .foregroundColor(.white)
                     Text("Version 1.0 (macOS Native)")
@@ -715,7 +715,7 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 10) {
                     Button {
-                        let learnURL = URL(fileURLWithPath: "/Users/tonytoelle/Documents/PROJECTS/RedMunky - ShortKing/LEARN")
+                        let learnURL = URL(fileURLWithPath: "/Users/tonytoelle/Documents/PROJECTS/RedMunky Ananas/LEARN")
                         NSWorkspace.shared.open(learnURL)
                     } label: {
                         HStack(spacing: 5) {

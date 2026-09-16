@@ -1,5 +1,0 @@
-# ShortKing Macro Script
-TRIGGER: f12
-
-# Actions:
-ACTION: open_file "/Users/tonytoelle/Documents/PROJECTS/Pickerio/DEVELOPING/Pickerio.app"

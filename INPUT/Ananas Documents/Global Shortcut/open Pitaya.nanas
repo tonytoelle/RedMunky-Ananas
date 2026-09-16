@@ -1,0 +1,5 @@
+# ShortKing Macro Script
+TRIGGER: f12
+
+# Actions:
+ACTION: open_file "/Users/tonytoelle/Documents/PROJECTS/RedMunky Pitaya/DEVELOPING/XCODE CODEX ATTEMPT 02 VIERSION/build/Debug/RedMunky Pitaya.app"

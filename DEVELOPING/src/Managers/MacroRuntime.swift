@@ -8,7 +8,7 @@ final class MacroRuntime {
     static let shared = MacroRuntime()
 
     private let executionQueue = DispatchQueue(
-        label: "com.redmunky.shortking.macro-runtime",
+        label: "com.redmunky.ananas.macro-runtime",
         qos: .userInitiated
     )
 

@@ -4,7 +4,7 @@ BUILD_START=$(date +%s)
 
 # Dapatkan path direktori DEVELOPING
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-APP_NAME="ShortKing"
+APP_NAME="RedMunky Ananas"
 
 # Mode: --release untuk optimasi penuh (public build), default = dev (cepat)
 if [[ "$1" == "--release" ]]; then
@@ -93,7 +93,7 @@ rm -f temp_icon_1024.png
 
 echo "🔨 Menyalin dokumen default ke dalam Resources..."
 mkdir -p "$RESOURCES_DIR/DefaultDocuments"
-cp -R "$DIR/../INPUT/ShortKing Documents/" "$RESOURCES_DIR/DefaultDocuments/"
+cp -R "$DIR/../INPUT/Ananas Documents/" "$RESOURCES_DIR/DefaultDocuments/"
 
 
 echo "🔨 Menggabungkan file Swift untuk kompilasi super cepat..."
@@ -117,7 +117,7 @@ cat <<EOF > "$APP_BUNDLE/Contents/Info.plist"
     <key>CFBundleExecutable</key>
     <string>$APP_NAME</string>
     <key>CFBundleIdentifier</key>
-    <string>com.redmunky.shortking</string>
+    <string>com.redmunky.ananas</string>
     <key>CFBundleName</key>
     <string>$APP_NAME</string>
     <key>CFBundleDisplayName</key>
@@ -140,10 +140,10 @@ cat <<EOF > "$APP_BUNDLE/Contents/Info.plist"
     <array>
         <dict>
             <key>CFBundleTypeName</key>
-            <string>ShortKing Macro Script</string>
+            <string>RedMunky Ananas Macro Script</string>
             <key>CFBundleTypeExtensions</key>
             <array>
-                <string>shortking</string>
+                <string>nanas</string>
             </array>
             <key>CFBundleTypeRole</key>
             <string>Editor</string>
@@ -151,7 +151,7 @@ cat <<EOF > "$APP_BUNDLE/Contents/Info.plist"
             <string>Owner</string>
             <key>LSItemContentTypes</key>
             <array>
-                <string>com.redmunky.shortking.script</string>
+                <string>com.redmunky.ananas.script</string>
             </array>
         </dict>
     </array>
@@ -159,19 +159,19 @@ cat <<EOF > "$APP_BUNDLE/Contents/Info.plist"
     <array>
         <dict>
             <key>UTTypeIdentifier</key>
-            <string>com.redmunky.shortking.script</string>
+            <string>com.redmunky.ananas.script</string>
             <key>UTTypeConformsTo</key>
             <array>
                 <string>public.data</string>
                 <string>public.content</string>
             </array>
             <key>UTTypeDescription</key>
-            <string>ShortKing Macro Script</string>
+            <string>RedMunky Ananas Macro Script</string>
             <key>UTTypeTagSpecification</key>
             <dict>
                 <key>public.filename-extension</key>
                 <array>
-                    <string>shortking</string>
+                    <string>nanas</string>
                 </array>
             </dict>
         </dict>

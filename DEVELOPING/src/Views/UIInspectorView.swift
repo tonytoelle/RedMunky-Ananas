@@ -88,7 +88,7 @@ struct UIInspectorView: View {
                 .font(.system(size: 14))
                 .foregroundColor(.yellow)
             
-            Text("Accessibility permission is required for ShortKing to inspect other apps & context menus.")
+            Text("Accessibility permission is required for RedMunky Ananas to inspect other apps & context menus.")
                 .font(.system(size: 11, weight: .medium))
                 .foregroundColor(.white)
             
@@ -767,12 +767,12 @@ struct UIInspectorView: View {
                         )
                 }
                 
-                // 2. ShortKing Macro Click Coordinate
+                // 2. RedMunky Ananas Macro Click Coordinate
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
                         Image(systemName: "crown.fill")
                             .foregroundColor(.yellow)
-                        Text("SHORTKING MACRO ACTION")
+                        Text("REDMUNKY ANANAS MACRO ACTION")
                             .font(.system(size: 11, weight: .bold))
                             .foregroundColor(.white.opacity(0.8))
                         Spacer()

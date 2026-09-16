@@ -55,21 +55,21 @@ struct MacroInspectorView: View {
         }
         .ignoresSafeArea(.container, edges: .top)
         .onAppear {
-            tempName = macro.fileName.replacingOccurrences(of: ".shortking", with: "")
+            tempName = macro.fileName.replacingOccurrences(of: ".nanas", with: "")
             isEditingName = false
         }
         .onChange(of: macro.id) { _, _ in
-            tempName = macro.fileName.replacingOccurrences(of: ".shortking", with: "")
+            tempName = macro.fileName.replacingOccurrences(of: ".nanas", with: "")
             isEditingName = false
             store.selectedActionIDs.removeAll()
             store.lastSelectedActionID = nil
         }
         .onChange(of: macro.fileURL) { _, _ in
-            tempName = macro.fileName.replacingOccurrences(of: ".shortking", with: "")
+            tempName = macro.fileName.replacingOccurrences(of: ".nanas", with: "")
             isEditingName = false
         }
         .onChange(of: macro.fileName) { _, newFileName in
-            tempName = newFileName.replacingOccurrences(of: ".shortking", with: "")
+            tempName = newFileName.replacingOccurrences(of: ".nanas", with: "")
             isEditingName = false
         }
     }
@@ -100,7 +100,7 @@ struct MacroInspectorView: View {
                         .foregroundColor(Color(white: 0.35))
                 }
                 
-                Text(macro.fileName.replacingOccurrences(of: ".shortking", with: ""))
+                Text(macro.fileName.replacingOccurrences(of: ".nanas", with: ""))
                     .font(.system(size: 10.5, weight: .semibold))
                     .foregroundColor(Color(white: 0.75))
             }
@@ -684,7 +684,7 @@ struct PermissionBannerView: View {
                     Text("Izin macOS Diperlukan (Accessibility Permission)")
                         .font(.system(size: 12, weight: .bold))
                         .foregroundColor(.primary)
-                    Text("ShortKing membutuhkan izin Aksesibilitas agar dapat mensimulasikan klik mouse, drag, dan shortcut keyboard.")
+                    Text("RedMunky Ananas membutuhkan izin Aksesibilitas agar dapat mensimulasikan klik mouse, drag, dan shortcut keyboard.")
                         .font(.system(size: 11))
                         .foregroundColor(.secondary)
                 }
@@ -712,7 +712,7 @@ struct PermissionBannerView: View {
 }
 
 // ==========================================
-// MARK: - ShortKing Native Settings
+// MARK: - RedMunky Ananas Native Settings
 // ==========================================
 
 struct FolderInspectorView: View {
@@ -1547,7 +1547,7 @@ struct SidebarNodeView: View {
 
                 if store.editingFolderPath == macro.fileURL.path {
                     InlineRenameField(
-                        initialName: macro.fileName.replacingOccurrences(of: ".shortking", with: ""),
+                        initialName: macro.fileName.replacingOccurrences(of: ".nanas", with: ""),
                         onCommit: { newName in
                             store.renameMacro(macro, newName: newName)
                             store.editingFolderPath = nil
@@ -1558,7 +1558,7 @@ struct SidebarNodeView: View {
                     )
                 } else {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(macro.fileName.replacingOccurrences(of: ".shortking", with: "").toTitleCase().wrapWords(maxWordsPerLine: 3))
+                        Text(macro.fileName.replacingOccurrences(of: ".nanas", with: "").toTitleCase().wrapWords(maxWordsPerLine: 3))
                             .font(.system(size: 13, weight: isSelected ? .bold : .regular))
                             .foregroundColor(isSelected ? Color.accentColor : (isMacroEffectivelyEnabled ? Color(white: 0.90) : Color.secondary.opacity(0.55)))
                             .lineLimit(nil)
@@ -2102,7 +2102,7 @@ struct MainEditorView: View {
         }
         .onChange(of: selectedPaths) { _, newPaths in
             if let path = newPaths.first {
-                if path.hasSuffix(".shortking") {
+                if path.hasSuffix(".nanas") {
                     if store.selectedFilePath != path {
                         store.selectedFilePath = path
                         store.selectedFolderPath = nil
@@ -2179,7 +2179,7 @@ struct MainEditorView: View {
                         if let first = visible.first {
                             selectedPaths = [first]
                             lastClickedPath = first
-                            if first.hasSuffix(".shortking") {
+                            if first.hasSuffix(".nanas") {
                                 store.selectedFilePath = first
                                 store.selectedFolderPath = nil
                             } else {
@@ -2226,7 +2226,7 @@ struct MainEditorView: View {
                     } else {
                         let targetPath = store.selectedFolderPath ?? selectedPaths.first
                         if let path = targetPath {
-                            if !path.hasSuffix(".shortking") && expandedFolders.contains(path) {
+                            if !path.hasSuffix(".nanas") && expandedFolders.contains(path) {
                                 // Collapse open folder
                                 withAnimation(.easeInOut(duration: 0.15)) {
                                     _ = expandedFolders.remove(path)
@@ -2256,7 +2256,7 @@ struct MainEditorView: View {
                     }
                     if store.focusedPane == .left {
                         let targetPath = store.selectedFolderPath ?? selectedPaths.first
-                        if let path = targetPath, !path.hasSuffix(".shortking") {
+                        if let path = targetPath, !path.hasSuffix(".nanas") {
                             if !expandedFolders.contains(path) {
                                 // Expand closed folder
                                 withAnimation(.easeInOut(duration: 0.15)) {
@@ -2342,7 +2342,7 @@ struct MainEditorView: View {
                         return nil
                     } else if store.focusedPane == .left {
                         let targetPath = store.selectedFolderPath ?? selectedPaths.first
-                        if let path = targetPath, !path.hasSuffix(".shortking") {
+                        if let path = targetPath, !path.hasSuffix(".nanas") {
                             // Toggle folder expand/collapse on Enter
                             withAnimation(.easeInOut(duration: 0.15)) {
                                 if expandedFolders.contains(path) {

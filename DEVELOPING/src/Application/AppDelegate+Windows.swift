@@ -14,7 +14,7 @@ extension AppDelegate {
             )
             win.minSize = defaultSize
 
-            if !win.setFrameAutosaveName("ShortKingMainWindow") {
+            if !win.setFrameAutosaveName("RedMunkyAnanasMainWindow") {
                 win.setContentSize(defaultSize)
                 win.center()
             }
@@ -25,7 +25,7 @@ extension AppDelegate {
                 win.setFrame(frame, display: true)
             }
 
-            configureWindow(win, title: "👑 ShortKing — Macro Editor")
+            configureWindow(win, title: "👑 RedMunky Ananas — Macro Editor")
             win.isOpaque = true
             win.backgroundColor = NSColor(red: 0.11, green: 0.11, blue: 0.13, alpha: 1.0)
             win.contentViewController = NSHostingController(rootView: MainEditorView().preferredColorScheme(.dark))
@@ -45,7 +45,7 @@ extension AppDelegate {
                 defer: false
             )
             win.center()
-            configureWindow(win, title: "ShortKing Settings")
+            configureWindow(win, title: "RedMunky Ananas Settings")
             win.contentViewController = NSHostingController(rootView: SettingsView())
             settingsWindow = win
         }
@@ -64,7 +64,7 @@ extension AppDelegate {
                 defer: false
             )
             win.center()
-            configureWindow(win, title: "🔍 ShortKing — UI Element & Accessibility Inspector")
+            configureWindow(win, title: "🔍 RedMunky Ananas — UI Element & Accessibility Inspector")
             win.contentViewController = NSHostingController(rootView: UIInspectorView().preferredColorScheme(.dark))
             inspectorWindow = win
         }

@@ -7,7 +7,7 @@ import CoreImage
 import CoreImage.CIFilterBuiltins
 import ServiceManagement
 
-class ShortKingParser {
+class AnanasParser {
     static func parseTrigger(_ s: String) -> Trigger? {
         let parts = s.lowercased().split(separator: "+").map { $0.trimmingCharacters(in: .whitespaces) }
         var cmd = false, shift = false, opt = false, ctrl = false, key: String?
@@ -311,7 +311,7 @@ class ShortKingParser {
     }
 
     static func generateScript(triggers: [Trigger], actionItems: [MacroActionItem], isEnabled: Bool = true) -> String {
-        var lines = ["# ShortKing Macro Script"]
+        var lines = ["# RedMunky Ananas Macro Script"]
         if !isEnabled {
             lines.append("ENABLED: false")
         }

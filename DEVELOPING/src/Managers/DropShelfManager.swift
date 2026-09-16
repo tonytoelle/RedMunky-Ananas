@@ -154,7 +154,7 @@ class DropShelfManager: ObservableObject {
     func stageVirtualFolderForDrag(virtualFolderId: String) -> (stagingURL: URL, originalFiles: [String]) {
         let folderName = displayName(for: virtualFolderId)
         let sessionUUID = UUID().uuidString
-        let baseStagingDir = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("ShortKingTransit_\(sessionUUID)", isDirectory: true)
+        let baseStagingDir = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("RedMunkyAnanasTransit_\(sessionUUID)", isDirectory: true)
         let folderURL = baseStagingDir.appendingPathComponent(folderName, isDirectory: true)
         
         try? FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
