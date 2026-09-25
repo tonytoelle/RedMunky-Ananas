@@ -579,10 +579,12 @@ class MacroStore: ObservableObject {
             }
         }
         
-        // Helper to check if a macro is restricted to apps and matches the current active app
-        func getRestrictionStatus(for macro: MacroItem) -> (isRestricted: Bool, matchesActiveApp: Bool) {
+        let runningApps = NSWorkspace.shared.runningApplications
+
+        // Helper to check if a macro is restricted to apps and matches the current active or running app
+        func getRestrictionStatus(for macro: MacroItem) -> (isRestricted: Bool, matchesActiveApp: Bool, matchesRunningApp: Bool) {
             guard let cfg = macro.parentFolderConfig else {
-                return (false, false)
+                return (false, false, false)
             }
             
             // Check explicit restrictions
@@ -592,21 +594,36 @@ class MacroStore: ObservableObject {
             
             let isRestricted = hasExplicitApps || hasImplicitApp
             
-            var matches = false
+            var matchesActive = false
             if hasExplicitApps {
-                matches = cfg.targetApps.contains { target in
+                matchesActive = cfg.targetApps.contains { target in
                     target.bundleId == activeBundle || target.name.localizedCaseInsensitiveCompare(activeName) == .orderedSame
                 }
             }
-            
-            if !matches, let bundleId = cfg.customAppIconBundleId, !bundleId.isEmpty {
-                matches = (bundleId == activeBundle)
+            if !matchesActive, let bundleId = cfg.customAppIconBundleId, !bundleId.isEmpty {
+                matchesActive = (bundleId == activeBundle)
             }
             
-            return (isRestricted, matches)
+            var matchesRunning = false
+            if hasExplicitApps {
+                matchesRunning = cfg.targetApps.contains { target in
+                    runningApps.contains { app in
+                        if let b = app.bundleIdentifier, !b.isEmpty, b == target.bundleId { return true }
+                        if let n = app.localizedName, !n.isEmpty, n.localizedCaseInsensitiveCompare(target.name) == .orderedSame { return true }
+                        return false
+                    }
+                }
+            }
+            if !matchesRunning, let bundleId = cfg.customAppIconBundleId, !bundleId.isEmpty {
+                matchesRunning = runningApps.contains { app in
+                    app.bundleIdentifier == bundleId
+                }
+            }
+            
+            return (isRestricted, matchesActive, matchesRunning)
         }
         
-        // PASS 1: Register APP-SPECIFIC macros first (if target app matches current active app)
+        // PASS 1: Register APP-SPECIFIC macros first (if target app matches current ACTIVE app - HIGHEST PRIORITY)
         for macro in macros {
             guard macro.isEffectivelyEnabled else { continue }
             let status = getRestrictionStatus(for: macro)
@@ -616,7 +633,27 @@ class MacroStore: ObservableObject {
             }
         }
         
-        // PASS 2: Register GLOBAL macros only if key combo is not already taken by active app-specific macro
+        // PASS 2: Register APP-SPECIFIC macros for RUNNING apps (if target app is currently running - HIGH PRIORITY)
+        for macro in macros {
+            guard macro.isEffectivelyEnabled else { continue }
+            let status = getRestrictionStatus(for: macro)
+            
+            if status.isRestricted && status.matchesRunningApp {
+                registerTriggers(for: macro, trackCombo: true)
+            }
+        }
+
+        // PASS 3: Register any remaining APP-SPECIFIC folder macros
+        for macro in macros {
+            guard macro.isEffectivelyEnabled else { continue }
+            let status = getRestrictionStatus(for: macro)
+            
+            if status.isRestricted {
+                registerTriggers(for: macro, trackCombo: true)
+            }
+        }
+        
+        // PASS 4: Register GLOBAL macros only if key combo is not already claimed by an app folder macro
         for macro in macros {
             guard macro.isEffectivelyEnabled else { continue }
             let status = getRestrictionStatus(for: macro)
