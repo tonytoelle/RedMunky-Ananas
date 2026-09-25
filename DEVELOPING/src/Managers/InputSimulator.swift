@@ -27,6 +27,19 @@ class InputSimulator {
     static let source = CGEventSource(stateID: .hidSystemState)
     static var isEmergencyStopped = false
 
+    /// Deliver macro keyboard input to the active app, bypassing global hotkey routing.
+    /// Keep both halves on the same process even if key-down changes focus.
+    static func postKeyboardPair(down: CGEvent?, up: CGEvent?, interval: useconds_t) {
+        guard let down = down, let up = up,
+              let app = NSWorkspace.shared.frontmostApplication,
+              !app.isTerminated else { return }
+        let pid = app.processIdentifier
+        down.postToPid(pid)
+        usleep(interval)
+        // Always release the key, including when an emergency stop arrives after key-down.
+        up.postToPid(pid)
+    }
+
     /// Clears any lingering modifier keys from physical hotkey presses
     static func releaseModifiers() {
         let modifierKeys: [CGKeyCode] = [54, 55, 56, 57, 58, 59, 60, 61, 62] // Cmd, Shift, Caps, Opt, Ctrl, Right variants
@@ -278,9 +291,7 @@ class InputSimulator {
                         u?.flags = []
                         d?.keyboardSetUnicodeString(stringLength: 1, unicodeString: &ch)
                         u?.keyboardSetUnicodeString(stringLength: 1, unicodeString: &ch)
-                        d?.post(tap: .cghidEventTap)
-                        usleep(15000)
-                        u?.post(tap: .cghidEventTap)
+                        postKeyboardPair(down: d, up: u, interval: 15000)
                         usleep(15000)
                     }
 
@@ -297,9 +308,7 @@ class InputSimulator {
                     let u = CGEvent(keyboardEventSource: source, virtualKey: vKeyCode, keyDown: false)
                     d?.flags = .maskCommand
                     u?.flags = .maskCommand
-                    d?.post(tap: .cghidEventTap)
-                    usleep(25000)
-                    u?.post(tap: .cghidEventTap)
+                    postKeyboardPair(down: d, up: u, interval: 25000)
                     usleep(60000)
 
                     if let old = oldText {
@@ -316,9 +325,7 @@ class InputSimulator {
                     let u = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: false)
                     d?.flags = []
                     u?.flags = []
-                    d?.post(tap: .cghidEventTap)
-                    usleep(15000)
-                    u?.post(tap: .cghidEventTap)
+                    postKeyboardPair(down: d, up: u, interval: 15000)
                     usleep(15000)
 
                 case .pressShortcut(let trig):
@@ -331,8 +338,8 @@ class InputSimulator {
                     let d = CGEvent(keyboardEventSource: source, virtualKey: trig.keyCode, keyDown: true)
                     let u = CGEvent(keyboardEventSource: source, virtualKey: trig.keyCode, keyDown: false)
                     d?.flags = flags; u?.flags = flags
-                    d?.post(tap: .cghidEventTap); usleep(20000)
-                    u?.post(tap: .cghidEventTap); usleep(20000)
+                    postKeyboardPair(down: d, up: u, interval: 20000)
+                    usleep(20000)
 
                 case .doAgain(let target):
                     guard !isEmergencyStopped else { return }
