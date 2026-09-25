@@ -4,6 +4,7 @@
 
 EXCLUDED=(
   "com.apple.finder"
+  "com.redmunky.ananas"
   "com.redmunky.shortking"
   "com.redmunky.ogle.versib.v8"
 
@@ -30,8 +31,8 @@ while IFS= read -r bid; do
     # Jika Finder, tutup seluruh jendela Finder yang terbuka
     if [[ "$bid" == "com.apple.finder" ]]; then
       osascript -e 'tell application "Finder" to close every window' &
-    # Jika aplikasi exclude lainnya (selain ShortKing), sembunyikan aplikasinya
-    elif [[ "$bid" != "com.redmunky.shortking" ]]; then
+    # Jika aplikasi exclude lainnya (selain RedMunky Ananas), sembunyikan aplikasinya
+    elif [[ "$bid" != "com.redmunky.ananas" && "$bid" != "com.redmunky.shortking" ]]; then
       osascript -e "tell application \"System Events\" to set visible of every process whose bundle identifier is \"$bid\" to false" &
     fi
   else
