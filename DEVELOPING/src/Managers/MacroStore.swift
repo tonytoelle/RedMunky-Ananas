@@ -520,10 +520,14 @@ class MacroStore: ObservableObject {
         CarbonHotKeyManager.shared.unregisterAll()
         guard !isSuspended else { return }
         
+        if let front = NSWorkspace.shared.frontmostApplication {
+            self.activeAppBundle = front.bundleIdentifier ?? self.activeAppBundle
+            self.activeAppName = front.localizedName ?? self.activeAppName
+        }
         let activeBundle = self.activeAppBundle
         let activeName = self.activeAppName
         
-        // Track which key combos are already registered by global macros
+        // Track which key combos are already registered by active app-specific macros
         // Key: "\(keyCode)-\(modifiers)" to uniquely identify a hotkey combo
         var registeredKeyCombos = Set<String>()
         
@@ -579,12 +583,10 @@ class MacroStore: ObservableObject {
             }
         }
         
-        let runningApps = NSWorkspace.shared.runningApplications
-
-        // Helper to check if a macro is restricted to apps and matches the current active or running app
-        func getRestrictionStatus(for macro: MacroItem) -> (isRestricted: Bool, matchesActiveApp: Bool, matchesRunningApp: Bool) {
+        // Helper to check if a macro is restricted to apps and matches the current active app
+        func getRestrictionStatus(for macro: MacroItem) -> (isRestricted: Bool, matchesActiveApp: Bool) {
             guard let cfg = macro.parentFolderConfig else {
-                return (false, false, false)
+                return (false, false)
             }
             
             // Check explicit restrictions
@@ -593,37 +595,35 @@ class MacroStore: ObservableObject {
             let hasImplicitApp = cfg.customAppIconBundleId != nil && !cfg.customAppIconBundleId!.isEmpty
             
             let isRestricted = hasExplicitApps || hasImplicitApp
+            guard isRestricted else { return (false, false) }
             
             var matchesActive = false
             if hasExplicitApps {
                 matchesActive = cfg.targetApps.contains { target in
-                    target.bundleId == activeBundle || target.name.localizedCaseInsensitiveCompare(activeName) == .orderedSame
-                }
-            }
-            if !matchesActive, let bundleId = cfg.customAppIconBundleId, !bundleId.isEmpty {
-                matchesActive = (bundleId == activeBundle)
-            }
-            
-            var matchesRunning = false
-            if hasExplicitApps {
-                matchesRunning = cfg.targetApps.contains { target in
-                    runningApps.contains { app in
-                        if let b = app.bundleIdentifier, !b.isEmpty, b == target.bundleId { return true }
-                        if let n = app.localizedName, !n.isEmpty, n.localizedCaseInsensitiveCompare(target.name) == .orderedSame { return true }
-                        return false
+                    // Match by Bundle ID
+                    if !target.bundleId.isEmpty && !activeBundle.isEmpty {
+                        if target.bundleId.caseInsensitiveCompare(activeBundle) == .orderedSame { return true }
                     }
+                    // Match by App Name (exact or substring, e.g. "Papaya" in "RedMunky Papaya")
+                    if !target.name.isEmpty && !activeName.isEmpty {
+                        let tName = target.name.trimmingCharacters(in: .whitespaces).lowercased()
+                        let aName = activeName.trimmingCharacters(in: .whitespaces).lowercased()
+                        if tName == aName || aName.contains(tName) || tName.contains(aName) {
+                            return true
+                        }
+                    }
+                    return false
                 }
             }
-            if !matchesRunning, let bundleId = cfg.customAppIconBundleId, !bundleId.isEmpty {
-                matchesRunning = runningApps.contains { app in
-                    app.bundleIdentifier == bundleId
-                }
+            if !matchesActive, let bundleId = cfg.customAppIconBundleId, !bundleId.isEmpty, !activeBundle.isEmpty {
+                matchesActive = (bundleId.caseInsensitiveCompare(activeBundle) == .orderedSame)
             }
             
-            return (isRestricted, matchesActive, matchesRunning)
+            return (isRestricted, matchesActive)
         }
         
-        // PASS 1: Register APP-SPECIFIC macros first (if target app matches current ACTIVE app - HIGHEST PRIORITY)
+        // PASS 1: Register APP-SPECIFIC macros for the current ACTIVE app (HIGHEST PRIORITY)
+        // If an app folder has the same shortcut as a global macro, the app folder wins here!
         for macro in macros {
             guard macro.isEffectivelyEnabled else { continue }
             let status = getRestrictionStatus(for: macro)
@@ -633,27 +633,7 @@ class MacroStore: ObservableObject {
             }
         }
         
-        // PASS 2: Register APP-SPECIFIC macros for RUNNING apps (if target app is currently running - HIGH PRIORITY)
-        for macro in macros {
-            guard macro.isEffectivelyEnabled else { continue }
-            let status = getRestrictionStatus(for: macro)
-            
-            if status.isRestricted && status.matchesRunningApp {
-                registerTriggers(for: macro, trackCombo: true)
-            }
-        }
-
-        // PASS 3: Register any remaining APP-SPECIFIC folder macros
-        for macro in macros {
-            guard macro.isEffectivelyEnabled else { continue }
-            let status = getRestrictionStatus(for: macro)
-            
-            if status.isRestricted {
-                registerTriggers(for: macro, trackCombo: true)
-            }
-        }
-        
-        // PASS 4: Register GLOBAL macros only if key combo is not already claimed by an app folder macro
+        // PASS 2: Register GLOBAL macros only if key combo is not already claimed by the active app-specific macro
         for macro in macros {
             guard macro.isEffectivelyEnabled else { continue }
             let status = getRestrictionStatus(for: macro)
