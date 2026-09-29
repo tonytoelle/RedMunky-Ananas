@@ -405,8 +405,17 @@ class InputSimulator {
                     guard !isEmergencyStopped else { return }
                     print("💻 Executing custom action: \(script)")
                     let process = Process()
-                    process.executableURL = URL(fileURLWithPath: "/bin/zsh")
-                    process.arguments = ["-c", script]
+                    let expanded = (script as NSString).expandingTildeInPath
+                    var isDir: ObjCBool = false
+                    let isFile = FileManager.default.fileExists(atPath: expanded, isDirectory: &isDir) && !isDir.boolValue
+                    if isFile && FileManager.default.isExecutableFile(atPath: expanded) {
+                        // Direct file execution so paths with spaces work (zsh -c would word-split them)
+                        process.executableURL = URL(fileURLWithPath: expanded)
+                        process.arguments = []
+                    } else {
+                        process.executableURL = URL(fileURLWithPath: "/bin/zsh")
+                        process.arguments = ["-c", script]
+                    }
                     
                     let pipe = Pipe()
                     process.standardOutput = pipe
